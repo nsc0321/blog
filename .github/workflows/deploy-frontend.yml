@@ -24,14 +24,14 @@ jobs:
         run: |
           cd blog
           npm ci
-          echo "VITE_API_URL=https://angle-package-webmasters-are.trycloudflare.com" > .env.production
+          echo "VITE_API_URL=https://studies-columbus-broadband-contracts.trycloudflare.com" > .env.production
           npm run build
 
       - name: Install & Build Agent Web
         run: |
           cd agentWeb
           npm ci
-          echo "VITE_API_URL=https://angle-package-webmasters-are.trycloudflare.com" > .env.production
+          echo "VITE_API_URL=https://studies-columbus-broadband-contracts.trycloudflare.com" > .env.production
           npm run build
 
       - name: Combine Builds
