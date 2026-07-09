@@ -2242,7 +2242,7 @@ export default function VoiceAssistant() {
                   required
                   value={credForm.site_name}
                   onChange={(e) => setCredForm({ ...credForm, site_name: e.target.value })}
-                  placeholder="예: github, slack, jira (소문자 식별자 권장)"
+                  placeholder="예: github, naver_cookies, slack (소문자)"
                   style={{
                     width: '100%',
                     background: 'rgba(255,255,255,0.05)',
@@ -2259,13 +2259,31 @@ export default function VoiceAssistant() {
                 />
               </div>
 
+              {credForm.site_name.toLowerCase() === 'naver_cookies' && (
+                <div style={{
+                  padding: '8px 12px',
+                  background: 'rgba(56, 189, 248, 0.1)',
+                  border: '1px solid rgba(56, 189, 248, 0.2)',
+                  borderRadius: '8px',
+                  fontSize: '11px',
+                  color: '#38bdf8',
+                  lineHeight: '1.4'
+                }}>
+                  💡 <strong>네이버 쿠키 세션 주입 안내:</strong><br />
+                  네이버 보안 로그인(CAPTCHA) 우회를 위해 사용자 브라우저의 로그인 쿠키인 <code>NID_AUT</code>와 <code>NID_SES</code> 값을 아래 JSON 형태로 입력해 주세요:<br />
+                  <code style={{ background: 'rgba(0,0,0,0.3)', padding: '2px 4px', borderRadius: '4px', display: 'inline-block', marginTop: '4px' }}>
+                    {"{ \"NID_AUT\": \"...\", \"NID_SES\": \"...\" }"}
+                  </code>
+                </div>
+              )}
+
               <div>
                 <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: '4px' }}>접속 도메인 / 호스트 (Domain / Host - 선택사항)</span>
                 <input
                   type="text"
                   value={credForm.domain}
                   onChange={(e) => setCredForm({ ...credForm, domain: e.target.value })}
-                  placeholder="예: github.com, imap.naver.com:993 (메일 포트 포함 가능)"
+                  placeholder="예: github.com, imap.naver.com:993 (선택사항)"
                   style={{
                     width: '100%',
                     background: 'rgba(255,255,255,0.05)',
@@ -2312,7 +2330,7 @@ export default function VoiceAssistant() {
                   required={!selectedCredId}
                   value={credForm.secret_key}
                   onChange={(e) => setCredForm({ ...credForm, secret_key: e.target.value })}
-                  placeholder={selectedCredId ? "수정하지 않으려면 ******** 상태를 유지하세요" : "비밀번호 또는 API 토큰 입력"}
+                  placeholder={selectedCredId ? "수정하지 않으려면 ******** 상태를 유지하세요" : (credForm.site_name.toLowerCase() === 'naver_cookies' ? 'JSON: {"NID_AUT": "...", "NID_SES": "..."}' : "비밀번호 또는 API 토큰 입력")}
                   style={{
                     width: '100%',
                     background: 'rgba(255,255,255,0.05)',
@@ -2334,7 +2352,7 @@ export default function VoiceAssistant() {
                 <textarea
                   value={credForm.description}
                   onChange={(e) => setCredForm({ ...credForm, description: e.target.value })}
-                  placeholder="예: 에이전트의 블로그 자동 업로드를 위한 GitHub Access Token"
+                  placeholder={credForm.site_name.toLowerCase() === 'naver_cookies' ? "네이버 로그인 세션 쿠키 정보 (NID_AUT, NID_SES)" : "예: 에이전트의 블로그 자동 업로드를 위한 GitHub Access Token"}
                   style={{
                     width: '100%',
                     height: '60px',
