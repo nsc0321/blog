@@ -1189,6 +1189,8 @@ export default function VoiceAssistant() {
         className={`sidebar-control-center ${isSidebarOpen ? 'open' : ''}`} 
         style={{
           width: isSidebarOpen ? '260px' : '0px',
+          height: isSidebarOpen ? 'auto' : '0px',
+          maxHeight: isSidebarOpen ? 'none' : '0px',
           borderRight: isSidebarOpen ? '1px solid rgba(255, 255, 255, 0.1)' : 'none',
           paddingRight: isSidebarOpen ? '24px' : '0px',
           opacity: isSidebarOpen ? 1 : 0,
@@ -2049,7 +2051,8 @@ export default function VoiceAssistant() {
             flexDirection: 'column',
             gap: '16px',
             border: '1px solid rgba(255, 255, 255, 0.05)',
-            height: '100%'
+            height: '100%',
+            minWidth: '0px'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', paddingBottom: '12px' }}>
               <h3 style={{ fontSize: '16px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
@@ -2193,10 +2196,10 @@ export default function VoiceAssistant() {
 
                      <div style={{ display: 'grid', gridTemplateColumns: '85px 1fr', gap: '6px', fontSize: '12px', background: 'rgba(0, 0, 0, 0.15)', padding: '10px', borderRadius: '8px' }}>
                        <span style={{ color: 'rgba(255, 255, 255, 0.4)' }}>계정명 / ID:</span>
-                       <span style={{ color: '#fff', fontWeight: '500' }}>{c.username || '(계정명 없음)'}</span>
+                       <span style={{ color: '#fff', fontWeight: '500', wordBreak: 'break-all' }}>{c.username || '(계정명 없음)'}</span>
 
                        <span style={{ color: 'rgba(255, 255, 255, 0.4)' }}>비밀키 / 토큰:</span>
-                       <span style={{ fontFamily: 'monospace', color: '#38bdf8', letterSpacing: '0.05em' }}>{c.secret_key}</span>
+                       <span style={{ fontFamily: 'monospace', color: '#38bdf8', letterSpacing: '0.05em', wordBreak: 'break-all', whiteSpace: 'pre-wrap' }}>{c.secret_key}</span>
                      </div>
 
                      {c.description && (
@@ -2207,7 +2210,9 @@ export default function VoiceAssistant() {
                          padding: '8px 12px',
                          borderRadius: '6px',
                          borderLeft: '2px solid var(--accent-primary)',
-                         lineHeight: '1.4'
+                         lineHeight: '1.4',
+                         wordBreak: 'break-all',
+                         whiteSpace: 'pre-wrap'
                        }}>
                          {c.description}
                        </div>
