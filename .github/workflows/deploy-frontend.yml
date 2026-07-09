@@ -23,7 +23,7 @@ jobs:
       - name: Install & Build Agent Web
         run: |
           cd agentWeb
-          npm ci
+          npm install
           echo "VITE_API_URL=https://studies-columbus-broadband-contracts.trycloudflare.com" > .env.production
           npm run build
 
