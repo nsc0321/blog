@@ -9,15 +9,23 @@ export default function VoiceAssistant() {
   const [showAvatar, setShowAvatar] = useState(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('agent_show_avatar');
-      return saved === null ? true : saved === 'true';
+      return saved === null ? false : saved === 'true';
     }
-    return true;
+    return false;
   });
 
   const handleToggleAvatar = () => {
     setShowAvatar(prev => {
       const newVal = !prev;
       localStorage.setItem('agent_show_avatar', String(newVal));
+      return newVal;
+    });
+  };
+
+  const handleToggleTts = () => {
+    setTtsEnabled(prev => {
+      const newVal = !prev;
+      localStorage.setItem('agent_tts_enabled', String(newVal));
       return newVal;
     });
   };
@@ -111,7 +119,13 @@ export default function VoiceAssistant() {
   ]);
   const [logs, setLogs] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [ttsEnabled, setTtsEnabled] = useState(true);
+  const [ttsEnabled, setTtsEnabled] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('agent_tts_enabled');
+      return saved === null ? false : saved === 'true';
+    }
+    return false;
+  });
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [lang, setLang] = useState('ko-KR');
 
@@ -1470,7 +1484,7 @@ export default function VoiceAssistant() {
                 <option value="en-US" style={{ color: '#000' }}>English (US)</option>
               </select>
               <button 
-                onClick={() => setTtsEnabled(!ttsEnabled)} 
+                onClick={handleToggleTts} 
                 style={{
                   background: 'rgba(255, 255, 255, 0.1)',
                   border: 'none',
