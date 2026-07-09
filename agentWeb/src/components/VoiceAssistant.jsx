@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Mic, MicOff, Send, Volume2, VolumeX, Menu, X, ChevronLeft, ChevronRight, Key, Plus, Trash2, Edit2, Save, Link2, Lock, LogOut, User } from 'lucide-react';
+import AvatarCanvas from './AvatarCanvas';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -1472,9 +1473,35 @@ export default function VoiceAssistant() {
 
       {activeTab === 'agent' ? (
         <>
-          {/* Main Layout: Conversation only */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', height: '400px' }}>
+          {/* Main Layout: Split Avatar & Chat */}
+          <div style={{
+            display: 'flex',
+            flexDirection: 'row',
+            flexWrap: 'wrap',
+            gap: '20px',
+            alignItems: 'stretch',
+            justifyContent: 'center',
+            width: '100%',
+            minHeight: '420px',
+            flex: 1
+          }}>
             
+            {/* Avatar Column */}
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flex: '1 1 320px',
+              maxWidth: '360px'
+            }}>
+              <AvatarCanvas 
+                isSpeaking={isSpeaking} 
+                isListening={isListening} 
+                isLoading={isLoading} 
+              />
+            </div>
+
             {/* Chat / Messages Panel */}
             <div style={{
               background: 'rgba(0, 0, 0, 0.2)',
@@ -1484,7 +1511,8 @@ export default function VoiceAssistant() {
               flexDirection: 'column',
               justifyContent: 'space-between',
               border: '1px solid rgba(255, 255, 255, 0.05)',
-              height: '100%',
+              flex: '2 1 400px',
+              height: '420px',
               overflow: 'hidden'
             }}>
               <div style={{ overflowY: 'auto', flex: 1, paddingRight: '6px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
