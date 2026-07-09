@@ -18,7 +18,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Install & Build Agent Web
         run: |
@@ -31,7 +31,7 @@ jobs:
         run: |
           mkdir -p dist_combined
           # Copy agentWeb build directly to the root of the combined dist
-          cp -r agentWeb/dist/* dist_combined/
+          cp -a agentWeb/dist/. dist_combined/
           # Add custom 404 handler for SPA routing
           cp agentWeb/dist/index.html dist_combined/404.html
 
