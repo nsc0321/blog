@@ -1568,7 +1568,7 @@ export default function VoiceAssistant() {
                   }}>
                     <div>{m.content}</div>
                     {m.logs && m.logs.length > 0 && (
-                      <details open={true} style={{
+                      <details open={i === messages.length - 1 && isLoading} style={{
                         marginTop: '8px',
                         padding: '8px',
                         background: 'rgba(0, 0, 0, 0.25)',
