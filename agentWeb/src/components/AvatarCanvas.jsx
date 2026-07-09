@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { VRMLoaderPlugin } from '@pixiv/three-vrm';
-import { Upload, HelpCircle } from 'lucide-react';
+import { Upload } from 'lucide-react';
 
 export default function AvatarCanvas({ isSpeaking, isListening, isLoading }) {
   const canvasRef = useRef(null);
