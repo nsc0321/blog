@@ -13,10 +13,17 @@ export default function AvatarCanvas({ isSpeaking, isListening, isLoading }) {
   const [hasModel, setHasModel] = useState(false);
 
   // States refs to pass to render loops without retriggering useEffect
-  const stateRef = useRef({ isSpeaking, isListening, isLoading, mouseX: 0, mouseY: 0 });
+  const stateRef = useRef({ isSpeaking, isListening, isLoading, mouseX: 0, mouseY: 0, lastMouseActivity: Date.now() });
   
   useEffect(() => {
-    stateRef.current = { isSpeaking, isListening, isLoading, mouseX: stateRef.current.mouseX, mouseY: stateRef.current.mouseY };
+    stateRef.current = { 
+      isSpeaking, 
+      isListening, 
+      isLoading, 
+      mouseX: stateRef.current.mouseX, 
+      mouseY: stateRef.current.mouseY,
+      lastMouseActivity: stateRef.current.lastMouseActivity
+    };
   }, [isSpeaking, isListening, isLoading]);
 
   // Track mouse coordinates relative to canvas center
@@ -35,6 +42,7 @@ export default function AvatarCanvas({ isSpeaking, isListening, isLoading }) {
       // Clamp values and store
       stateRef.current.mouseX = Math.max(-1, Math.min(1, dx));
       stateRef.current.mouseY = Math.max(-1, Math.min(1, dy));
+      stateRef.current.lastMouseActivity = Date.now();
     };
 
     window.addEventListener('mousemove', handleMouseMove);
@@ -201,6 +209,15 @@ export default function AvatarCanvas({ isSpeaking, isListening, isLoading }) {
     let isBlinking = false;
     let blinkValue = 0;
 
+    // Autonomous AI-like gaze and nod variables
+    let targetLookX = 0;
+    let targetLookY = 0;
+    let currentLookX = 0;
+    let currentLookY = 0;
+    let lastLookChangeTime = 0;
+    let nodTimer = 0;
+    let isNodding = false;
+
     // 7. Render Loop
     const tick = () => {
       const delta = clock.getDelta();
@@ -262,19 +279,85 @@ export default function AvatarCanvas({ isSpeaking, isListening, isLoading }) {
           }
         }
 
-        // Head and Neck mouse cursor tracking
+        // Head and Neck mouse cursor tracking & Autonomous Gaze
         const head = currentVrm.humanoid?.getNormalizedBoneNode('head') || currentVrm.humanoid?.getBoneNode('head');
         const neck = currentVrm.humanoid?.getNormalizedBoneNode('neck') || currentVrm.humanoid?.getBoneNode('neck');
         
-        // Smooth cursor tracking target interpolation
         if (head && neck) {
-          // target bone rotation y (yaw) and x (pitch)
-          const targetY = -states.mouseX * 0.45; // reverse since vrm faces us
-          const targetX = states.mouseY * 0.25;
+          const now = Date.now();
+          const timeSinceMouse = now - states.lastMouseActivity;
 
-          head.rotation.y += (targetY - head.rotation.y) * 0.08;
-          head.rotation.x += (targetX - head.rotation.x) * 0.08;
-          neck.rotation.y = head.rotation.y * 0.2;
+          if (states.isListening) {
+            // Active Listening: look straight at the user
+            targetLookX = 0;
+            targetLookY = -0.15;
+            
+            // Listening nodding: periodically trigger brief nodding wave
+            nodTimer += delta;
+            if (nodTimer > 3.5) {
+              isNodding = true;
+              nodTimer = 0;
+            }
+          } else if (states.isLoading) {
+            // Thinking: look slightly up and away
+            targetLookX = 0.25;
+            targetLookY = -0.25;
+            isNodding = false;
+          } else if (states.isSpeaking) {
+            // Speaking: look around slightly while talking
+            targetLookX = Math.sin(elapsedTime * 1.2) * 0.15;
+            targetLookY = -0.1 + Math.cos(elapsedTime * 0.9) * 0.05;
+            isNodding = false;
+          } else {
+            // Idle state: check if mouse is active
+            isNodding = false;
+            if (timeSinceMouse < 4000) {
+              // Active mouse tracking
+              targetLookX = -states.mouseX * 0.45;
+              targetLookY = states.mouseY * 0.25;
+            } else {
+              // Autonomous gaze drift: choose new target every 5 seconds
+              if (now - lastLookChangeTime > 5000) {
+                targetLookX = (Math.random() - 0.5) * 0.4;
+                targetLookY = (Math.random() - 0.5) * 0.2 - 0.05;
+                lastLookChangeTime = now;
+              }
+            }
+          }
+
+          // Smoothly interpolate currentLook values towards targets
+          currentLookX += (targetLookX - currentLookX) * (states.isListening ? 0.12 : 0.04);
+          currentLookY += (targetLookY - currentLookY) * (states.isListening ? 0.12 : 0.04);
+
+          // Apply smooth look values to bones
+          head.rotation.y = currentLookX;
+          head.rotation.x = currentLookY;
+          neck.rotation.y = currentLookX * 0.2;
+
+          // Apply thinking head tilt
+          if (states.isLoading) {
+            head.rotation.z = 0.08;
+            neck.rotation.z = 0.04;
+          } else {
+            head.rotation.z = 0;
+            neck.rotation.z = 0;
+          }
+
+          // Apply nodding motion (Active Listening)
+          if (states.isListening && isNodding) {
+            const nodProgress = nodTimer / 1.2; // nod animation spans 1.2s
+            if (nodProgress < 1.0) {
+              const nodAngle = Math.sin(nodProgress * Math.PI * 4.0) * 0.06;
+              head.rotation.x += Math.max(0, nodAngle); // pitch down
+            } else {
+              isNodding = false;
+            }
+          }
+
+          // Apply speaking accent head bobs
+          if (states.isSpeaking) {
+            head.rotation.x += Math.sin(elapsedTime * 6.0) * 0.015;
+          }
         }
 
         // Automatic Eye Blink
@@ -411,15 +494,7 @@ export default function AvatarCanvas({ isSpeaking, isListening, isLoading }) {
         cursor: 'default'
       }}
     >
-      {/* Hologram Overlay Screen Effect */}
-      <div style={{
-        position: 'absolute',
-        top: 0, left: 0, right: 0, bottom: 0,
-        background: 'linear-gradient(rgba(18, 18, 37, 0) 50%, rgba(0, 0, 0, 0.15) 50%), linear-gradient(90deg, rgba(139, 92, 246, 0.02), rgba(6, 182, 212, 0.02))',
-        backgroundSize: '100% 4px, 4px 100%',
-        pointerEvents: 'none',
-        zIndex: 3
-      }} />
+
 
       {/* WebGL Canvas */}
       <canvas ref={canvasRef} style={{ width: '100%', height: '100%', display: 'block', zIndex: 1 }} />
