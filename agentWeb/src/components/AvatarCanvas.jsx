@@ -8,7 +8,7 @@ export default function AvatarCanvas({ isSpeaking, isListening, isLoading }) {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   const fileInputRef = useRef(null);
-  const [vrmUrl, setVrmUrl] = useState(null);
+  const [vrmUrl, setVrmUrl] = useState('RadDollV3_VRM.vrm');
   const [loadingModel, setLoadingModel] = useState(false);
   const [hasModel, setHasModel] = useState(false);
 
