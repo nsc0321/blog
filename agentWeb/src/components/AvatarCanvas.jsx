@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { VRMLoaderPlugin } from '@pixiv/three-vrm';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Upload } from 'lucide-react';
 
 export default function AvatarCanvas({ isSpeaking, isListening, isLoading }) {
@@ -74,7 +75,17 @@ export default function AvatarCanvas({ isSpeaking, isListening, isLoading }) {
     // 2. Scene & Camera Setup
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(30, width / height, 0.1, 20.0);
-    camera.position.set(0.0, 1.45, 1.5); // Focus on avatar head/shoulders
+    camera.position.set(0.0, 0.9, 2.3);
+
+    // 2.5. OrbitControls Setup
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.maxPolarAngle = Math.PI / 2 - 0.05; // don't go below ground
+    controls.minDistance = 0.4;
+    controls.maxDistance = 6.0;
+    controls.target.set(0.0, 0.85, 0.0);
+    controls.update();
 
     // 3. Lighting Setup
     const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
@@ -163,6 +174,12 @@ export default function AvatarCanvas({ isSpeaking, isListening, isLoading }) {
           const vrm = gltf.userData.vrm;
           currentVrm = vrm;
           
+          console.log("VRM Model loaded successfully. Humanoid:", vrm.humanoid);
+          if (vrm.humanoid) {
+            console.log("Humanoid LeftUpperArm Raw Node:", vrm.humanoid.getRawBoneNode('leftUpperArm'));
+            console.log("Humanoid LeftUpperArm Normalized Node:", vrm.humanoid.getNormalizedBoneNode('leftUpperArm'));
+          }
+
           // Disable frustum culling to prevent sudden disappearances
           vrm.scene.traverse((obj) => {
             obj.frustumCulled = false;
@@ -177,17 +194,19 @@ export default function AvatarCanvas({ isSpeaking, isListening, isLoading }) {
           // Adjust avatar height/transform
           vrm.scene.rotation.y = Math.PI; // Face the camera
           
-          // Position camera based on avatar head
+          // Position camera based on avatar head height for full-body view
           const headNode = vrm.humanoid?.getNormalizedBoneNode('head') || vrm.humanoid?.getBoneNode('head');
           if (headNode) {
             const headWorldPos = new THREE.Vector3();
             headNode.getWorldPosition(headWorldPos);
-            camera.position.set(0.0, headWorldPos.y - 0.05, 0.65);
-            camera.lookAt(0.0, headWorldPos.y, 0.0);
+            const headHeight = headWorldPos.y;
+            camera.position.set(0.0, headHeight * 0.6, headHeight * 2.35);
+            controls.target.set(0.0, headHeight * 0.5, 0.0);
           } else {
-            camera.position.set(0.0, 1.4, 0.7);
-            camera.lookAt(0.0, 1.45, 0.0);
+            camera.position.set(0.0, 0.9, 3.3);
+            controls.target.set(0.0, 0.75, 0.0);
           }
+          controls.update();
 
           setHasModel(true);
           setLoadingModel(false);
@@ -271,8 +290,8 @@ export default function AvatarCanvas({ isSpeaking, isListening, isLoading }) {
 
         if (leftUpperArm && rightUpperArm) {
           // Natural resting pose: arms hang down closer to body (approx 78 deg down)
-          leftUpperArm.rotation.z = -Math.PI / 2.3 + breathe * 0.05;
-          rightUpperArm.rotation.z = Math.PI / 2.3 - breathe * 0.05;
+          leftUpperArm.rotation.z = Math.PI / 2.3 - breathe * 0.05;
+          rightUpperArm.rotation.z = -Math.PI / 2.3 + breathe * 0.05;
           
           // Slight shoulder forward angle
           leftUpperArm.rotation.x = 0.05;
@@ -285,7 +304,7 @@ export default function AvatarCanvas({ isSpeaking, isListening, isLoading }) {
           if (states.isSpeaking) {
             // Conversational gesture: raise right hand and bend elbow
             rightUpperArm.rotation.x = -0.35 + Math.sin(elapsedTime * 4.0) * 0.12;
-            rightUpperArm.rotation.z = Math.PI / 3.2;
+            rightUpperArm.rotation.z = -Math.PI / 3.2;
             if (rightLowerArm) {
               rightLowerArm.rotation.x = 0.7; // bend elbow more during gestures
             }
@@ -429,6 +448,10 @@ export default function AvatarCanvas({ isSpeaking, isListening, isLoading }) {
 
         // Update VRM constraints / physics
         currentVrm.update(delta);
+      }
+
+      if (controls) {
+        controls.update();
       }
 
       renderer.render(scene, camera);
