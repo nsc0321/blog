@@ -1536,7 +1536,7 @@ export default function VoiceAssistant() {
             )}
 
             {/* Chat / Messages Panel */}
-            <div style={{
+            <div className="chat-panel" style={{
               background: 'rgba(0, 0, 0, 0.2)',
               borderRadius: '16px',
               padding: '16px',
@@ -1719,7 +1719,7 @@ export default function VoiceAssistant() {
         </>
       ) : activeTab === 'workshop' ? (
         /* Tab 2: Skill Workshop Panel */
-        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '20px', minHeight: '450px' }}>
+        <div className="responsive-grid">
           {/* Left Column: Explorer & Editor */}
           <div style={{
             background: 'rgba(0, 0, 0, 0.2)',
@@ -2025,7 +2025,7 @@ export default function VoiceAssistant() {
         </div>
       ) : (
         /* Tab 3: Credentials Panel */
-        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '20px', minHeight: '450px' }} className="credentials-grid">
+        <div className="responsive-grid credentials-grid">
           {/* Left Column: Stored Credentials */}
           <div style={{
             background: 'rgba(0, 0, 0, 0.2)',
@@ -2424,7 +2424,9 @@ export default function VoiceAssistant() {
         @media (max-width: 768px) {
           .voice-assistant-panel {
             flex-direction: column !important;
-            padding: 16px !important;
+            padding: 10px 8px !important;
+            gap: 16px !important;
+            border-radius: 16px !important;
             position: relative;
           }
           .sidebar-control-center {
@@ -2435,13 +2437,22 @@ export default function VoiceAssistant() {
             z-index: 1010 !important;
             background: #111122 !important;
             width: 280px !important;
-            max-width: 80% !important;
-            padding: 24px !important;
+            max-width: 85% !important;
+            padding: 16px !important;
             border-right: 1px solid rgba(255, 255, 255, 0.15) !important;
             transform: translateX(-100%);
             opacity: 0 !important;
             visibility: hidden;
             pointer-events: none;
+          }
+          .responsive-grid > div {
+            padding: 12px !important;
+            border-radius: 12px !important;
+          }
+          .chat-panel {
+            padding: 10px !important;
+            border-radius: 12px !important;
+            height: 360px !important;
           }
           .sidebar-control-center.open {
             transform: translateX(0) !important;

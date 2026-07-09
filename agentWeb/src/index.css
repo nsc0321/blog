@@ -173,3 +173,33 @@ h1, h2, h3, h4, h5, h6 {
   border-color: var(--accent-primary);
   box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.2);
 }
+
+/* App Container Layout */
+.app-container {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 20px 24px;
+}
+
+/* Responsive Grid for Tabs (Skills & Accounts) */
+.responsive-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 20px;
+  min-height: 450px;
+}
+
+/* Mobile responsive optimizations */
+@media (max-width: 768px) {
+  .app-container {
+    padding: 8px 4px; /* Minimize outer margin to fit perfectly on small screens */
+  }
+  
+  .responsive-grid {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+    min-height: auto !important;
+  }
+}
