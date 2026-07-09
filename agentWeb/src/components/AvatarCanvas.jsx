@@ -349,8 +349,8 @@ export default function AvatarCanvas({ isSpeaking, isListening, isLoading }) {
             // Idle state: check if mouse is active
             isNodding = false;
             if (timeSinceMouse < 4000) {
-              // Active mouse tracking
-              targetLookX = -states.mouseX * 0.45;
+              // Active mouse tracking (look towards cursor position)
+              targetLookX = states.mouseX * 0.45;
               targetLookY = states.mouseY * 0.25;
             } else {
               // Autonomous gaze drift: choose new target every 5 seconds
