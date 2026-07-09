@@ -20,13 +20,6 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install & Build Blog
-        run: |
-          cd blog
-          npm ci
-          echo "VITE_API_URL=https://studies-columbus-broadband-contracts.trycloudflare.com" > .env.production
-          npm run build
-
       - name: Install & Build Agent Web
         run: |
           cd agentWeb
@@ -34,16 +27,13 @@ jobs:
           echo "VITE_API_URL=https://studies-columbus-broadband-contracts.trycloudflare.com" > .env.production
           npm run build
 
-      - name: Combine Builds
+      - name: Prepare Deployment Folder
         run: |
           mkdir -p dist_combined
-          # Copy blog build to the root of combined dist
-          cp -r blog/dist/* dist_combined/
-          # Copy agentWeb build to /agent subfolder
-          mkdir -p dist_combined/agent
-          cp -r agentWeb/dist/* dist_combined/agent/
-          # Add custom 404 handler for SPA routing if needed
-          cp blog/dist/index.html dist_combined/404.html
+          # Copy agentWeb build directly to the root of the combined dist
+          cp -r agentWeb/dist/* dist_combined/
+          # Add custom 404 handler for SPA routing
+          cp agentWeb/dist/index.html dist_combined/404.html
 
       - name: Deploy to GitHub Pages
         uses: JamesIves/github-pages-deploy-action@v4
