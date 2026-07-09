@@ -266,16 +266,34 @@ export default function AvatarCanvas({ isSpeaking, isListening, isLoading }) {
         // Arm posture (Natural down position with slight breathe sway)
         const leftUpperArm = currentVrm.humanoid?.getNormalizedBoneNode('leftUpperArm') || currentVrm.humanoid?.getBoneNode('leftUpperArm');
         const rightUpperArm = currentVrm.humanoid?.getNormalizedBoneNode('rightUpperArm') || currentVrm.humanoid?.getBoneNode('rightUpperArm');
+        const leftLowerArm = currentVrm.humanoid?.getNormalizedBoneNode('leftLowerArm') || currentVrm.humanoid?.getBoneNode('leftLowerArm');
+        const rightLowerArm = currentVrm.humanoid?.getNormalizedBoneNode('rightLowerArm') || currentVrm.humanoid?.getBoneNode('rightLowerArm');
+
         if (leftUpperArm && rightUpperArm) {
-          leftUpperArm.rotation.z = -Math.PI / 4.5 + breathe * 0.1;
-          rightUpperArm.rotation.z = Math.PI / 4.5 - breathe * 0.1;
+          // Natural resting pose: arms hang down closer to body (approx 78 deg down)
+          leftUpperArm.rotation.z = -Math.PI / 2.3 + breathe * 0.05;
+          rightUpperArm.rotation.z = Math.PI / 2.3 - breathe * 0.05;
+          
+          // Slight shoulder forward angle
+          leftUpperArm.rotation.x = 0.05;
+          rightUpperArm.rotation.x = 0.05;
+
+          // Bend elbows slightly forward to look natural
+          if (leftLowerArm) leftLowerArm.rotation.x = 0.25;
+          if (rightLowerArm) rightLowerArm.rotation.x = 0.25;
           
           if (states.isSpeaking) {
-            // raise right hand slightly while talking
-            rightUpperArm.rotation.x = -0.15 + Math.sin(elapsedTime * 4.0) * 0.08;
-            rightUpperArm.rotation.z = Math.PI / 5;
+            // Conversational gesture: raise right hand and bend elbow
+            rightUpperArm.rotation.x = -0.35 + Math.sin(elapsedTime * 4.0) * 0.12;
+            rightUpperArm.rotation.z = Math.PI / 3.2;
+            if (rightLowerArm) {
+              rightLowerArm.rotation.x = 0.7; // bend elbow more during gestures
+            }
           } else {
-            rightUpperArm.rotation.x = 0;
+            rightUpperArm.rotation.x = 0.05;
+            if (rightLowerArm) {
+              rightLowerArm.rotation.x = 0.25;
+            }
           }
         }
 

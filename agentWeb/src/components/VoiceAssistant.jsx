@@ -1,10 +1,27 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Mic, MicOff, Send, Volume2, VolumeX, Menu, X, ChevronLeft, ChevronRight, Key, Plus, Trash2, Edit2, Save, Link2, Lock, LogOut, User } from 'lucide-react';
+import { Mic, MicOff, Send, Volume2, VolumeX, Menu, X, ChevronLeft, ChevronRight, Key, Plus, Trash2, Edit2, Save, Link2, Lock, LogOut, User, Eye, EyeOff } from 'lucide-react';
 import AvatarCanvas from './AvatarCanvas';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
 export default function VoiceAssistant() {
+  // Show/Hide Avatar State
+  const [showAvatar, setShowAvatar] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('agent_show_avatar');
+      return saved === null ? true : saved === 'true';
+    }
+    return true;
+  });
+
+  const handleToggleAvatar = () => {
+    setShowAvatar(prev => {
+      const newVal = !prev;
+      localStorage.setItem('agent_show_avatar', String(newVal));
+      return newVal;
+    });
+  };
+
   // Auth states
   const [token, setToken] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -1466,6 +1483,20 @@ export default function VoiceAssistant() {
               >
                 {ttsEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />}
               </button>
+              <button 
+                onClick={handleToggleAvatar} 
+                style={{
+                  background: 'rgba(255, 255, 255, 0.1)',
+                  border: 'none',
+                  padding: '8px',
+                  borderRadius: '8px',
+                  color: '#fff',
+                  cursor: 'pointer'
+                }}
+                title={showAvatar ? "아바타 숨기기" : "아바타 보이기"}
+              >
+                {showAvatar ? <Eye size={18} /> : <EyeOff size={18} />}
+              </button>
             </>
           )}
         </div>
@@ -1487,20 +1518,22 @@ export default function VoiceAssistant() {
           }}>
             
             {/* Avatar Column */}
-            <div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flex: '1 1 320px',
-              maxWidth: '360px'
-            }}>
-              <AvatarCanvas 
-                isSpeaking={isSpeaking} 
-                isListening={isListening} 
-                isLoading={isLoading} 
-              />
-            </div>
+            {showAvatar && (
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flex: '1 1 320px',
+                maxWidth: '360px'
+              }}>
+                <AvatarCanvas 
+                  isSpeaking={isSpeaking} 
+                  isListening={isListening} 
+                  isLoading={isLoading} 
+                />
+              </div>
+            )}
 
             {/* Chat / Messages Panel */}
             <div style={{
