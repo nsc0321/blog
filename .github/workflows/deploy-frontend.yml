@@ -24,7 +24,7 @@ jobs:
         run: |
           cd agentWeb
           npm install
-          echo "VITE_API_URL=https://studies-columbus-broadband-contracts.trycloudflare.com" > .env.production
+          echo "VITE_API_URL=https://thickness-vital-seminars-fleet.trycloudflare.com" > .env.production
           npm run build
 
       - name: Prepare Deployment Folder

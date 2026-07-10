@@ -230,8 +230,40 @@ export default function VoiceAssistant() {
       }
       const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
       window.history.replaceState({ path: newUrl }, '', newUrl);
+      return;
     }
-  }, []);
+
+    const code = params.get('code');
+    if (code) {
+      const exchangeCode = async () => {
+        try {
+          const currentUrl = window.location.origin + window.location.pathname;
+          const resp = await authFetch('/api/auth/google/exchange', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code, redirect_uri: currentUrl })
+          });
+          const data = await resp.json();
+          if (resp.ok) {
+            alert("구글 계정 인증이 완료되었습니다! 이제 챗봇이 이메일을 가져올 수 있습니다.");
+            setActiveTab('credentials');
+            if (fetchCredentials) {
+              fetchCredentials();
+            }
+          } else {
+            alert("구글 계정 인증에 실패하였습니다: " + (data.detail || '알 수 없는 오류'));
+          }
+        } catch (err) {
+          console.error(err);
+          alert("인증 요청 중 오류가 발생했습니다: " + err.message);
+        } finally {
+          const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
+          window.history.replaceState({ path: newUrl }, '', newUrl);
+        }
+      };
+      exchangeCode();
+    }
+  }, [authFetch, fetchCredentials]);
 
   const handleSaveCredential = async (e) => {
     if (e) e.preventDefault();
@@ -2111,9 +2143,10 @@ export default function VoiceAssistant() {
                            {c.site_name.toLowerCase() === 'gmail_oauth' && (
                             <button
                               onClick={async () => {
-                                try {
-                                  const resp = await authFetch('/api/auth/google/authorize');
-                                  const data = await resp.json();
+                                 try {
+                                   const currentUrl = window.location.origin + window.location.pathname;
+                                   const resp = await authFetch(`/api/auth/google/authorize?redirect_uri=${encodeURIComponent(currentUrl)}`);
+                                   const data = await resp.json();
                                   if (data.url) {
                                     window.location.href = data.url;
                                   } else {
