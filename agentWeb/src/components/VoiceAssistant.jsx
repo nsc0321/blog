@@ -1618,7 +1618,31 @@ export default function VoiceAssistant() {
                     wordBreak: 'break-word',
                     overflowWrap: 'break-word'
                   }}>
-                    <div>{m.content}</div>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                      {m.role === 'assistant' && (
+                        <button 
+                          onClick={() => speak(m.content)}
+                          style={{
+                            background: 'rgba(255, 255, 255, 0.1)',
+                            border: '1px solid rgba(255, 255, 255, 0.15)',
+                            color: 'rgba(255, 255, 255, 0.8)',
+                            cursor: 'pointer',
+                            padding: '4px',
+                            borderRadius: '6px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                            marginTop: '2px',
+                            transition: 'all 0.2s ease'
+                          }}
+                          title="다시 듣기"
+                        >
+                          <Volume2 size={14} />
+                        </button>
+                      )}
+                      <div style={{ flex: 1 }}>{m.content}</div>
+                    </div>
                     {m.logs && m.logs.length > 0 && (
                       <details open={i === messages.length - 1 && isLoading} style={{
                         marginTop: '8px',
@@ -1645,27 +1669,6 @@ export default function VoiceAssistant() {
                           ))}
                         </div>
                       </details>
-                    )}
-                    {m.role === 'assistant' && (
-                      <button 
-                        onClick={() => speak(m.content)}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: 'rgba(255, 255, 255, 0.6)',
-                          cursor: 'pointer',
-                          alignSelf: 'flex-start',
-                          padding: '2px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          fontSize: '11px',
-                          marginTop: '4px'
-                        }}
-                        title="다시 듣기 (Replay)"
-                      >
-                        <Volume2 size={12} /> 다시 듣기
-                      </button>
                     )}
                   </div>
                 ))}
