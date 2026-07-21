@@ -24,7 +24,7 @@ jobs:
         run: |
           cd agentWeb
           npm install
-          echo "VITE_API_URL=https://village-dictionary-training-six.trycloudflare.com" > .env.production
+          echo "VITE_API_URL=https://ragweed-blighted-skylight.ngrok-free.dev" > .env.production
           npm run build
 
       - name: Prepare Deployment Folder
