@@ -58,7 +58,10 @@ export default function VoiceAssistant() {
     try {
       const resp = await fetch(`${API_BASE}/api/auth/login`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true'
+        },
         body: JSON.stringify(loginForm)
       });
       const data = await resp.json();
@@ -89,6 +92,7 @@ export default function VoiceAssistant() {
 
   const authFetch = useCallback(async (url, options = {}) => {
     const headers = {
+      'ngrok-skip-browser-warning': 'true',
       ...options.headers,
     };
     if (token) {
@@ -115,7 +119,7 @@ export default function VoiceAssistant() {
   const [transcript, setTranscript] = useState('');
   const [inputText, setInputText] = useState('');
   const [messages, setMessages] = useState([
-    { role: 'assistant', content: '안녕하세요! 무엇을 도와드릴까요? 음성이나 텍스트로 명령해 주세요. (예: "서울 날씨 알려줘", "웹에서 NVIDIA Blackwell 출시일 검색해줘")' }
+    { role: 'assistant', content: '안녕하세요!' }
   ]);
   const [logs, setLogs] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
