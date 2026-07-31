@@ -1,6 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Mic, MicOff, Send, Volume2, VolumeX, Menu, X, ChevronLeft, ChevronRight, Key, Plus, Trash2, Edit2, Save, Link2, Lock, LogOut, User, Eye, EyeOff, Activity, AlertCircle, CheckCircle, Loader, StopCircle } from 'lucide-react';
+import { Mic, MicOff, Send, Volume2, VolumeX, Menu, X, ChevronLeft, ChevronRight, Key, Plus, Trash2, Edit2, Save, Link2, Lock, LogOut, User, Eye, EyeOff, Activity, AlertCircle, CheckCircle, Loader, StopCircle, Clock, History, Calendar, Filter, Search, ArrowUpDown, Bot, Globe, RefreshCw, AlertTriangle } from 'lucide-react';
 import AvatarCanvas from './AvatarCanvas';
+import AgentChat from './AgentChat';
+import SkillWorkshop from './SkillWorkshop';
+import CredentialsManager from './CredentialsManager';
+import RealtimeMonitor from './RealtimeMonitor';
+import ExecutionHistory from './ExecutionHistory';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -207,6 +212,8 @@ export default function VoiceAssistant() {
   const monitorLogsEndRef = useRef(null);
   const monitorPollRef = useRef(null);
 
+
+
   const fetchCredentials = useCallback(async () => {
     setIsCredLoading(true);
     try {
@@ -264,6 +271,7 @@ export default function VoiceAssistant() {
       const resp = await authFetch(`/api/agent/tasks/${taskId}`, { method: 'DELETE' });
       if (resp.ok) {
         await fetchMonitorData();
+        fetchHistoryData();
       } else {
         const data = await resp.json();
         alert(data.detail || '중단 요청 실패');
@@ -1587,6 +1595,26 @@ export default function VoiceAssistant() {
                 </span>
               )}
             </button>
+            <button 
+              onClick={() => setActiveTab('history')}
+              style={{
+                background: activeTab === 'history' ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : 'rgba(255, 255, 255, 0.08)',
+                border: 'none',
+                color: '#fff',
+                padding: '6px 14px',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontSize: '13px',
+                fontWeight: '600',
+                transition: 'background 0.2s',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px'
+              }}
+            >
+              <History size={13} />
+              처리 내역
+            </button>
           </div>
         </div>
         <div style={{ display: 'flex', gap: '10px', flexShrink: 0 }}>
@@ -1642,1094 +1670,75 @@ export default function VoiceAssistant() {
       </div>
 
       {activeTab === 'agent' ? (
-        <>
-          {/* Main Layout: Split Avatar & Chat */}
-          <div style={{
-            display: 'flex',
-            flexDirection: 'row',
-            flexWrap: 'wrap',
-            gap: '20px',
-            alignItems: 'stretch',
-            justifyContent: 'center',
-            width: '100%',
-            minHeight: '420px',
-            flex: 1
-          }}>
-            
-            {/* Avatar Column */}
-            {showAvatar && (
-              <div style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flex: '1 1 320px',
-                maxWidth: '360px'
-              }}>
-                <AvatarCanvas 
-                  isSpeaking={isSpeaking} 
-                  isListening={isListening} 
-                  isLoading={isLoading} 
-                />
-              </div>
-            )}
-
-            {/* Chat / Messages Panel */}
-            <div className="chat-panel" style={{
-              background: 'rgba(0, 0, 0, 0.2)',
-              borderRadius: '16px',
-              padding: '16px',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between',
-              border: '1px solid rgba(255, 255, 255, 0.05)',
-              flex: '2 1 400px',
-              height: '420px',
-              overflow: 'hidden'
-            }}>
-              <div style={{ overflowY: 'auto', flex: 1, paddingRight: '6px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {messages.map((m, i) => (
-                  <div key={i} style={{
-                    alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start',
-                    background: m.role === 'user' ? 'var(--accent-gradient)' : 'rgba(255, 255, 255, 0.1)',
-                    padding: '10px 14px',
-                    borderRadius: m.role === 'user' ? '16px 16px 0 16px' : '16px 16px 16px 0',
-                    maxWidth: '85%',
-                    fontSize: '14px',
-                    lineHeight: '1.4',
-                    whiteSpace: 'pre-wrap',
-                    position: 'relative',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '6px',
-                    wordBreak: 'break-word',
-                    overflowWrap: 'break-word'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-                      {m.role === 'assistant' && (
-                        <button 
-                          onClick={() => speak(m.content)}
-                          style={{
-                            background: 'rgba(255, 255, 255, 0.1)',
-                            border: '1px solid rgba(255, 255, 255, 0.15)',
-                            color: 'rgba(255, 255, 255, 0.8)',
-                            cursor: 'pointer',
-                            padding: '4px',
-                            borderRadius: '6px',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            flexShrink: 0,
-                            marginTop: '2px',
-                            transition: 'all 0.2s ease'
-                          }}
-                          title="다시 듣기"
-                        >
-                          <Volume2 size={14} />
-                        </button>
-                      )}
-                      <div style={{ flex: 1 }}>{m.content}</div>
-                    </div>
-                    {m.logs && m.logs.length > 0 && (
-                      <details open={i === messages.length - 1 && isLoading} style={{
-                        marginTop: '8px',
-                        padding: '8px',
-                        background: 'rgba(0, 0, 0, 0.25)',
-                        borderRadius: '8px',
-                        fontSize: '12px',
-                        border: '1px solid rgba(255, 255, 255, 0.1)',
-                        width: '100%'
-                      }}>
-                        <summary style={{ cursor: 'pointer', fontWeight: 'bold', color: '#38bdf8', outline: 'none' }}>
-                          ⚙️ Agent Execution Logs ({m.logs.length} steps)
-                        </summary>
-                        <div style={{ marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '4px', fontFamily: 'monospace', color: '#e2e8f0' }}>
-                          {m.logs.map((log, idx) => (
-                            <div key={idx} style={{ 
-                              padding: '4px 6px', 
-                              borderLeft: '2px solid #38bdf8', 
-                              background: 'rgba(56, 189, 248, 0.05)',
-                              wordBreak: 'break-all'
-                            }}>
-                              {log}
-                            </div>
-                          ))}
-                        </div>
-                      </details>
-                    )}
-                  </div>
-                ))}
-                {isLoading && (
-                  <div style={{ display: 'flex', gap: '4px', alignSelf: 'flex-start', padding: '10px 14px', background: 'rgba(255, 255, 255, 0.05)', borderRadius: '12px' }}>
-                    <span className="dot" style={{ animationDelay: '0s' }}>●</span>
-                    <span className="dot" style={{ animationDelay: '0.2s' }}>●</span>
-                    <span className="dot" style={{ animationDelay: '0.4s' }}>●</span>
-                  </div>
-                )}
-                <div ref={messageEndRef} />
-              </div>
-            </div>
-          </div>
- 
-          {/* Voice Visualizer / Audio Meter */}
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', padding: '10px 0' }}>
-            {isListening ? (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-                <div style={{ display: 'flex', gap: '6px', alignItems: 'center', height: '20px' }}>
-                  <span className="wave-bar" style={{ height: '100%', animationDelay: '0.1s' }}></span>
-                  <span className="wave-bar" style={{ height: '60%', animationDelay: '0.3s' }}></span>
-                  <span className="wave-bar" style={{ height: '80%', animationDelay: '0.5s' }}></span>
-                  <span className="wave-bar" style={{ height: '40%', animationDelay: '0.2s' }}></span>
-                  <span className="wave-bar" style={{ height: '90%', animationDelay: '0.4s' }}></span>
-                </div>
-                <div style={{ color: '#38bdf8', fontSize: '14px', fontWeight: '600', fontStyle: 'italic', background: 'rgba(56, 189, 248, 0.1)', padding: '4px 12px', borderRadius: '8px', border: '1px solid rgba(56, 189, 248, 0.2)' }}>
-                  {transcript ? `🎙️ "${transcript}"` : "🎙️ 듣고 있습니다..."}
-                </div>
-              </div>
-            ) : (
-              <div style={{ height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {isSpeaking && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#06b6d4', fontSize: '13px', fontWeight: '500' }}>
-                    <span>🔊 대답하는 중...</span>
-                  </div>
-                )}
-              </div>
-            )}
- 
-            {/* Controls Panel */}
-            <div style={{ display: 'flex', width: '100%', gap: '12px', alignItems: 'center' }}>
-              <button
-                onClick={toggleListening}
-                style={{
-                  width: '52px',
-                  height: '52px',
-                  borderRadius: '50%',
-                  background: isListening ? '#ef4444' : 'var(--accent-gradient)',
-                  border: 'none',
-                  color: '#fff',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
-                  transition: 'transform 0.2s'
-                }}
-              >
-                {isListening ? <MicOff size={24} /> : <Mic size={24} />}
-              </button>
-              
-              <input
-                type="text"
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                placeholder="여기에 명령을 직접 입력할 수도 있습니다..."
-                style={{
-                  flex: 1,
-                  background: 'rgba(255, 255, 255, 0.1)',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: '12px',
-                  padding: '12px 16px',
-                  color: '#fff',
-                  outline: 'none',
-                  fontSize: '14px'
-                }}
-              />
-              
-              <button
-                onClick={() => handleSendMessage()}
-                disabled={!inputText.trim()}
-                style={{
-                  background: 'var(--accent-gradient)',
-                  border: 'none',
-                  padding: '12px 20px',
-                  borderRadius: '12px',
-                  color: '#fff',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  fontSize: '14px',
-                  fontWeight: '600',
-                  opacity: inputText.trim() ? 1 : 0.5
-                }}
-              >
-                <Send size={16} /> 전송
-              </button>
-            </div>
-          </div>
-        </>
+        <AgentChat
+          showAvatar={showAvatar}
+          isSpeaking={isSpeaking}
+          isListening={isListening}
+          isLoading={isLoading}
+          messages={messages}
+          transcript={transcript}
+          inputText={inputText}
+          setInputText={setInputText}
+          handleSendMessage={handleSendMessage}
+          toggleListening={toggleListening}
+          speak={speak}
+          messageEndRef={messageEndRef}
+        />
       ) : activeTab === 'workshop' ? (
-        /* Tab 2: Skill Workshop Panel */
-        <div className="responsive-grid">
-          {/* Left Column: Explorer & Editor */}
-          <div style={{
-            background: 'rgba(0, 0, 0, 0.2)',
-            borderRadius: '16px',
-            padding: '20px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '16px',
-            border: '1px solid rgba(255, 255, 255, 0.05)',
-            height: '100%'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', paddingBottom: '12px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '60%' }}>
-                <span style={{ fontSize: '13px', color: 'rgba(255, 255, 255, 0.5)' }}>스킬 선택:</span>
-                <select
-                  value={selectedSkillName}
-                  onChange={(e) => setSelectedSkillName(e.target.value)}
-                  style={{
-                    flex: 1,
-                    background: 'rgba(255, 255, 255, 0.1)',
-                    border: '1px solid rgba(255, 255, 255, 0.2)',
-                    color: '#fff',
-                    padding: '6px 12px',
-                    borderRadius: '8px',
-                    cursor: 'pointer',
-                    fontSize: '14px'
-                  }}
-                >
-                  <option value="" disabled style={{ color: '#000' }}>스킬을 선택하세요</option>
-                  {skills.map(s => (
-                    <option key={s.name} value={s.name} style={{ color: '#000' }}>
-                      {s.name} {s.is_verified ? '✅' : '❌'}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {selectedSkillName && (
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button
-                    onClick={() => handleDeleteSkill(selectedSkillName)}
-                    style={{
-                      background: '#ef4444',
-                      border: 'none',
-                      color: '#fff',
-                      padding: '6px 12px',
-                      borderRadius: '8px',
-                      cursor: 'pointer',
-                      fontSize: '13px',
-                      fontWeight: '600'
-                    }}
-                  >
-                    🗑️ 삭제
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {selectedSkillName ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', flex: 1 }}>
-                <div>
-                  <span style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.5)' }}>설명 / Docstring</span>
-                  <input
-                    type="text"
-                    value={skillDescription}
-                    onChange={(e) => setSkillDescription(e.target.value)}
-                    style={{
-                      width: '100%',
-                      background: 'rgba(255, 255, 255, 0.05)',
-                      border: '1px solid rgba(255, 255, 255, 0.1)',
-                      borderRadius: '8px',
-                      padding: '8px 12px',
-                      color: '#fff',
-                      fontSize: '13px',
-                      marginTop: '4px',
-                      outline: 'none'
-                    }}
-                  />
-                </div>
-
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.5)' }}>Python 소스 코드</span>
-                    {skills.find(s => s.name === selectedSkillName)?.is_verified ? (
-                      <span style={{ fontSize: '12px', color: '#10b981', fontWeight: '600' }}>✅ 검증 완료</span>
-                    ) : (
-                      <span style={{ fontSize: '12px', color: '#ef4444', fontWeight: '600' }}>❌ 검증 실패 / 미검증</span>
-                    )}
-                  </div>
-                  
-                  <textarea
-                    value={skillCode}
-                    onChange={(e) => setSkillCode(e.target.value)}
-                    style={{
-                      width: '100%',
-                      height: '220px',
-                      background: 'rgba(0, 0, 0, 0.4)',
-                      border: '1px solid rgba(255, 255, 255, 0.1)',
-                      borderRadius: '12px',
-                      padding: '12px',
-                      color: '#38bdf8',
-                      fontFamily: 'monospace',
-                      fontSize: '13px',
-                      lineHeight: '1.5',
-                      marginTop: '6px',
-                      resize: 'none',
-                      outline: 'none'
-                    }}
-                  />
-                </div>
-
-                {skills.find(s => s.name === selectedSkillName)?.verification_error && (
-                  <div style={{
-                    background: 'rgba(239, 68, 68, 0.1)',
-                    borderLeft: '3px solid #ef4444',
-                    padding: '8px 12px',
-                    borderRadius: '4px',
-                    fontSize: '11px',
-                    color: '#fca5a5',
-                    fontFamily: 'monospace',
-                    whiteSpace: 'pre-wrap',
-                    maxHeight: '60px',
-                    overflowY: 'auto'
-                  }}>
-                    {skills.find(s => s.name === selectedSkillName).verification_error}
-                  </div>
-                )}
-
-                <button
-                  onClick={handleSaveSkill}
-                  disabled={isSavingSkill}
-                  style={{
-                    background: 'var(--accent-gradient)',
-                    border: 'none',
-                    color: '#fff',
-                    padding: '10px 16px',
-                    borderRadius: '8px',
-                    cursor: 'pointer',
-                    fontSize: '14px',
-                    fontWeight: '600',
-                    opacity: isSavingSkill ? 0.6 : 1,
-                    textAlign: 'center'
-                  }}
-                >
-                  {isSavingSkill ? '💾 저장 및 검증 중...' : '💾 저장 및 컴파일 검증'}
-                </button>
-              </div>
-            ) : (
-              <div style={{ color: 'rgba(255,255,255,0.3)', fontStyle: 'italic', padding: '40px', textAlign: 'center', margin: 'auto' }}>
-                스킬이 없습니다. 오른쪽 패널에서 새로운 스킬을 제작해 보세요.
-              </div>
-            )}
-          </div>
-
-          {/* Right Column: Run Skill & Design New Skill */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            
-            {/* Action 1: Manual Runner */}
-            <div style={{
-              background: 'rgba(0, 0, 0, 0.2)',
-              borderRadius: '16px',
-              padding: '20px',
-              border: '1px solid rgba(255, 255, 255, 0.05)'
-            }}>
-              <h3 style={{ fontSize: '15px', fontWeight: '700', marginBottom: '12px', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', paddingBottom: '6px' }}>
-                🚀 스킬 테스트 실행
-              </h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <div>
-                  <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>인자 (Arguments - 콤마 분리, e.g. key=value)</span>
-                  <input
-                    type="text"
-                    value={skillRunnerArgs}
-                    onChange={(e) => setSkillRunnerArgs(e.target.value)}
-                    placeholder="e.g. query=Seoul, limit=3"
-                    style={{
-                      width: '100%',
-                      background: 'rgba(255,255,255,0.05)',
-                      border: '1px solid rgba(255,255,255,0.1)',
-                      borderRadius: '8px',
-                      padding: '8px 12px',
-                      color: '#fff',
-                      fontSize: '12px',
-                      outline: 'none',
-                      marginTop: '4px'
-                    }}
-                  />
-                </div>
-                <button
-                  onClick={handleRunSkill}
-                  disabled={isRunningSkill || !selectedSkillName}
-                  style={{
-                    background: 'var(--accent-gradient)',
-                    border: 'none',
-                    color: '#fff',
-                    padding: '8px 14px',
-                    borderRadius: '8px',
-                    cursor: 'pointer',
-                    fontSize: '13px',
-                    fontWeight: '600',
-                    opacity: (!selectedSkillName || isRunningSkill) ? 0.5 : 1
-                  }}
-                >
-                  {isRunningSkill ? '실행 중...' : '스킬 실행'}
-                </button>
-                {skillRunnerOutput && (
-                  <div>
-                    <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>출력 결과:</span>
-                    <pre style={{
-                      marginTop: '4px',
-                      padding: '8px',
-                      background: 'rgba(0,0,0,0.3)',
-                      borderRadius: '6px',
-                      fontSize: '11px',
-                      color: '#38bdf8',
-                      fontFamily: 'monospace',
-                      maxHeight: '100px',
-                      overflowY: 'auto',
-                      whiteSpace: 'pre-wrap',
-                      wordBreak: 'break-all'
-                    }}>
-                      {skillRunnerOutput}
-                    </pre>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Action 2: LLM Custom Generator */}
-            <div style={{
-              background: 'rgba(0, 0, 0, 0.25)',
-              borderRadius: '16px',
-              padding: '20px',
-              border: '1px solid rgba(255, 255, 255, 0.05)'
-            }}>
-              <h3 style={{ fontSize: '15px', fontWeight: '700', marginBottom: '12px', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', paddingBottom: '6px' }}>
-                ⚡ AI 스킬 자동 제작
-              </h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <div>
-                  <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>스킬 식별명 (snake_case)</span>
-                  <input
-                    type="text"
-                    value={newSkillName}
-                    onChange={(e) => setNewSkillName(e.target.value)}
-                    placeholder="e.g. fetch_stock_price"
-                    style={{
-                      width: '100%',
-                      background: 'rgba(255,255,255,0.05)',
-                      border: '1px solid rgba(255,255,255,0.1)',
-                      borderRadius: '8px',
-                      padding: '8px 12px',
-                      color: '#fff',
-                      fontSize: '12px',
-                      outline: 'none',
-                      marginTop: '4px'
-                    }}
-                  />
-                </div>
-                <div>
-                  <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>스킬 사양 설명 및 요구사항</span>
-                  <textarea
-                    value={newSkillDesc}
-                    onChange={(e) => setNewSkillDesc(e.target.value)}
-                    placeholder="e.g. 야후 파이낸스 API를 이용해 주식 코드를 입력받아 실시간 가격을 가져오는 파이썬 도구를 작성해줘."
-                    style={{
-                      width: '100%',
-                      height: '60px',
-                      background: 'rgba(255,255,255,0.05)',
-                      border: '1px solid rgba(255,255,255,0.1)',
-                      borderRadius: '8px',
-                      padding: '8px 12px',
-                      color: '#fff',
-                      fontSize: '12px',
-                      outline: 'none',
-                      resize: 'none',
-                      marginTop: '4px'
-                    }}
-                  />
-                </div>
-                <button
-                  onClick={handleGenerateSkill}
-                  disabled={isGeneratingSkill}
-                  style={{
-                    background: 'linear-gradient(135deg, #a78bfa 0%, #6d28d9 100%)',
-                    border: 'none',
-                    color: '#fff',
-                    padding: '10px 16px',
-                    borderRadius: '8px',
-                    cursor: 'pointer',
-                    fontSize: '13px',
-                    fontWeight: '600',
-                    opacity: isGeneratingSkill ? 0.6 : 1,
-                    textAlign: 'center'
-                  }}
-                >
-                  {isGeneratingSkill ? '⚡ 스킬 자동 생성 중...' : '⚡ 스킬 코드 생성 및 검증'}
-                </button>
-              </div>
-            </div>
-
-          </div>
-        </div>
+        <SkillWorkshop
+          skills={skills}
+          selectedSkillName={selectedSkillName}
+          setSelectedSkillName={setSelectedSkillName}
+          skillDescription={skillDescription}
+          setSkillDescription={setSkillDescription}
+          skillCode={skillCode}
+          setSkillCode={setSkillCode}
+          handleSaveSkill={handleSaveSkill}
+          isSavingSkill={isSavingSkill}
+          handleDeleteSkill={handleDeleteSkill}
+          skillRunnerArgs={skillRunnerArgs}
+          setSkillRunnerArgs={setSkillRunnerArgs}
+          handleRunSkill={handleRunSkill}
+          isRunningSkill={isRunningSkill}
+          skillRunnerOutput={skillRunnerOutput}
+          newSkillName={newSkillName}
+          setNewSkillName={setNewSkillName}
+          newSkillDesc={newSkillDesc}
+          setNewSkillDesc={setNewSkillDesc}
+          handleGenerateSkill={handleGenerateSkill}
+          isGeneratingSkill={isGeneratingSkill}
+        />
       ) : activeTab === 'credentials' ? (
-        /* Tab 3: Credentials Panel */
-        <div className="responsive-grid credentials-grid">
-          {/* Left Column: Stored Credentials */}
-          <div style={{
-            background: 'rgba(0, 0, 0, 0.2)',
-            borderRadius: '16px',
-            padding: '20px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '16px',
-            border: '1px solid rgba(255, 255, 255, 0.05)',
-            height: '100%',
-            minWidth: '0px'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', paddingBottom: '12px' }}>
-              <h3 style={{ fontSize: '16px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
-                <Key size={18} style={{ color: 'var(--accent-primary)' }} /> 외부 사이트 접근 권한 목록
-              </h3>
-              <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', fontStyle: 'italic' }}>
-                스킬 실행 시 자동 연동 가능
-              </span>
-            </div>
-
-            {isCredLoading ? (
-               <div style={{ color: 'rgba(255,255,255,0.5)', padding: '40px', textAlign: 'center', margin: 'auto' }}>
-                 로딩 중...
-               </div>
-            ) : credentials.length === 0 ? (
-               <div style={{ color: 'rgba(255,255,255,0.3)', fontStyle: 'italic', padding: '40px', textAlign: 'center', margin: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
-                 <Key size={40} style={{ opacity: 0.2 }} />
-                 <div>등록된 외부 계정이 없습니다.<br/>오른쪽 패널에서 에이전트에 타 사이트 접근 권한을 추가해 주세요.</div>
-               </div>
-            ) : (
-               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto', maxHeight: '420px', paddingRight: '4px' }}>
-                 {credentials.map(c => (
-                   <div key={c.id} style={{
-                     background: 'rgba(255, 255, 255, 0.03)',
-                     border: '1px solid rgba(255, 255, 255, 0.08)',
-                     borderRadius: '12px',
-                     padding: '14px',
-                     display: 'flex',
-                     flexDirection: 'column',
-                     gap: '10px',
-                     transition: 'all 0.2s ease',
-                     cursor: 'default'
-                   }}
-                   className="credential-card"
-                   >
-                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
-                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                         <span style={{
-                           background: 'var(--accent-gradient)',
-                           padding: '3px 8px',
-                           borderRadius: '6px',
-                           fontSize: '11px',
-                           fontWeight: '700',
-                           textTransform: 'uppercase',
-                           letterSpacing: '0.05em'
-                         }}>
-                           {c.site_name}
-                         </span>
-                         {c.domain && (
-                           <span style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.4)', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                             <Link2 size={10} /> {c.domain}
-                           </span>
-                         )}
-                       </div>
-                       <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
-                           {c.site_name.toLowerCase() === 'gmail_oauth' && (
-                            <button
-                              onClick={async () => {
-                                 try {
-                                   const currentUrl = window.location.origin + window.location.pathname;
-                                   const resp = await authFetch(`/api/auth/google/authorize?redirect_uri=${encodeURIComponent(currentUrl)}`);
-                                   const data = await resp.json();
-                                  if (data.url) {
-                                    window.location.href = data.url;
-                                  } else {
-                                    alert(data.detail || "인증 URL 생성에 실패했습니다.");
-                                  }
-                                } catch (err) {
-                                  console.error(err);
-                                  alert("인증 요청 실패: " + err.message);
-                                }
-                              }}
-                              style={{
-                                background: 'rgba(59, 130, 246, 0.15)',
-                                border: '1px solid rgba(59, 130, 246, 0.3)',
-                                color: '#60a5fa',
-                                padding: '4px 8px',
-                                borderRadius: '6px',
-                                cursor: 'pointer',
-                                fontSize: '11px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                transition: 'all 0.2s'
-                              }}
-                              title="구글 계정 로그인 및 인증"
-                            >
-                              인증하기
-                            </button>
-                          )}
-                          {c.site_name.toLowerCase() !== 'gmail_oauth_token' && (
-                            <button
-                              onClick={() => {
-                                setSelectedCredId(c.id);
-                                setCredForm({
-                                  site_name: c.site_name,
-                                  domain: c.domain || '',
-                                  username: c.username || '',
-                                  secret_key: c.secret_key || '',
-                                  description: c.description || ''
-                                });
-                              }}
-                              style={{
-                                background: 'rgba(255, 255, 255, 0.08)',
-                                border: 'none',
-                                color: '#fff',
-                                padding: '4px 8px',
-                                borderRadius: '6px',
-                                cursor: 'pointer',
-                                fontSize: '11px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                transition: 'background 0.2s'
-                              }}
-                              title="수정"
-                            >
-                              <Edit2 size={11} /> 수정
-                            </button>
-                          )}
-                         <button
-                           onClick={() => handleDeleteCredential(c.id, c.site_name)}
-                           style={{
-                             background: 'rgba(239, 68, 68, 0.15)',
-                             border: 'none',
-                             color: '#f87171',
-                             padding: '4px 8px',
-                             borderRadius: '6px',
-                             cursor: 'pointer',
-                             fontSize: '11px',
-                             display: 'flex',
-                             alignItems: 'center',
-                             gap: '4px',
-                             transition: 'background 0.2s'
-                           }}
-                           title="삭제"
-                         >
-                           <Trash2 size={11} /> 삭제
-                         </button>
-                       </div>
-                     </div>
-
-                     <div style={{ display: 'grid', gridTemplateColumns: '85px 1fr', gap: '6px', fontSize: '12px', background: 'rgba(0, 0, 0, 0.15)', padding: '10px', borderRadius: '8px' }}>
-                       <span style={{ color: 'rgba(255, 255, 255, 0.4)' }}>계정명 / ID:</span>
-                       <span style={{ color: '#fff', fontWeight: '500', wordBreak: 'break-all' }}>{c.username || '(계정명 없음)'}</span>
-
-                       <span style={{ color: 'rgba(255, 255, 255, 0.4)' }}>비밀키 / 토큰:</span>
-                       <span style={{ fontFamily: 'monospace', color: '#38bdf8', letterSpacing: '0.05em', wordBreak: 'break-all', whiteSpace: 'pre-wrap' }}>{c.secret_key}</span>
-                     </div>
-
-                     {c.description && (
-                       <div style={{
-                         fontSize: '11px',
-                         color: 'rgba(255, 255, 255, 0.5)',
-                         background: 'rgba(255, 255, 255, 0.02)',
-                         padding: '8px 12px',
-                         borderRadius: '6px',
-                         borderLeft: '2px solid var(--accent-primary)',
-                         lineHeight: '1.4',
-                         wordBreak: 'break-all',
-                         whiteSpace: 'pre-wrap'
-                       }}>
-                         {c.description}
-                       </div>
-                     )}
-                   </div>
-                 ))}
-               </div>
-            )}
-          </div>
-
-          {/* Right Column: Add/Edit Credential Form */}
-          <div style={{
-            background: 'rgba(0, 0, 0, 0.2)',
-            borderRadius: '16px',
-            padding: '20px',
-            border: '1px solid rgba(255, 255, 255, 0.05)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '16px',
-            height: 'fit-content'
-          }}>
-            <h3 style={{ fontSize: '15px', fontWeight: '700', margin: '0 0 4px 0', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', paddingBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              {selectedCredId ? <Edit2 size={16} style={{ color: '#a78bfa' }} /> : <Plus size={16} style={{ color: '#10b981' }} />}
-              {selectedCredId ? "외부 사이트 권한 수정" : "외부 사이트 권한 추가"}
-            </h3>
-
-            <form onSubmit={handleSaveCredential} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div>
-                <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: '4px' }}>사이트 식별명 (Site Name) *</span>
-                <input
-                  type="text"
-                  required
-                  value={credForm.site_name}
-                  onChange={(e) => setCredForm({ ...credForm, site_name: e.target.value })}
-                  placeholder="예: github, naver_cookies, slack (소문자)"
-                  style={{
-                    width: '100%',
-                    background: 'rgba(255,255,255,0.05)',
-                    border: '1px solid rgba(255,255,255,0.1)',
-                    borderRadius: '8px',
-                    padding: '8px 12px',
-                    color: '#fff',
-                    fontSize: '12px',
-                    outline: 'none',
-                    transition: 'border-color 0.2s'
-                  }}
-                  onFocus={(e) => e.target.style.borderColor = 'var(--accent-primary)'}
-                  onBlur={(e) => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
-                />
-              </div>
-
-              {credForm.site_name.toLowerCase() === 'naver_cookies' && (
-                <div style={{
-                  padding: '8px 12px',
-                  background: 'rgba(56, 189, 248, 0.1)',
-                  border: '1px solid rgba(56, 189, 248, 0.2)',
-                  borderRadius: '8px',
-                  fontSize: '11px',
-                  color: '#38bdf8',
-                  lineHeight: '1.4'
-                }}>
-                  💡 <strong>네이버 쿠키 세션 주입 안내:</strong><br />
-                  네이버 보안 로그인(CAPTCHA) 우회를 위해 사용자 브라우저의 로그인 쿠키인 <code>NID_AUT</code>와 <code>NID_SES</code> 값을 아래 JSON 형태로 입력해 주세요:<br />
-                  <code style={{ background: 'rgba(0,0,0,0.3)', padding: '2px 4px', borderRadius: '4px', display: 'inline-block', marginTop: '4px' }}>
-                    {"{ \"NID_AUT\": \"...\", \"NID_SES\": \"...\" }"}
-                  </code>
-                </div>
-              )}
-
-              <div>
-                <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: '4px' }}>접속 도메인 / 호스트 (Domain / Host - 선택사항)</span>
-                <input
-                  type="text"
-                  value={credForm.domain}
-                  onChange={(e) => setCredForm({ ...credForm, domain: e.target.value })}
-                  placeholder="예: github.com, imap.naver.com:993 (선택사항)"
-                  style={{
-                    width: '100%',
-                    background: 'rgba(255,255,255,0.05)',
-                    border: '1px solid rgba(255,255,255,0.1)',
-                    borderRadius: '8px',
-                    padding: '8px 12px',
-                    color: '#fff',
-                    fontSize: '12px',
-                    outline: 'none',
-                    transition: 'border-color 0.2s'
-                  }}
-                  onFocus={(e) => e.target.style.borderColor = 'var(--accent-primary)'}
-                  onBlur={(e) => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
-                />
-              </div>
-
-              <div>
-                <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: '4px' }}>사용자 ID / 이메일</span>
-                <input
-                  type="text"
-                  value={credForm.username}
-                  onChange={(e) => setCredForm({ ...credForm, username: e.target.value })}
-                  placeholder="사용자 아이디 또는 이메일"
-                  style={{
-                    width: '100%',
-                    background: 'rgba(255,255,255,0.05)',
-                    border: '1px solid rgba(255,255,255,0.1)',
-                    borderRadius: '8px',
-                    padding: '8px 12px',
-                    color: '#fff',
-                    fontSize: '12px',
-                    outline: 'none',
-                    transition: 'border-color 0.2s'
-                  }}
-                  onFocus={(e) => e.target.style.borderColor = 'var(--accent-primary)'}
-                  onBlur={(e) => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
-                />
-              </div>
-
-              <div>
-                <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: '4px' }}>인증 비밀번호 / 토큰 / API 키 *</span>
-                <input
-                  type="password"
-                  required={!selectedCredId}
-                  value={credForm.secret_key}
-                  onChange={(e) => setCredForm({ ...credForm, secret_key: e.target.value })}
-                  placeholder={selectedCredId ? "수정하지 않으려면 ******** 상태를 유지하세요" : (credForm.site_name.toLowerCase() === 'naver_cookies' ? 'JSON: {"NID_AUT": "...", "NID_SES": "..."}' : "비밀번호 또는 API 토큰 입력")}
-                  style={{
-                    width: '100%',
-                    background: 'rgba(255,255,255,0.05)',
-                    border: '1px solid rgba(255,255,255,0.1)',
-                    borderRadius: '8px',
-                    padding: '8px 12px',
-                    color: '#fff',
-                    fontSize: '12px',
-                    outline: 'none',
-                    transition: 'border-color 0.2s'
-                  }}
-                  onFocus={(e) => e.target.style.borderColor = 'var(--accent-primary)'}
-                  onBlur={(e) => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
-                />
-              </div>
-
-              <div>
-                <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: '4px' }}>간단한 설명 (Description)</span>
-                <textarea
-                  value={credForm.description}
-                  onChange={(e) => setCredForm({ ...credForm, description: e.target.value })}
-                  placeholder={credForm.site_name.toLowerCase() === 'naver_cookies' ? "네이버 로그인 세션 쿠키 정보 (NID_AUT, NID_SES)" : "예: 에이전트의 블로그 자동 업로드를 위한 GitHub Access Token"}
-                  style={{
-                    width: '100%',
-                    height: '60px',
-                    background: 'rgba(255,255,255,0.05)',
-                    border: '1px solid rgba(255,255,255,0.1)',
-                    borderRadius: '8px',
-                    padding: '8px 12px',
-                    color: '#fff',
-                    fontSize: '12px',
-                    outline: 'none',
-                    resize: 'none',
-                    transition: 'border-color 0.2s'
-                  }}
-                  onFocus={(e) => e.target.style.borderColor = 'var(--accent-primary)'}
-                  onBlur={(e) => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
-                />
-              </div>
-
-              <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
-                <button
-                  type="submit"
-                  disabled={isSavingCred}
-                  style={{
-                    flex: 1,
-                    background: 'var(--accent-gradient)',
-                    border: 'none',
-                    color: '#fff',
-                    padding: '10px 16px',
-                    borderRadius: '8px',
-                    cursor: 'pointer',
-                    fontSize: '13px',
-                    fontWeight: '600',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '6px',
-                    opacity: isSavingCred ? 0.6 : 1,
-                    transition: 'transform 0.1s'
-                  }}
-                >
-                  <Save size={14} /> {isSavingCred ? '저장 중...' : '저장하기'}
-                </button>
-
-                {selectedCredId && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedCredId(null);
-                      setCredForm({ site_name: '', domain: '', username: '', secret_key: '', description: '' });
-                    }}
-                    style={{
-                      background: 'rgba(255, 255, 255, 0.08)',
-                      border: 'none',
-                      color: '#fff',
-                      padding: '10px 16px',
-                      borderRadius: '8px',
-                      cursor: 'pointer',
-                      fontSize: '13px',
-                      fontWeight: '600',
-                      transition: 'background 0.2s'
-                    }}
-                  >
-                    취소
-                  </button>
-                )}
-              </div>
-            </form>
-          </div>
-        </div>
-      ) : (
-        /* Tab 4: Monitor Panel */
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', flex: 1, overflow: 'hidden' }}>
-
-          {/* Active Tasks */}
-          <div style={{
-            background: 'rgba(0, 0, 0, 0.25)',
-            borderRadius: '16px',
-            padding: '20px',
-            border: '1px solid rgba(245, 158, 11, 0.2)',
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-              <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '8px', color: '#f59e0b' }}>
-                <Activity size={17} /> 진행 중인 태스크
-              </h3>
-              <button
-                onClick={fetchMonitorData}
-                style={{
-                  background: 'rgba(255,255,255,0.08)',
-                  border: 'none',
-                  color: '#fff',
-                  padding: '5px 12px',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  fontSize: '12px',
-                  fontWeight: '600'
-                }}
-              >
-                🔄 새로고침
-              </button>
-            </div>
-
-            {monitorTasks.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '24px 0', color: 'rgba(255,255,255,0.35)', fontSize: '14px' }}>
-                <CheckCircle size={32} style={{ marginBottom: '8px', opacity: 0.4 }} />
-                <div>현재 진행 중인 태스크가 없습니다</div>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {monitorTasks.map(task => {
-                  const isRunning = task.status === 'running';
-                  const isCancelling = task.status === 'cancelling';
-                  const isDone = task.status === 'done';
-                  const isError = task.status === 'error';
-                  const isCancelled = task.status === 'cancelled';
-                  const statusColors = {
-                    running: { bg: 'rgba(16, 185, 129, 0.12)', border: 'rgba(16, 185, 129, 0.4)', dot: '#10b981', label: '진행 중' },
-                    cancelling: { bg: 'rgba(245, 158, 11, 0.12)', border: 'rgba(245, 158, 11, 0.4)', dot: '#f59e0b', label: '취소 중...' },
-                    done: { bg: 'rgba(59, 130, 246, 0.10)', border: 'rgba(59, 130, 246, 0.3)', dot: '#3b82f6', label: '완료' },
-                    error: { bg: 'rgba(239, 68, 68, 0.10)', border: 'rgba(239, 68, 68, 0.3)', dot: '#ef4444', label: '오류' },
-                    cancelled: { bg: 'rgba(107, 114, 128, 0.12)', border: 'rgba(107, 114, 128, 0.3)', dot: '#6b7280', label: '중단됨' },
-                  };
-                  const sc = statusColors[task.status] || statusColors.error;
-                  return (
-                    <div key={task.id} style={{
-                      background: sc.bg,
-                      border: `1px solid ${sc.border}`,
-                      borderRadius: '12px',
-                      padding: '14px 16px',
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      gap: '14px',
-                    }}>
-                      {/* Status dot */}
-                      <div style={{
-                        width: '10px', height: '10px', borderRadius: '50%',
-                        background: sc.dot, flexShrink: 0, marginTop: '5px',
-                        animation: (isRunning || isCancelling) ? 'pulse 1.5s infinite' : 'none'
-                      }} />
-
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: '13px', fontWeight: '600', color: '#fff', marginBottom: '4px', wordBreak: 'break-word' }}>
-                          {task.goal}
-                        </div>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', fontSize: '11px', color: 'rgba(255,255,255,0.45)' }}>
-                          <span>ID: <code style={{ color: 'rgba(255,255,255,0.65)' }}>{task.id}</code></span>
-                          <span>출처: {task.source}</span>
-                          <span>시작: {task.started_at ? new Date(task.started_at).toLocaleTimeString('ko-KR') : '-'}</span>
-                          {task.finished_at && <span>종료: {new Date(task.finished_at).toLocaleTimeString('ko-KR')}</span>}
-                          <span style={{ color: sc.dot, fontWeight: '700' }}>{sc.label}</span>
-                        </div>
-                      </div>
-
-                      {/* Cancel button */}
-                      {(isRunning || isCancelling) && (
-                        <button
-                          onClick={() => handleCancelTask(task.id)}
-                          disabled={isCancellingTask[task.id] || isCancelling}
-                          style={{
-                            background: isCancelling ? 'rgba(107,114,128,0.3)' : 'rgba(239, 68, 68, 0.85)',
-                            border: 'none',
-                            color: '#fff',
-                            padding: '6px 12px',
-                            borderRadius: '8px',
-                            cursor: isCancelling ? 'default' : 'pointer',
-                            fontSize: '12px',
-                            fontWeight: '700',
-                            flexShrink: 0,
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '5px',
-                            opacity: isCancellingTask[task.id] ? 0.6 : 1,
-                            transition: 'all 0.2s'
-                          }}
-                          title="태스크 강제 중단"
-                        >
-                          <StopCircle size={13} />
-                          {isCancelling ? '취소 중...' : '강제 중단'}
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Log Stream */}
-          <div style={{
-            background: 'rgba(0, 0, 0, 0.35)',
-            borderRadius: '16px',
-            padding: '16px',
-            border: '1px solid rgba(255,255,255,0.07)',
-            flex: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden',
-            minHeight: '220px',
-            maxHeight: '380px'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-              <h3 style={{ margin: 0, fontSize: '14px', fontWeight: '700', color: 'rgba(255,255,255,0.7)', display: 'flex', alignItems: 'center', gap: '7px' }}>
-                <span style={{ width: '8px', height: '8px', background: '#10b981', borderRadius: '50%', display: 'inline-block', animation: 'pulse 2s infinite' }} />
-                실시간 로그
-              </h3>
-              <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)' }}>최근 100건 · 3초마다 자동 갱신</span>
-            </div>
-            <div style={{
-              flex: 1,
-              overflowY: 'auto',
-              fontFamily: 'monospace',
-              fontSize: '12px',
-              lineHeight: '1.6',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '2px'
-            }}>
-              {monitorLogs.length === 0 ? (
-                <div style={{ color: 'rgba(255,255,255,0.25)', textAlign: 'center', paddingTop: '32px' }}>로그가 없습니다</div>
-              ) : (
-                monitorLogs.map((log, i) => (
-                  <div key={i} style={{
-                    display: 'flex',
-                    gap: '10px',
-                    alignItems: 'flex-start',
-                    padding: '2px 0',
-                    borderBottom: '1px solid rgba(255,255,255,0.03)'
-                  }}>
-                    <span style={{ color: 'rgba(255,255,255,0.25)', flexShrink: 0, fontSize: '11px', paddingTop: '1px' }}>
-                      {log.ts ? new Date(log.ts).toLocaleTimeString('ko-KR') : ''}
-                    </span>
-                    <span style={{ color: '#38bdf8', flexShrink: 0, fontSize: '11px', paddingTop: '1px' }}>
-                      [{log.source}]
-                    </span>
-                    <span style={{ color: 'rgba(255,255,255,0.75)', flex: 1, wordBreak: 'break-all', whiteSpace: 'pre-wrap' }}>
-                      {log.text}
-                    </span>
-                  </div>
-                ))
-              )}
-              <div ref={monitorLogsEndRef} />
-            </div>
-          </div>
-
-        </div>
-      )}
+        <CredentialsManager
+          credentials={credentials}
+          isCredLoading={isCredLoading}
+          authFetch={authFetch}
+          selectedCredId={selectedCredId}
+          setSelectedCredId={setSelectedCredId}
+          credForm={credForm}
+          setCredForm={setCredForm}
+          handleSaveCredential={handleSaveCredential}
+          isSavingCred={isSavingCred}
+          handleDeleteCredential={handleDeleteCredential}
+        />
+      ) : activeTab === 'monitor' ? (
+        <RealtimeMonitor
+          monitorTasks={monitorTasks}
+          monitorLogs={monitorLogs}
+          fetchMonitorData={fetchMonitorData}
+          handleCancelTask={handleCancelTask}
+          isCancellingTask={isCancellingTask}
+          monitorLogsEndRef={monitorLogsEndRef}
+        />
+      ) : activeTab === 'history' ? (
+        <ExecutionHistory
+          API_BASE={API_BASE}
+          authFetch={authFetch}
+          activeTab={activeTab}
+          handleCancelTask={handleCancelTask}
+          isCancellingTask={isCancellingTask}
+        />
+      ) : null}
       </div>
 
       {/* Embedded Animations CSS */}
