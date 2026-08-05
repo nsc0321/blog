@@ -219,6 +219,7 @@ export default function MabinogiArchive() {
       const res = await fetch(url, { headers });
       if (res.ok) {
         const data = await res.json();
+        const rawHistory = data.history || [];
         const exactName = item.item_name.trim().toLowerCase();
         const filteredHistory = rawHistory.filter(h => {
           if (!h || !h.item_name) return true;
