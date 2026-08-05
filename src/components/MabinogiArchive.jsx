@@ -199,6 +199,11 @@ export default function MabinogiArchive() {
   const [showAddItemModal, setShowAddItemModal] = useState(false);
   const [showAddNoteModal, setShowAddNoteModal] = useState(false);
 
+  // Dedicated Enchant Master Archive States
+  const [enchantArchives, setEnchantArchives] = useState([]);
+  const [enchantArchiveFilter, setEnchantArchiveFilter] = useState('ALL'); // 'ALL', '접두', '접미'
+  const [enchantSearchInput, setEnchantSearchInput] = useState('');
+
   // Form States
   const [newItemForm, setNewItemForm] = useState({
     item_name: '',
@@ -280,6 +285,12 @@ export default function MabinogiArchive() {
           setAuctionResults(data.items || []);
         }
         setNextCursor(data.next_cursor || '');
+
+        // Auto-refresh archives DB after live ingestion
+        setTimeout(() => {
+          fetchItemArchives();
+          fetchEnchantArchives();
+        }, 600);
       }
     } catch (err) {
       console.error('Auction search error:', err);
@@ -403,6 +414,20 @@ export default function MabinogiArchive() {
     }
   };
 
+  const fetchEnchantArchives = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/mabinogi/archives/enchants`, {
+        headers: { 'ngrok-skip-browser-warning': 'true' }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setEnchantArchives(data || []);
+      }
+    } catch (err) {
+      console.log('Using local fallback for enchants');
+    }
+  };
+
   const fetchCharArchives = async () => {
     try {
       const res = await fetch(`${API_BASE}/api/mabinogi/archives/characters`, {
@@ -433,6 +458,7 @@ export default function MabinogiArchive() {
 
   useEffect(() => {
     fetchItemArchives();
+    fetchEnchantArchives();
     fetchCharArchives();
     fetchNoteArchives();
     handleSearchAuction();
@@ -788,6 +814,10 @@ export default function MabinogiArchive() {
         <button className={`mabi-tab ${activeTab === 'items' ? 'active' : ''}`} onClick={() => setActiveTab('items')}>
           <Layers size={16} />
           <span>아이템/장비 아카이브 ({itemArchives.length})</span>
+        </button>
+        <button className={`mabi-tab ${activeTab === 'enchants' ? 'active' : ''}`} onClick={() => setActiveTab('enchants')}>
+          <Sparkles size={16} />
+          <span>인챈트 도감 ({enchantArchives.length})</span>
         </button>
         <button className={`mabi-tab ${activeTab === 'characters' ? 'active' : ''}`} onClick={() => setActiveTab('characters')}>
           <User size={16} />
@@ -1147,6 +1177,110 @@ export default function MabinogiArchive() {
                 <p>저장된 캐릭터 아카이브가 없습니다. '실시간 API 조회' 탭에서 검색 후 저장하실 수 있습니다.</p>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3: 인챈트 도감 (Dedicated Enchant Master Knowledge Base) */}
+      {activeTab === 'enchants' && (
+        <div className="tab-content enchants-tab">
+          <div className="archive-section-header">
+            <div>
+              <h3>🔮 마비노기 인챈트 도감 (마스터 DB)</h3>
+              <p className="sub">경매장 검색 시 자동 수집되는 접두/접미 인챈트별 유동 옵션 최소~최대 수치 범위 정보</p>
+            </div>
+          </div>
+
+          <div className="enchant-archive-filter-bar">
+            <div className="enchant-type-toggle-group">
+              <button
+                className={`enchant-type-btn ${enchantArchiveFilter === 'ALL' ? 'active' : ''}`}
+                onClick={() => setEnchantArchiveFilter('ALL')}
+              >
+                전체 인챈트
+              </button>
+              <button
+                className={`enchant-type-btn prefix ${enchantArchiveFilter === '접두' ? 'active' : ''}`}
+                onClick={() => setEnchantArchiveFilter('접두')}
+              >
+                ✨ 접두 (Prefix)
+              </button>
+              <button
+                className={`enchant-type-btn suffix ${enchantArchiveFilter === '접미' ? 'active' : ''}`}
+                onClick={() => setEnchantArchiveFilter('접미')}
+              >
+                🔮 접미 (Suffix)
+              </button>
+            </div>
+
+            <div className="enchant-search-input-box">
+              <Search size={14} />
+              <input
+                type="text"
+                placeholder="인챈트 명칭 / 효과 검색 (예: 의지의, 알레고리)"
+                value={enchantSearchInput}
+                onChange={e => setEnchantSearchInput(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Enchant Master Cards Grid */}
+          <div className="enchant-master-cards-grid">
+            {enchantArchives
+              .filter(enc => {
+                if (enchantArchiveFilter !== 'ALL' && enc.enchant_type !== enchantArchiveFilter) return false;
+                if (enchantSearchInput.trim()) {
+                  const q = enchantSearchInput.trim().toLowerCase();
+                  return (enc.enchant_name || '').toLowerCase().includes(q) ||
+                         (enc.effect_summary || '').toLowerCase().includes(q) ||
+                         (enc.target_equip || '').toLowerCase().includes(q);
+                }
+                return true;
+              })
+              .map(enc => {
+                let statsMap = {};
+                try {
+                  if (enc.stats_min_max_json) statsMap = JSON.parse(enc.stats_min_max_json);
+                } catch (e) {}
+
+                return (
+                  <div key={enc.id} className="enchant-master-card">
+                    <div className="card-top">
+                      <span className={`opt-type-tag ${enc.enchant_type}`}>{enc.enchant_type}</span>
+                      <span className="rank-badge">{enc.rank || '1랭크'}</span>
+                    </div>
+
+                    <h4 className="enchant-title">{enc.enchant_name} 인챈트</h4>
+                    <span className="target-equip-badge"><ShieldAlert size={12} /> {enc.target_equip || '전용 장비'}</span>
+
+                    {/* Min / Max Stat Gauges */}
+                    <div className="stat-ranges-box">
+                      <span className="box-lbl">유동 옵션 최소 ~ 최대 수치 범위</span>
+                      {Object.keys(statsMap).length > 0 ? (
+                        Object.entries(statsMap).map(([statName, info], i) => (
+                          <div className="stat-gauge-row" key={i}>
+                            <div className="stat-header">
+                              <span className="stat-name">{statName}</span>
+                              <span className="stat-range-val font-bold">
+                                {info.min === info.max ? `${info.min}${info.unit}` : `${info.min} ~ ${info.max} ${info.unit}`}
+                              </span>
+                            </div>
+                            <div className="gauge-track">
+                              <div className="gauge-fill" style={{ width: '100%' }} />
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="summary-text">{enc.effect_summary || '효과 정보 요약 준비 중'}</p>
+                      )}
+                    </div>
+
+                    <div className="card-footer">
+                      <span className="sample-lbl">실시간 수집 데이터: {enc.sample_count || 1}건 수집</span>
+                    </div>
+                  </div>
+                );
+              })}
           </div>
         </div>
       )}

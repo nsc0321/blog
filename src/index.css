@@ -2116,6 +2116,149 @@ h1, h2, h3, h4, h5, h6 {
   }
 }
 
+.enchant-archive-filter-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid var(--border-color);
+  padding: 12px 18px;
+  border-radius: 12px;
+}
+
+.enchant-search-input-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(30, 41, 59, 0.8);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 6px 12px;
+  min-width: 280px;
+}
+
+.enchant-search-input-box input {
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 13px;
+  outline: none;
+  width: 100%;
+}
+
+.enchant-master-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 20px;
+}
+
+.enchant-master-card {
+  background: rgba(15, 23, 42, 0.75);
+  border: 1px solid rgba(139, 92, 246, 0.35);
+  border-radius: 16px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.enchant-master-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(139, 92, 246, 0.7);
+}
+
+.enchant-master-card .card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.enchant-master-card .rank-badge {
+  font-size: 11px;
+  font-weight: 800;
+  background: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
+.enchant-master-card .enchant-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: #fff;
+}
+
+.enchant-master-card .target-equip-badge {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.stat-ranges-box {
+  background: rgba(30, 41, 59, 0.5);
+  border: 1px solid rgba(139, 92, 246, 0.25);
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.stat-ranges-box .box-lbl {
+  font-size: 11px;
+  font-weight: 700;
+  color: #c4b5fd;
+}
+
+.stat-gauge-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stat-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+}
+
+.stat-header .stat-name {
+  color: #e2e8f0;
+}
+
+.stat-header .stat-range-val {
+  color: #34d399;
+}
+
+.gauge-track {
+  height: 6px;
+  background: rgba(15, 23, 42, 0.8);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.gauge-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #10b981 0%, #34d399 50%, #d946ef 100%);
+  border-radius: 3px;
+}
+
+.enchant-master-card .card-footer {
+  font-size: 11px;
+  color: var(--text-secondary);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 10px;
+}
+
 
 
 
