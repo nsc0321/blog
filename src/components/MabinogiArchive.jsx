@@ -59,8 +59,53 @@ export default function MabinogiArchive() {
     return Number(p) || 0;
   };
 
+  // Helper to extract & parse detailed extra options array/objects from Nexon API
+  const getItemOptionsList = (item) => {
+    if (!item) return [];
+    const list = [];
+
+    // Check array of option objects from Nexon API
+    const rawOpts = item.item_option || item.options_list || item.raw_data?.item_option;
+    if (Array.isArray(rawOpts) && rawOpts.length > 0) {
+      rawOpts.forEach(o => {
+        if (typeof o === 'object' && o !== null) {
+          const type = o.option_type || o.type || '옵션';
+          const subType = o.option_sub_type || o.sub_type || '';
+          const val = o.option_value || o.value || o.option_value2 || '';
+          const desc = o.option_desc || o.description || '';
+
+          let label = [subType, val].filter(Boolean).join(' ');
+          if (desc) label += ` (${desc})`;
+          if (!label) label = type;
+
+          list.push({ type, label });
+        } else if (typeof o === 'string' && o.trim()) {
+          list.push({ type: '옵션', label: o.trim() });
+        }
+      });
+    }
+
+    // String fallback if list is empty (e.g. "세공 1랭크 / 속성 6레벨 / S강 7단계")
+    if (list.length === 0 && (item.option || item.item_option_json)) {
+      const str = String(item.option || item.item_option_json);
+      str.split('/').forEach(s => {
+        const trimmed = s.trim();
+        if (trimmed) {
+          let type = '옵션';
+          if (trimmed.includes('세공')) type = '세공';
+          else if (trimmed.includes('인챈트')) type = '인챈트';
+          else if (trimmed.includes('피어싱')) type = '피어싱';
+          else if (trimmed.includes('에르그')) type = '에르그';
+          else if (trimmed.includes('강화') || trimmed.includes('개조')) type = '개조';
+          list.push({ type, label: trimmed });
+        }
+      });
+    }
+
+    return list;
+  };
+
   // Modals state
-  const [modalSubTab, setModalSubTab] = useState('history'); // 'history' | 'details'
   const [showAddItemModal, setShowAddItemModal] = useState(false);
   const [showAddNoteModal, setShowAddNoteModal] = useState(false);
 
@@ -156,7 +201,6 @@ export default function MabinogiArchive() {
   // Item Click -> Open Trade History Modal & Fetch History Data
   const handleItemClickForHistory = async (item) => {
     setSelectedItemHistory(item);
-    setModalSubTab('history');
     setHistoryLoading(true);
     setHistoryData([]);
 
@@ -777,57 +821,41 @@ export default function MabinogiArchive() {
         </div>
       )}
 
-      {/* TRADE HISTORY & DETAIL MODAL WITH INTERACTIVE CHART */}
+      {/* TRADE HISTORY & DETAIL UNIFIED MODAL WITH INTERACTIVE CHART */}
       {selectedItemHistory && (
         <div className="modal-overlay history-modal-overlay" onClick={() => setSelectedItemHistory(null)}>
-          <div className="history-modal-container" onClick={e => e.stopPropagation()}>
+          <div className="history-modal-container unified-modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <div className="modal-title-group">
                 <TrendingUp size={22} className="modal-icon" />
                 <div>
-                  <h3>[{selectedItemHistory.item_name}] 상세 데이터</h3>
-                  <span className="modal-sub">Nexon Open API 실시간 시세 및 아이템 정보</span>
+                  <h3>[{selectedItemHistory.item_name}] 실시간 시세 및 거래 정보</h3>
+                  <span className="modal-sub">Nexon Open API 실시간 거래 내역 & 아이템 옵션 분석</span>
                 </div>
               </div>
-              
-              <div className="modal-tab-bar">
-                <button
-                  className={`modal-tab-btn ${modalSubTab === 'history' ? 'active' : ''}`}
-                  onClick={() => setModalSubTab('history')}
-                >
-                  <TrendingUp size={14} />
-                  <span>거래 내역 (차트)</span>
-                </button>
-                <button
-                  className={`modal-tab-btn ${modalSubTab === 'details' ? 'active' : ''}`}
-                  onClick={() => setModalSubTab('details')}
-                >
-                  <Info size={14} />
-                  <span>상세 정보</span>
-                </button>
-              </div>
-
               <button className="close-btn" onClick={() => setSelectedItemHistory(null)}>
                 <X size={20} />
               </button>
             </div>
 
-            <div className="modal-body">
+            <div className="modal-body scrollable-modal-body">
               {historyLoading ? (
                 <div className="history-loading-box">
                   <RefreshCw size={28} className="spin" />
                   <p>거래 내역 및 아이템 상세 데이터를 불러오는 중입니다...</p>
                 </div>
-              ) : modalSubTab === 'history' ? (
-                <>
-                  {/* Mouse Scroll Zoom Interactive Dual Axis Chart Component */}
-                  <MabiAuctionChart
-                    itemName={selectedItemHistory.item_name}
-                    historyData={historyData}
-                  />
+              ) : (
+                <div className="unified-modal-content">
+                  {/* TOP SECTION: Interactive Dual Axis Chart */}
+                  <div className="modal-section-block">
+                    <MabiAuctionChart
+                      itemName={selectedItemHistory.item_name}
+                      historyData={historyData}
+                    />
+                  </div>
 
-                  {/* Transaction History Log Table */}
-                  <div className="history-table-section">
+                  {/* TOP SECTION: Transaction History Log Table */}
+                  <div className="history-table-section modal-section-block">
                     <h4>최근 실시간 체결 및 거래 기록 ({historyData.length}건)</h4>
                     <div className="history-table-wrapper">
                       <table className="mabi-table compact">
@@ -854,78 +882,90 @@ export default function MabinogiArchive() {
                       </table>
                     </div>
                   </div>
-                </>
-              ) : (
-                /* Item Details Sub-Tab Panel */
-                <div className="item-details-panel">
-                  <div className="detail-top-card">
-                    <div className="detail-header-info">
-                      <span className="category-badge">{selectedItemHistory.category || selectedCategory}</span>
-                      <h3>{selectedItemHistory.item_name}</h3>
-                      <div className="detail-price-hero">
-                        <span className="lbl">현재 등록 / 단가:</span>
-                        <span className="val">{getItemPrice(selectedItemHistory).toLocaleString()} 골드</span>
+
+                  {/* BOTTOM SECTION: Item Details & Extra Options Breakdown */}
+                  <div className="item-details-panel modal-section-block">
+                    <div className="detail-top-card">
+                      <div className="detail-header-info">
+                        <span className="category-badge">{selectedItemHistory.category || selectedCategory}</span>
+                        <h3>{selectedItemHistory.item_name}</h3>
+                        <div className="detail-price-hero">
+                          <span className="lbl">현재 등록 / 단가:</span>
+                          <span className="val">{getItemPrice(selectedItemHistory).toLocaleString()} 골드</span>
+                        </div>
+                      </div>
+                      <button
+                        className="archive-save-btn highlight-btn"
+                        onClick={() => handleSaveAuctionItemToDB(selectedItemHistory)}
+                      >
+                        <Database size={15} />
+                        <span>내 DB 아카이브에 수집 저장</span>
+                      </button>
+                    </div>
+
+                    <div className="detail-metrics-grid">
+                      <div className="metric-card">
+                        <span className="k">평균 시세</span>
+                        <span className="v purple">
+                          {Math.round(
+                            historyData.reduce((a, b) => a + getItemPrice(b), 0) / (historyData.length || 1)
+                          ).toLocaleString()} 골드
+                        </span>
+                      </div>
+                      <div className="metric-card">
+                        <span className="k">최저 거래가</span>
+                        <span className="v blue">
+                          {(historyData.length > 0
+                            ? Math.min(...historyData.map(getItemPrice))
+                            : getItemPrice(selectedItemHistory)
+                          ).toLocaleString()} 골드
+                        </span>
+                      </div>
+                      <div className="metric-card">
+                        <span className="k">최고 거래가</span>
+                        <span className="v green">
+                          {(historyData.length > 0
+                            ? Math.max(...historyData.map(getItemPrice))
+                            : getItemPrice(selectedItemHistory)
+                          ).toLocaleString()} 골드
+                        </span>
+                      </div>
+                      <div className="metric-card">
+                        <span className="k">판매 등록 수량</span>
+                        <span className="v">{selectedItemHistory.item_count || 1} 개</span>
                       </div>
                     </div>
-                    <button
-                      className="archive-save-btn highlight-btn"
-                      onClick={() => handleSaveAuctionItemToDB(selectedItemHistory)}
-                    >
-                      <Database size={15} />
-                      <span>내 DB 아카이브에 수집 저장</span>
-                    </button>
-                  </div>
 
-                  <div className="detail-metrics-grid">
-                    <div className="metric-card">
-                      <span className="k">평균 시세</span>
-                      <span className="v purple">
-                        {Math.round(
-                          historyData.reduce((a, b) => a + getItemPrice(b), 0) / (historyData.length || 1)
-                        ).toLocaleString()} 골드
-                      </span>
+                    {/* EXTRA OPTIONS & REFORGE / ENCHANT BADGES LIST */}
+                    <div className="detail-section-box">
+                      <h4>아이템 세부 세공 / 인챈트 / 추가 옵션 정보</h4>
+                      {getItemOptionsList(selectedItemHistory).length > 0 ? (
+                        <div className="option-badges-grid">
+                          {getItemOptionsList(selectedItemHistory).map((opt, i) => (
+                            <div className="option-badge-item" key={i}>
+                              <span className={`opt-type-tag ${opt.type}`}>{opt.type}</span>
+                              <span className="opt-label-text">{opt.label}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="option-breakdown-card">
+                          <p className="opt-text">
+                            {selectedItemHistory.option || selectedItemHistory.item_option_json || '등록된 세부 옵션 정보가 없습니다.'}
+                          </p>
+                        </div>
+                      )}
                     </div>
-                    <div className="metric-card">
-                      <span className="k">최저 거래가</span>
-                      <span className="v blue">
-                        {(historyData.length > 0
-                          ? Math.min(...historyData.map(getItemPrice))
-                          : getItemPrice(selectedItemHistory)
-                        ).toLocaleString()} 골드
-                      </span>
-                    </div>
-                    <div className="metric-card">
-                      <span className="k">최고 거래가</span>
-                      <span className="v green">
-                        {(historyData.length > 0
-                          ? Math.max(...historyData.map(getItemPrice))
-                          : getItemPrice(selectedItemHistory)
-                        ).toLocaleString()} 골드
-                      </span>
-                    </div>
-                    <div className="metric-card">
-                      <span className="k">판매 등록 수량</span>
-                      <span className="v">{selectedItemHistory.item_count || 1} 개</span>
-                    </div>
-                  </div>
 
-                  <div className="detail-section-box">
-                    <h4>아이템 상세 옵션 및 세공 정보</h4>
-                    <div className="option-breakdown-card">
-                      <p className="opt-text">
-                        {selectedItemHistory.option || selectedItemHistory.item_option_json || '등록된 세부 옵션 정보가 없습니다.'}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="detail-meta-grid">
-                    <div className="meta-item">
-                      <span className="lbl">판매 등록자:</span>
-                      <span className="val">{selectedItemHistory.seller || '경매장 등록 유저'}</span>
-                    </div>
-                    <div className="meta-item">
-                      <span className="lbl">등록 / 조회 일시:</span>
-                      <span className="val">{selectedItemHistory.recorded_at || selectedItemHistory.expire_date || '실시간 시세 조회'}</span>
+                    <div className="detail-meta-grid">
+                      <div className="meta-item">
+                        <span className="lbl">판매 등록자:</span>
+                        <span className="val">{selectedItemHistory.seller || '경매장 등록 유저'}</span>
+                      </div>
+                      <div className="meta-item">
+                        <span className="lbl">등록 / 조회 일시:</span>
+                        <span className="val">{selectedItemHistory.recorded_at || selectedItemHistory.expire_date || '실시간 시세 조회'}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
