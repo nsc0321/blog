@@ -1092,15 +1092,16 @@ export default function MabinogiArchive() {
           <div className="tab-toolbar">
             <div className="filter-group">
               <Filter size={16} />
-              {['ALL', '무기', '방어구', '인챈트', '에르그', '기타'].map(cat => (
-                <button
-                  key={cat}
-                  className={`filter-btn ${categoryFilter === cat ? 'active' : ''}`}
-                  onClick={() => setCategoryFilter(cat)}
-                >
-                  {cat === 'ALL' ? '전체 보기' : cat}
-                </button>
-              ))}
+              <select
+                className="mabi-select category-filter-select"
+                value={categoryFilter}
+                onChange={e => setCategoryFilter(e.target.value)}
+              >
+                <option value="ALL">전체 아이템 분류 보기</option>
+                {MABI_CATEGORIES.filter(c => c !== "전체").map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
             </div>
 
             <button className="create-archive-btn" onClick={() => setShowAddItemModal(true)}>
@@ -1113,13 +1114,40 @@ export default function MabinogiArchive() {
             {filteredItems.map(item => (
               <div className="archive-item-card" key={item.id}>
                 <div className="card-top">
-                  <span className="category-pill">{item.category}</span>
+                  <span className="category-pill">{item.category || '장비'}</span>
                   <button className="delete-mini-btn" onClick={() => handleDeleteItem(item.id)}>
                     <Trash2 size={14} />
                   </button>
                 </div>
                 <h4>{item.item_name}</h4>
                 <p className="desc">{item.description || '상세 정보 없음'}</p>
+                
+                {/* Options List Display */}
+                {item.options_json && (
+                  <div className="archive-options-text">
+                    <span className="opt-lbl">옵션/세공:</span> {item.options_json}
+                  </div>
+                )}
+
+                {/* Set Effects Display */}
+                {item.set_effects_json && (
+                  <div className="set-effects-container">
+                    {(() => {
+                      try {
+                        const setArr = JSON.parse(item.set_effects_json);
+                        if (Array.isArray(setArr) && setArr.length > 0) {
+                          return setArr.map((se, idx) => (
+                            <span className="set-effect-badge" key={idx}>
+                              ✨ 세트: {se.name} {se.value}
+                            </span>
+                          ));
+                        }
+                      } catch (e) {}
+                      return null;
+                    })()}
+                  </div>
+                )}
+
                 {item.price_estimate && (
                   <div className="price-tag">
                     <span className="k">예상 시세:</span>
@@ -1139,7 +1167,7 @@ export default function MabinogiArchive() {
             {filteredItems.length === 0 && (
               <div className="empty-archive-box">
                 <Database size={32} />
-                <p>등록된 아이템 아카이브가 없습니다. 새로운 항목을 추가해보세요.</p>
+                <p>등록된 아이템 아카이브가 없습니다. 실시간 API 검색을 통해 카테고리별 아이템 정보를 자동으로 등록할 수 있습니다.</p>
               </div>
             )}
           </div>
