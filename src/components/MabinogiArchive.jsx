@@ -1108,7 +1108,7 @@ export default function MabinogiArchive() {
                     <span className="category-pill main-cat">{selectedArchiveItem.category || '장비'}</span>
                     <span className="info-badge">정보성 지식 DB</span>
                   </div>
-                  <h1 className="item-main-title">{selectedArchiveItem.item_name}</h1>
+                  <h1 className="item-main-title">{selectedArchiveItem.item_display_name || selectedArchiveItem.item_name}</h1>
                 </div>
 
                 <div className="hero-actions">
@@ -1341,7 +1341,7 @@ export default function MabinogiArchive() {
                         <Trash2 size={14} />
                       </button>
                     </div>
-                    <h4>{item.item_name}</h4>
+                    <h4>{item.item_display_name || item.item_name}</h4>
                     <p className="desc">{item.description || '클릭하여 상세 옵션 및 세트 효과 보기'}</p>
                     
                     {/* Options List Display */}
