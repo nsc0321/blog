@@ -204,12 +204,14 @@ export default function MabinogiArchive() {
   const [enchantArchiveFilter, setEnchantArchiveFilter] = useState('ALL'); // 'ALL', '접두', '접미'
   const [enchantSearchInput, setEnchantSearchInput] = useState('');
 
+  // Selected Archive Item State for Dedicated Detail View
+  const [selectedArchiveItem, setSelectedArchiveItem] = useState(null);
+
   // Form States
   const [newItemForm, setNewItemForm] = useState({
     item_name: '',
     category: '무기',
     subcategory: '',
-    price_estimate: '',
     tags: '',
     description: '',
     options_json: ''
@@ -1089,88 +1091,247 @@ export default function MabinogiArchive() {
       {/* TAB 2: 아이템/장비 아카이브 */}
       {activeTab === 'items' && (
         <div className="tab-content items-tab">
-          <div className="tab-toolbar">
-            <div className="filter-group">
-              <Filter size={16} />
-              <select
-                className="mabi-select category-filter-select"
-                value={categoryFilter}
-                onChange={e => setCategoryFilter(e.target.value)}
+          {selectedArchiveItem ? (
+            /* ARCHIVE ITEM DETAIL PAGE VIEW */
+            <div className="item-detail-page-view archive-detail-page-view">
+              <button 
+                className="back-to-list-btn"
+                onClick={() => setSelectedArchiveItem(null)}
               >
-                <option value="ALL">전체 아이템 분류 보기</option>
-                {MABI_CATEGORIES.filter(c => c !== "전체").map(cat => (
-                  <option key={cat} value={cat}>{cat}</option>
-                ))}
-              </select>
-            </div>
+                <ArrowLeft size={18} />
+                <span>← 아이템 아카이브 목록으로 돌아가기</span>
+              </button>
 
-            <button className="create-archive-btn" onClick={() => setShowAddItemModal(true)}>
-              <Plus size={16} />
-              <span>새 아이템 아카이브 수집</span>
-            </button>
-          </div>
+              <div className="detail-hero-header">
+                <div className="item-title-section">
+                  <div className="category-tag-row">
+                    <span className="category-pill main-cat">{selectedArchiveItem.category || '장비'}</span>
+                    <span className="info-badge">정보성 지식 DB</span>
+                  </div>
+                  <h1 className="item-main-title">{selectedArchiveItem.item_name}</h1>
+                </div>
 
-          <div className="archive-cards-grid">
-            {filteredItems.map(item => (
-              <div className="archive-item-card" key={item.id}>
-                <div className="card-top">
-                  <span className="category-pill">{item.category || '장비'}</span>
-                  <button className="delete-mini-btn" onClick={() => handleDeleteItem(item.id)}>
-                    <Trash2 size={14} />
+                <div className="hero-actions">
+                  <button className="delete-btn" onClick={() => {
+                    handleDeleteItem(selectedArchiveItem.id);
+                    setSelectedArchiveItem(null);
+                  }}>
+                    <Trash2 size={16} />
+                    <span>아카이브에서 삭제</span>
                   </button>
                 </div>
-                <h4>{item.item_name}</h4>
-                <p className="desc">{item.description || '상세 정보 없음'}</p>
-                
-                {/* Options List Display */}
-                {item.options_json && (
-                  <div className="archive-options-text">
-                    <span className="opt-lbl">옵션/세공:</span> {item.options_json}
-                  </div>
-                )}
+              </div>
 
-                {/* Set Effects Display */}
-                {item.set_effects_json && (
-                  <div className="set-effects-container">
+              <div className="detail-grid-layout">
+                {/* LEFT MAIN PANEL */}
+                <div className="detail-main-panel">
+                  {/* 1. 기본 설명 & 태그 */}
+                  <div className="detail-card-box">
+                    <h3><Info size={18} /> 아이템 기본 정보</h3>
+                    <p className="item-description-text">
+                      {selectedArchiveItem.description || '등록된 상세 설명 정보가 없습니다.'}
+                    </p>
+                    {selectedArchiveItem.tags && (
+                      <div className="tags-container" style={{ marginTop: '12px' }}>
+                        {selectedArchiveItem.tags.split(',').map((t, i) => (
+                          <span className="tag-badge" key={i}>#{t.trim()}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 2. 부가 옵션 & 세공/개조 목록 */}
+                  <div className="detail-card-box">
+                    <h3><Zap size={18} /> 부가 옵션 (세공 / 개조 / 옵션)</h3>
+                    {selectedArchiveItem.options_json ? (
+                      <div className="options-formatted-box">
+                        {selectedArchiveItem.options_json.split(' / ').map((optLine, i) => (
+                          <div className="option-line-item" key={i}>
+                            <span className="bullet">•</span>
+                            <span className="line-text">{optLine}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="empty-text font-medium">수집된 부가 옵션 데이터가 없습니다.</p>
+                    )}
+                  </div>
+
+                  {/* 3. 세트 효과 (Set Effects) */}
+                  <div className="detail-card-box">
+                    <h3><Sparkles size={18} /> 발동 세트 효과 (Set Effects)</h3>
+                    {selectedArchiveItem.set_effects_json ? (
+                      <div className="set-effects-list-box">
+                        {(() => {
+                          try {
+                            const setArr = JSON.parse(selectedArchiveItem.set_effects_json);
+                            if (Array.isArray(setArr) && setArr.length > 0) {
+                              return setArr.map((se, idx) => (
+                                <div className="set-effect-row-card" key={idx}>
+                                  <span className="effect-icon">✨</span>
+                                  <span className="effect-name">{se.name}</span>
+                                  <span className="effect-val">{se.value}</span>
+                                </div>
+                              ));
+                            }
+                          } catch (e) {}
+                          return <p className="empty-text">수집된 세트 효과가 없습니다.</p>;
+                        })()}
+                      </div>
+                    ) : (
+                      <p className="empty-text">수집된 세트 효과가 없습니다.</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* RIGHT SIDE PANEL: ENCHANTS KNOWLEDGE LINK */}
+                <div className="detail-side-panel">
+                  <div className="detail-card-box enchant-extract-box">
+                    <h3><Sparkles size={18} /> 장비 인챈트 도감 연동</h3>
+                    <p className="enchant-info-desc">
+                      이 아이템 장비 옵션에 포함된 접두/접미 인챈트는 <strong>'인챈트 도감'</strong>에 분리 저장되어 최소~최대 유동 옵션 수치가 자동으로 트래킹됩니다.
+                    </p>
+
                     {(() => {
-                      try {
-                        const setArr = JSON.parse(item.set_effects_json);
-                        if (Array.isArray(setArr) && setArr.length > 0) {
-                          return setArr.map((se, idx) => (
-                            <span className="set-effect-badge" key={idx}>
-                              ✨ 세트: {se.name} {se.value}
-                            </span>
-                          ));
-                        }
-                      } catch (e) {}
-                      return null;
+                      const optText = selectedArchiveItem.options_json || '';
+                      const foundEnchants = [];
+                      const matches = optText.match(/(?:접두|접미)\s+([가-힣a-zA-Z0-9]+)/g);
+                      if (matches) {
+                        matches.forEach(m => {
+                          const cleanName = m.replace(/(?:접두|접미)/, '').trim();
+                          if (cleanName && !foundEnchants.includes(cleanName)) {
+                            foundEnchants.push(cleanName);
+                          }
+                        });
+                      }
+
+                      return (
+                        <div className="enchant-links-container">
+                          {foundEnchants.length > 0 ? (
+                            foundEnchants.map((eName, idx) => (
+                              <button
+                                key={idx}
+                                className="enchant-jump-btn"
+                                onClick={() => {
+                                  setSelectedArchiveItem(null);
+                                  setActiveTab('enchants');
+                                  setEnchantSearchInput(eName);
+                                }}
+                              >
+                                <span>🔮 인챈트 도감에서 '{eName}' 수치 범위 확인하기</span>
+                                <ArrowRight size={14} />
+                              </button>
+                            ))
+                          ) : (
+                            <button
+                              className="enchant-jump-btn"
+                              onClick={() => {
+                                setSelectedArchiveItem(null);
+                                setActiveTab('enchants');
+                              }}
+                            >
+                              <span>🔮 전체 인챈트 도감 보러가기</span>
+                              <ArrowRight size={14} />
+                            </button>
+                          )}
+                        </div>
+                      );
                     })()}
                   </div>
-                )}
-
-                {item.price_estimate && (
-                  <div className="price-tag">
-                    <span className="k">예상 시세:</span>
-                    <span className="v">{item.price_estimate}</span>
-                  </div>
-                )}
-                {item.tags && (
-                  <div className="tags-container">
-                    {item.tags.split(',').map((t, i) => (
-                      <span className="tag-badge" key={i}>#{t.trim()}</span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* ARCHIVE CARDS GRID VIEW */
+            <>
+              <div className="tab-toolbar">
+                <div className="filter-group">
+                  <Filter size={16} />
+                  <select
+                    className="mabi-select category-filter-select"
+                    value={categoryFilter}
+                    onChange={e => setCategoryFilter(e.target.value)}
+                  >
+                    <option value="ALL">전체 아이템 분류 보기</option>
+                    {MABI_CATEGORIES.filter(c => c !== "전체").map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
                     ))}
+                  </select>
+                </div>
+
+                <button className="create-archive-btn" onClick={() => setShowAddItemModal(true)}>
+                  <Plus size={16} />
+                  <span>새 아이템 아카이브 수집</span>
+                </button>
+              </div>
+
+              <div className="archive-cards-grid">
+                {filteredItems.map(item => (
+                  <div
+                    className="archive-item-card clickable-archive-card"
+                    key={item.id}
+                    onClick={() => setSelectedArchiveItem(item)}
+                  >
+                    <div className="card-top">
+                      <span className="category-pill">{item.category || '장비'}</span>
+                      <button 
+                        className="delete-mini-btn" 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteItem(item.id);
+                        }}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                    <h4>{item.item_name}</h4>
+                    <p className="desc">{item.description || '클릭하여 상세 옵션 및 세트 효과 보기'}</p>
+                    
+                    {/* Options List Display */}
+                    {item.options_json && (
+                      <div className="archive-options-text">
+                        <span className="opt-lbl">옵션/세공:</span> {item.options_json}
+                      </div>
+                    )}
+
+                    {/* Set Effects Display */}
+                    {item.set_effects_json && (
+                      <div className="set-effects-container">
+                        {(() => {
+                          try {
+                            const setArr = JSON.parse(item.set_effects_json);
+                            if (Array.isArray(setArr) && setArr.length > 0) {
+                              return setArr.map((se, idx) => (
+                                <span className="set-effect-badge" key={idx}>
+                                  ✨ 세트: {se.name} {se.value}
+                                </span>
+                              ));
+                            }
+                          } catch (e) {}
+                          return null;
+                        })()}
+                      </div>
+                    )}
+
+                    {item.tags && (
+                      <div className="tags-container">
+                        {item.tags.split(',').map((t, i) => (
+                          <span className="tag-badge" key={i}>#{t.trim()}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                {filteredItems.length === 0 && (
+                  <div className="empty-archive-box">
+                    <Database size={32} />
+                    <p>등록된 아이템 아카이브가 없습니다. 실시간 API 검색을 통해 카테고리별 아이템 정보를 자동으로 등록할 수 있습니다.</p>
                   </div>
                 )}
               </div>
-            ))}
-
-            {filteredItems.length === 0 && (
-              <div className="empty-archive-box">
-                <Database size={32} />
-                <p>등록된 아이템 아카이브가 없습니다. 실시간 API 검색을 통해 카테고리별 아이템 정보를 자동으로 등록할 수 있습니다.</p>
-              </div>
-            )}
-          </div>
+            </>
+          )}
         </div>
       )}
 
@@ -1388,29 +1549,16 @@ export default function MabinogiArchive() {
                 />
               </div>
 
-              <div className="form-row">
-                <div className="form-group">
-                  <label>카테고리</label>
-                  <select
-                    value={newItemForm.category}
-                    onChange={e => setNewItemForm({ ...newItemForm, category: e.target.value })}
-                  >
-                    <option value="무기">무기</option>
-                    <option value="방어구">방어구</option>
-                    <option value="인챈트">인챈트</option>
-                    <option value="에르그">에르그</option>
-                    <option value="기타">기타</option>
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>예상 시세</label>
-                  <input
-                    type="text"
-                    placeholder="예: 45,000,000 골드"
-                    value={newItemForm.price_estimate}
-                    onChange={e => setNewItemForm({ ...newItemForm, price_estimate: e.target.value })}
-                  />
-                </div>
+              <div className="form-group">
+                <label>카테고리 분류</label>
+                <select
+                  value={newItemForm.category}
+                  onChange={e => setNewItemForm({ ...newItemForm, category: e.target.value })}
+                >
+                  {MABI_CATEGORIES.filter(c => c !== "전체").map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
               </div>
 
               <div className="form-group">
