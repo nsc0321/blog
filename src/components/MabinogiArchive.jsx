@@ -106,6 +106,7 @@ export default function MabinogiArchive() {
 
   const handleSearchAuction = async (appendCursor = '') => {
     setAuctionLoading(true);
+    const cursorStr = typeof appendCursor === 'string' ? appendCursor.trim() : '';
     try {
       const headers = {};
       if (apiKey) headers['x-nxopen-api-key'] = apiKey;
@@ -114,16 +115,16 @@ export default function MabinogiArchive() {
       let url = `${API_BASE}/api/mabinogi/auction/search?`;
 
       const params = [];
-      if (categoryParam) params.append(`auction_item_category=${encodeURIComponent(categoryParam)}`);
+      if (categoryParam) params.push(`auction_item_category=${encodeURIComponent(categoryParam)}`);
 
       if (isKeywordSearch) {
-        if (auctionSearchInput.trim()) params.append(`keyword=${encodeURIComponent(auctionSearchInput.trim())}`);
+        if (auctionSearchInput.trim()) params.push(`keyword=${encodeURIComponent(auctionSearchInput.trim())}`);
       } else {
-        if (auctionSearchInput.trim()) params.append(`item_name=${encodeURIComponent(auctionSearchInput.trim())}`);
+        if (auctionSearchInput.trim()) params.push(`item_name=${encodeURIComponent(auctionSearchInput.trim())}`);
       }
 
-      if (appendCursor) {
-        params.append(`cursor=${encodeURIComponent(appendCursor)}`);
+      if (cursorStr) {
+        params.push(`cursor=${encodeURIComponent(cursorStr)}`);
       }
 
       url += params.join('&');
@@ -131,7 +132,7 @@ export default function MabinogiArchive() {
       const res = await fetch(url, { headers });
       if (res.ok) {
         const data = await res.json();
-        if (appendCursor) {
+        if (cursorStr) {
           setAuctionResults(prev => [...prev, ...(data.items || [])]);
         } else {
           setAuctionResults(data.items || []);
