@@ -1140,20 +1140,77 @@ export default function MabinogiArchive() {
                     )}
                   </div>
 
-                  {/* 2. 부가 옵션 & 세공/개조 목록 */}
+                  {/* 2. 그룹별 옵션 유동 수치 범위 (Min~Max Ranges) */}
                   <div className="detail-card-box">
-                    <h3><Zap size={18} /> 부가 옵션 (세공 / 개조 / 옵션)</h3>
-                    {selectedArchiveItem.options_json ? (
-                      <div className="options-formatted-box">
-                        {selectedArchiveItem.options_json.split(' / ').map((optLine, i) => (
-                          <div className="option-line-item" key={i}>
-                            <span className="bullet">•</span>
-                            <span className="line-text">{optLine}</span>
-                          </div>
-                        ))}
-                      </div>
+                    <h3><Zap size={18} /> 그룹별 옵션 유동 수치 범위 (Min~Max Range)</h3>
+                    {selectedArchiveItem.grouped_options_json ? (
+                      (() => {
+                        try {
+                          const grp = JSON.parse(selectedArchiveItem.grouped_options_json);
+                          const grpNames = {
+                            base_stats: '📊 기본 능력치 수치 범위',
+                            reforge: '⚡ 세공 옵션 레벨 범위',
+                            modification: '🛠️ 개조 및 강화 단계',
+                            erg: '🔥 에르그 단계/효과',
+                            set_effects: '✨ 세트 효과 포인트',
+                            enchant: '🔮 부여된 인챈트'
+                          };
+
+                          const hasItems = Object.values(grp).some(dict => dict && Object.keys(dict).length > 0);
+                          if (!hasItems) {
+                            return <p className="empty-text font-medium">수집된 그룹별 수치 범위 데이터가 없습니다.</p>;
+                          }
+
+                          return (
+                            <div className="grouped-options-sections-container">
+                              {Object.entries(grp).map(([catKey, itemsDict]) => {
+                                const entries = Object.entries(itemsDict || {});
+                                if (entries.length === 0) return null;
+
+                                return (
+                                  <div className="option-category-group" key={catKey}>
+                                    <h4 className="group-title">{grpNames[catKey] || catKey}</h4>
+                                    <div className="group-items-list">
+                                      {entries.map(([optName, optInfo], idx) => (
+                                        <div className="option-range-card" key={idx}>
+                                          <div className="opt-header">
+                                            <span className="opt-name font-bold">{optName}</span>
+                                            <span className="opt-range-badge">
+                                              {optInfo.min === optInfo.max || optInfo.min === null
+                                                ? `${optInfo.max ?? optInfo.raw_val} ${optInfo.unit || ''}`
+                                                : `${optInfo.min} ~ ${optInfo.max} ${optInfo.unit || ''}`}
+                                            </span>
+                                          </div>
+                                          {optInfo.min !== null && optInfo.max !== null && (
+                                            <div className="gauge-track">
+                                              <div className="gauge-fill" style={{ width: '100%' }} />
+                                            </div>
+                                          )}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        } catch (e) {
+                          return <p className="empty-text">그룹별 데이터를 파싱할 수 없습니다.</p>;
+                        }
+                      })()
                     ) : (
-                      <p className="empty-text font-medium">수집된 부가 옵션 데이터가 없습니다.</p>
+                      selectedArchiveItem.options_json ? (
+                        <div className="options-formatted-box">
+                          {selectedArchiveItem.options_json.split(' / ').map((optLine, i) => (
+                            <div className="option-line-item" key={i}>
+                              <span className="bullet">•</span>
+                              <span className="line-text">{optLine}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="empty-text font-medium">수집된 부가 옵션 데이터가 없습니다.</p>
+                      )
                     )}
                   </div>
 
