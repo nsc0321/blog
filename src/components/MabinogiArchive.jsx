@@ -1282,6 +1282,22 @@ export default function MabinogiArchive() {
                 );
               })}
           </div>
+
+          {enchantArchives.filter(enc => {
+            if (enchantArchiveFilter !== 'ALL' && enc.enchant_type !== enchantArchiveFilter) return false;
+            if (enchantSearchInput.trim()) {
+              const q = enchantSearchInput.trim().toLowerCase();
+              return (enc.enchant_name || '').toLowerCase().includes(q) ||
+                     (enc.effect_summary || '').toLowerCase().includes(q) ||
+                     (enc.target_equip || '').toLowerCase().includes(q);
+            }
+            return true;
+          }).length === 0 && (
+            <div className="empty-archive-box">
+              <Sparkles size={32} />
+              <p>수집된 인챈트 도감 데이터가 없습니다. '실시간 API 조회' 탭에서 경매장 검색 시 자동으로 수집 수치 범위가 등록됩니다.</p>
+            </div>
+          )}
         </div>
       )}
 
