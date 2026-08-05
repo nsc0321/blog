@@ -40,6 +40,7 @@ export default function MabinogiArchive() {
   const [auctionResults, setAuctionResults] = useState([]);
   const [nextCursor, setNextCursor] = useState('');
   const [auctionLoading, setAuctionLoading] = useState(false);
+  const [enchantTypeFilter, setEnchantTypeFilter] = useState('ALL'); // 'ALL', 'PREFIX', 'SUFFIX'
 
   // Trade History Modal & Page States
   const [selectedItemHistory, setSelectedItemHistory] = useState(null);
@@ -65,22 +66,31 @@ export default function MabinogiArchive() {
     if (!item) return [];
     const list = [];
 
+    const isNone = (val) => !val || String(val).trim() === '' || String(val).trim() === 'None' || String(val).trim() === 'null';
+
     // Check array of option objects from Nexon API
     const rawOpts = item.item_option || item.options_list || item.raw_data?.item_option;
     if (Array.isArray(rawOpts) && rawOpts.length > 0) {
       rawOpts.forEach(o => {
         if (typeof o === 'object' && o !== null) {
-          const type = o.option_type || o.type || '옵션';
+          let type = o.option_type || o.type || '옵션';
           const subType = o.option_sub_type || o.sub_type || '';
-          const val = o.option_value || o.value || o.option_value2 || '';
+          const val = o.option_value || o.value || '';
+          const val2 = o.option_value2 || '';
           const desc = o.option_desc || o.description || '';
 
-          let label = [subType, val].filter(Boolean).join(' ');
-          if (desc) label += ` (${desc})`;
-          if (!label) label = type;
+          if (subType === '접두' || subType === '접미') {
+            type = subType;
+          }
 
-          list.push({ type, label });
-        } else if (typeof o === 'string' && o.trim()) {
+          let parts = [subType, val, val2].filter(v => !isNone(v));
+          let label = parts.join(' ');
+          if (!isNone(desc)) label += ` (${desc})`;
+
+          if (label && !isNone(label)) {
+            list.push({ type, label });
+          }
+        } else if (typeof o === 'string' && !isNone(o)) {
           list.push({ type: '옵션', label: o.trim() });
         }
       });
@@ -88,23 +98,45 @@ export default function MabinogiArchive() {
 
     // String fallback if list is empty (e.g. "세공 1랭크 / 속성 6레벨 / S강 7단계")
     if (list.length === 0 && (item.option || item.item_option_json)) {
-      const str = String(item.option || item.item_option_json);
-      str.split('/').forEach(s => {
-        const trimmed = s.trim();
-        if (trimmed) {
-          let type = '옵션';
-          if (trimmed.includes('세공')) type = '세공';
-          else if (trimmed.includes('인챈트')) type = '인챈트';
-          else if (trimmed.includes('피어싱')) type = '피어싱';
-          else if (trimmed.includes('에르그')) type = '에르그';
-          else if (trimmed.includes('강화') || trimmed.includes('개조')) type = '개조';
-          list.push({ type, label: trimmed });
-        }
-      });
+      const rawStr = String(item.option || item.item_option_json);
+      if (!isNone(rawStr)) {
+        rawStr.split('/').forEach(s => {
+          const trimmed = s.trim();
+          if (trimmed && !isNone(trimmed)) {
+            let type = '옵션';
+            if (trimmed.includes('접두')) type = '접두';
+            else if (trimmed.includes('접미')) type = '접미';
+            else if (trimmed.includes('세공')) type = '세공';
+            else if (trimmed.includes('인챈트')) type = '인챈트';
+            else if (trimmed.includes('피어싱')) type = '피어싱';
+            else if (trimmed.includes('에르그')) type = '에르그';
+            else if (trimmed.includes('강화') || trimmed.includes('개조')) type = '개조';
+            list.push({ type, label: trimmed });
+          }
+        });
+      }
     }
 
     return list;
   };
+
+  // Filter auction results based on enchantTypeFilter ('ALL', 'PREFIX', 'SUFFIX')
+  const filteredAuctionResults = React.useMemo(() => {
+    if (!auctionResults || auctionResults.length === 0) return [];
+    if (enchantTypeFilter === 'ALL') return auctionResults;
+
+    return auctionResults.filter(item => {
+      const opts = getItemOptionsList(item);
+      const optStr = JSON.stringify(item).toLowerCase();
+      if (enchantTypeFilter === 'PREFIX') {
+        return opts.some(o => o.type === '접두' || o.label.includes('접두')) || optStr.includes('접두');
+      }
+      if (enchantTypeFilter === 'SUFFIX') {
+        return opts.some(o => o.type === '접미' || o.label.includes('접미')) || optStr.includes('접미');
+      }
+      return true;
+    });
+  }, [auctionResults, enchantTypeFilter]);
 
   // Modals state
   const [showAddItemModal, setShowAddItemModal] = useState(false);
@@ -597,7 +629,19 @@ export default function MabinogiArchive() {
                             <td className="price-text font-bold">{getItemPrice(h).toLocaleString()} 골드</td>
                             <td>{h.item_count || 1}개</td>
                             <td>{h.seller || '익명'}</td>
-                            <td className="option-text">{h.option || '-'}</td>
+                            <td className="option-text">
+                              {getItemOptionsList(h).length > 0 ? (
+                                <div className="table-option-badges">
+                                  {getItemOptionsList(h).map((opt, i) => (
+                                    <span className={`opt-type-tag ${opt.type}`} key={i}>
+                                      [{opt.type}] {opt.label}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : (
+                                h.option && h.option !== 'None' && h.option !== 'null' ? h.option : '-'
+                              )}
+                            </td>
                           </tr>
                         ))
                       ) : (
@@ -758,9 +802,36 @@ export default function MabinogiArchive() {
                 </div>
               </div>
 
+              {/* ENCHANT TYPE CLASSIFICATION FILTER BAR (Displayed for Enchant category) */}
+              {(selectedCategory.includes("인챈트") || auctionResults.some(i => (i.category || '').includes("인챈트") || (i.item_name || '').includes("인챈트"))) && (
+                <div className="enchant-type-filter-bar">
+                  <span className="filter-lbl"><Sparkles size={14} /> 인챈트 종류 분류:</span>
+                  <div className="enchant-type-toggle-group">
+                    <button
+                      className={`enchant-type-btn ${enchantTypeFilter === 'ALL' ? 'active' : ''}`}
+                      onClick={() => setEnchantTypeFilter('ALL')}
+                    >
+                      전체 인챈트
+                    </button>
+                    <button
+                      className={`enchant-type-btn prefix ${enchantTypeFilter === 'PREFIX' ? 'active' : ''}`}
+                      onClick={() => setEnchantTypeFilter('PREFIX')}
+                    >
+                      ✨ 접두 (Prefix)
+                    </button>
+                    <button
+                      className={`enchant-type-btn suffix ${enchantTypeFilter === 'SUFFIX' ? 'active' : ''}`}
+                      onClick={() => setEnchantTypeFilter('SUFFIX')}
+                    >
+                      🔮 접미 (Suffix)
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Auction Results Table */}
               <div className="auction-results-header">
-                <span className="results-count">조회 결과: {auctionResults.length}개 매물 (아이템 클릭 시 거래 내역 차트 확인)</span>
+                <span className="results-count">조회 결과: {filteredAuctionResults.length}개 매물 (아이템 클릭 시 거래 내역 차트 확인)</span>
               </div>
 
               <div className="auction-results-table-wrapper">
@@ -777,8 +848,8 @@ export default function MabinogiArchive() {
                     </tr>
                   </thead>
                   <tbody>
-                    {auctionResults.length > 0 ? (
-                      auctionResults.map((item, idx) => (
+                    {filteredAuctionResults.length > 0 ? (
+                      filteredAuctionResults.map((item, idx) => (
                         <tr key={idx} className="clickable-row" onClick={() => handleItemClickForHistory(item)}>
                           <td className="font-bold item-name-cell">
                             <span className="item-title">{item.item_name}</span>
@@ -786,7 +857,19 @@ export default function MabinogiArchive() {
                           <td><span className="category-badge">{item.category || selectedCategory}</span></td>
                           <td className="price-text">{getItemPrice(item).toLocaleString()} 골드</td>
                           <td>{item.item_count || 1}개</td>
-                          <td className="option-text">{item.option || item.item_option_json || '-'}</td>
+                          <td className="option-text">
+                            {getItemOptionsList(item).length > 0 ? (
+                              <div className="table-option-badges">
+                                {getItemOptionsList(item).map((opt, i) => (
+                                  <span className={`opt-type-tag ${opt.type}`} key={i}>
+                                    [{opt.type}] {opt.label}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              item.option && item.option !== 'None' && item.option !== 'null' ? item.option : '-'
+                            )}
+                          </td>
                           <td className="seller-text">{item.seller || '익명'}</td>
                           <td>
                             <button className="view-history-btn">
