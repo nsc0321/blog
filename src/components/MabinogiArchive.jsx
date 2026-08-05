@@ -199,6 +199,19 @@ export default function MabinogiArchive() {
     }
   };
 
+  const isSameMabiItem = (target, item) => {
+    if (!target || !item) return false;
+    const tClean = target.trim().toLowerCase();
+    const iClean = item.trim().toLowerCase();
+    if (tClean === iClean) return true;
+    if (tClean.includes('(') && tClean.includes(')')) {
+      return tClean === iClean;
+    }
+    const tBase = tClean.replace(/\s*\([^)]*\)/g, '').trim();
+    const iBase = iClean.replace(/\s*\([^)]*\)/g, '').trim();
+    return tBase === iBase || (tBase.length >= 3 && iClean.includes(tBase));
+  };
+
   // Item Click -> Open Trade History Page View & Fetch History Data
   const handleItemClickForHistory = async (item) => {
     setSelectedItemHistory(item);
@@ -222,15 +235,11 @@ export default function MabinogiArchive() {
       if (res.ok) {
         const data = await res.json();
         const rawHistory = data.history || [];
-        const exactName = item.item_name.trim().toLowerCase();
+        const targetName = item.item_name.trim();
         const filteredHistory = rawHistory.filter(h => {
-          if (!h || !h.item_name) return true;
-          const name = h.item_name.trim().toLowerCase();
-          return name === exactName || name.includes(exactName) || exactName.includes(name);
-        }).map(h => ({
-          ...h,
-          item_name: item.item_name
-        }));
+          if (!h || !h.item_name) return false;
+          return isSameMabiItem(targetName, h.item_name);
+        });
         setHistoryData(filteredHistory);
       }
     } catch (err) {
