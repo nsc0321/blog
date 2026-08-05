@@ -112,8 +112,6 @@ export default function MabinogiArchive() {
       if (apiKey) headers['x-nxopen-api-key'] = apiKey;
 
       let categoryParam = selectedCategory.includes("전체") ? "" : selectedCategory;
-      let url = `${API_BASE}/api/mabinogi/auction/search?`;
-
       const params = [];
       if (categoryParam) params.push(`auction_item_category=${encodeURIComponent(categoryParam)}`);
 
@@ -127,7 +125,8 @@ export default function MabinogiArchive() {
         params.push(`cursor=${encodeURIComponent(cursorStr)}`);
       }
 
-      url += params.join('&');
+      const queryString = params.length > 0 ? `?${params.join('&')}` : '';
+      const url = `${API_BASE}/api/mabinogi/auction/search${queryString}`;
 
       const res = await fetch(url, { headers });
       if (res.ok) {
@@ -157,10 +156,12 @@ export default function MabinogiArchive() {
       if (apiKey) headers['x-nxopen-api-key'] = apiKey;
 
       let categoryParam = item.category || (selectedCategory.includes("전체") ? "" : selectedCategory);
-      let url = `${API_BASE}/api/mabinogi/auction/history?item_name=${encodeURIComponent(item.item_name)}`;
-      if (categoryParam) {
-        url += `&auction_item_category=${encodeURIComponent(categoryParam)}`;
-      }
+      const params = [];
+      if (item.item_name) params.push(`item_name=${encodeURIComponent(item.item_name)}`);
+      if (categoryParam) params.push(`auction_item_category=${encodeURIComponent(categoryParam)}`);
+
+      const queryString = params.length > 0 ? `?${params.join('&')}` : '';
+      const url = `${API_BASE}/api/mabinogi/auction/history${queryString}`;
 
       const res = await fetch(url, { headers });
       if (res.ok) {
