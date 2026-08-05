@@ -87,7 +87,7 @@ export default function MabinogiArchive() {
     if (!charSearchInput.trim()) return;
     setCharLoading(true);
     try {
-      const headers = {};
+      const headers = { 'ngrok-skip-browser-warning': 'true' };
       if (apiKey) headers['x-nxopen-api-key'] = apiKey;
 
       const res = await fetch(`${API_BASE}/api/mabinogi/character/search?character_name=${encodeURIComponent(charSearchInput.trim())}`, {
@@ -108,7 +108,7 @@ export default function MabinogiArchive() {
     setAuctionLoading(true);
     const cursorStr = typeof appendCursor === 'string' ? appendCursor.trim() : '';
     try {
-      const headers = {};
+      const headers = { 'ngrok-skip-browser-warning': 'true' };
       if (apiKey) headers['x-nxopen-api-key'] = apiKey;
 
       let categoryParam = selectedCategory.includes("전체") ? "" : selectedCategory;
@@ -153,7 +153,7 @@ export default function MabinogiArchive() {
     setHistoryData([]);
 
     try {
-      const headers = {};
+      const headers = { 'ngrok-skip-browser-warning': 'true' };
       if (apiKey) headers['x-nxopen-api-key'] = apiKey;
 
       let categoryParam = item.category || (selectedCategory.includes("전체") ? "" : selectedCategory);
@@ -177,7 +177,9 @@ export default function MabinogiArchive() {
   // --- Fetch DB Archives ---
   const fetchItemArchives = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/mabinogi/archives/items`);
+      const res = await fetch(`${API_BASE}/api/mabinogi/archives/items`, {
+        headers: { 'ngrok-skip-browser-warning': 'true' }
+      });
       if (res.ok) {
         const data = await res.json();
         setItemArchives(data);
@@ -189,7 +191,9 @@ export default function MabinogiArchive() {
 
   const fetchCharArchives = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/mabinogi/archives/characters`);
+      const res = await fetch(`${API_BASE}/api/mabinogi/archives/characters`, {
+        headers: { 'ngrok-skip-browser-warning': 'true' }
+      });
       if (res.ok) {
         const data = await res.json();
         setCharArchives(data);
@@ -201,7 +205,9 @@ export default function MabinogiArchive() {
 
   const fetchNoteArchives = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/mabinogi/archives/notes`);
+      const res = await fetch(`${API_BASE}/api/mabinogi/archives/notes`, {
+        headers: { 'ngrok-skip-browser-warning': 'true' }
+      });
       if (res.ok) {
         const data = await res.json();
         setNoteArchives(data);

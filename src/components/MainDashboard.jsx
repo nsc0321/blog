@@ -17,7 +17,9 @@ export default function MainDashboard({ onNavigate }) {
   const fetchStats = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/mabinogi/stats/summary`);
+      const res = await fetch(`${API_BASE}/api/mabinogi/stats/summary`, {
+        headers: { 'ngrok-skip-browser-warning': 'true' }
+      });
       if (res.ok) {
         const data = await res.json();
         setStats(prev => ({
