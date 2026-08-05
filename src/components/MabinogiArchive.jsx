@@ -523,6 +523,36 @@ export default function MabinogiArchive() {
     }
   };
 
+  const handleResetItems = async () => {
+    if (!confirm('⚠️ 아이템 아카이브를 전체 초기화하시겠습니까?\n모든 아이템 데이터가 삭제됩니다.')) return;
+    if (!confirm('⚠️ 정말로 모든 아이템 아카이브 데이터를 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.')) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/mabinogi/archives/items/all`, { method: 'DELETE' });
+      if (res.ok) {
+        const data = await res.json();
+        alert(`아이템 아카이브 초기화 완료 (${data.deleted_count}건 삭제)`);
+        fetchItemArchives();
+      }
+    } catch (err) {
+      alert('초기화 실패: ' + err.message);
+    }
+  };
+
+  const handleResetEnchants = async () => {
+    if (!confirm('⚠️ 인챈트 도감을 전체 초기화하시겠습니까?\n모든 인챈트 데이터가 삭제됩니다.')) return;
+    if (!confirm('⚠️ 정말로 모든 인챈트 도감 데이터를 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.')) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/mabinogi/archives/enchants/all`, { method: 'DELETE' });
+      if (res.ok) {
+        const data = await res.json();
+        alert(`인챈트 도감 초기화 완료 (${data.deleted_count}건 삭제)`);
+        fetchEnchantArchives();
+      }
+    } catch (err) {
+      alert('초기화 실패: ' + err.message);
+    }
+  };
+
   const handleCreateNoteSubmit = async (e) => {
     e.preventDefault();
     if (!newNoteForm.title.trim()) return;
@@ -1320,6 +1350,11 @@ export default function MabinogiArchive() {
                   <Plus size={16} />
                   <span>새 아이템 아카이브 수집</span>
                 </button>
+
+                <button className="reset-archive-btn" onClick={handleResetItems}>
+                  <Trash2 size={16} />
+                  <span>아이템 초기화</span>
+                </button>
               </div>
 
               <div className="archive-cards-grid">
@@ -1435,6 +1470,10 @@ export default function MabinogiArchive() {
               <h3>🔮 마비노기 인챈트 도감 (마스터 DB)</h3>
               <p className="sub">경매장 검색 시 자동 수집되는 접두/접미 인챈트별 유동 옵션 최소~최대 수치 범위 정보</p>
             </div>
+            <button className="reset-archive-btn" onClick={handleResetEnchants}>
+              <Trash2 size={16} />
+              <span>인챈트 초기화</span>
+            </button>
           </div>
 
           <div className="enchant-archive-filter-bar">
