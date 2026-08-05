@@ -219,12 +219,15 @@ export default function MabinogiArchive() {
       const res = await fetch(url, { headers });
       if (res.ok) {
         const data = await res.json();
-        const rawHistory = data.history || [];
-        // Strict filter: keep only transactions with exact identical item_name
         const exactName = item.item_name.trim().toLowerCase();
-        const filteredHistory = rawHistory.filter(h =>
-          !h.item_name || h.item_name.trim().toLowerCase() === exactName
-        );
+        const filteredHistory = rawHistory.filter(h => {
+          if (!h || !h.item_name) return true;
+          const name = h.item_name.trim().toLowerCase();
+          return name === exactName || name.includes(exactName) || exactName.includes(name);
+        }).map(h => ({
+          ...h,
+          item_name: item.item_name
+        }));
         setHistoryData(filteredHistory);
       }
     } catch (err) {

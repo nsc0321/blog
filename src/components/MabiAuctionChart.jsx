@@ -215,7 +215,11 @@ export default function MabiAuctionChart({ itemName, historyData = [] }) {
       <div className="chart-toolbar">
         <div className="toolbar-left">
           <TrendingUp size={18} className="chart-icon" />
-          <h4 className="chart-title">{itemName} 실시간/히스토리 시세 차트</h4>
+          <h4 className="chart-title">[{itemName}] 동일 아이템 시세 추이</h4>
+          <div className="chart-legend-badges">
+            <span className="legend-badge line-legend">🟣 평균가 (Line)</span>
+            <span className="legend-badge bar-legend">🟦 거래량 (Bar)</span>
+          </div>
         </div>
 
         {/* Time Scale Buttons */}
