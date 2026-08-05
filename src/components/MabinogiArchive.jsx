@@ -948,7 +948,7 @@ export default function MabinogiArchive() {
                       filteredAuctionResults.map((item, idx) => (
                         <tr key={idx} className="clickable-row" onClick={() => handleItemClickForHistory(item)}>
                           <td className="font-bold item-name-cell">
-                            <span className="item-title">{item.item_name}</span>
+                            <span className="item-title">{item.item_display_name || item.item_name}</span>
                           </td>
                           <td><span className="category-badge">{item.category || selectedCategory}</span></td>
                           <td className="price-text">{getItemPrice(item).toLocaleString()} 골드</td>
