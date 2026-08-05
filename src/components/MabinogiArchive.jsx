@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Database, Key, Plus, Trash2, Tag, ShieldAlert, Sparkles, Filter, RefreshCw, ChevronRight, ExternalLink, Award, User, ShoppingBag, BookOpen, Check, Layers, AlertCircle, FileText, Pin, TrendingUp, X, ArrowRight } from 'lucide-react';
+import { Search, Database, Key, Plus, Trash2, Tag, ShieldAlert, Sparkles, Filter, RefreshCw, ChevronRight, ExternalLink, Award, User, ShoppingBag, BookOpen, Check, Layers, AlertCircle, FileText, Pin, TrendingUp, X, ArrowRight, ArrowLeft } from 'lucide-react';
 import MabiAuctionChart from './MabiAuctionChart';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
@@ -198,7 +198,7 @@ export default function MabinogiArchive() {
     }
   };
 
-  // Item Click -> Open Trade History Modal & Fetch History Data
+  // Item Click -> Open Trade History Page View & Fetch History Data
   const handleItemClickForHistory = async (item) => {
     setSelectedItemHistory(item);
     setHistoryLoading(true);
@@ -210,8 +210,8 @@ export default function MabinogiArchive() {
 
       let categoryParam = item.category || (selectedCategory.includes("전체") ? "" : selectedCategory);
       const params = [];
-      if (item.item_name) params.push(`item_name=${encodeURIComponent(item.item_name)}`);
-      if (categoryParam) params.push(`auction_item_category=${encodeURIComponent(categoryParam)}`);
+      if (item.item_name) params.push(`item_name=${encodeURIComponent(item.item_name.trim())}`);
+      if (categoryParam) params.push(`auction_item_category=${encodeURIComponent(categoryParam.trim())}`);
 
       const queryString = params.length > 0 ? `?${params.join('&')}` : '';
       const url = `${API_BASE}/api/mabinogi/auction/history${queryString}`;
@@ -219,7 +219,13 @@ export default function MabinogiArchive() {
       const res = await fetch(url, { headers });
       if (res.ok) {
         const data = await res.json();
-        setHistoryData(data.history || []);
+        const rawHistory = data.history || [];
+        // Strict filter: keep only transactions with exact identical item_name
+        const exactName = item.item_name.trim().toLowerCase();
+        const filteredHistory = rawHistory.filter(h =>
+          !h.item_name || h.item_name.trim().toLowerCase() === exactName
+        );
+        setHistoryData(filteredHistory);
       }
     } catch (err) {
       console.error('History fetch error:', err);
@@ -821,157 +827,160 @@ export default function MabinogiArchive() {
         </div>
       )}
 
-      {/* TRADE HISTORY & DETAIL UNIFIED MODAL WITH INTERACTIVE CHART */}
+      {/* ITEM DETAIL PAGE VIEW (When item is selected) */}
       {selectedItemHistory && (
-        <div className="modal-overlay history-modal-overlay" onClick={() => setSelectedItemHistory(null)}>
-          <div className="history-modal-container unified-modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <div className="modal-title-group">
-                <TrendingUp size={22} className="modal-icon" />
-                <div>
-                  <h3>[{selectedItemHistory.item_name}] 실시간 시세 및 거래 정보</h3>
-                  <span className="modal-sub">Nexon Open API 실시간 거래 내역 & 아이템 옵션 분석</span>
-                </div>
-              </div>
-              <button className="close-btn" onClick={() => setSelectedItemHistory(null)}>
-                <X size={20} />
-              </button>
-            </div>
-
-            <div className="modal-body scrollable-modal-body">
-              {historyLoading ? (
-                <div className="history-loading-box">
-                  <RefreshCw size={28} className="spin" />
-                  <p>거래 내역 및 아이템 상세 데이터를 불러오는 중입니다...</p>
-                </div>
-              ) : (
-                <div className="unified-modal-content">
-                  {/* TOP SECTION: Interactive Dual Axis Chart */}
-                  <div className="modal-section-block">
-                    <MabiAuctionChart
-                      itemName={selectedItemHistory.item_name}
-                      historyData={historyData}
-                    />
-                  </div>
-
-                  {/* TOP SECTION: Transaction History Log Table */}
-                  <div className="history-table-section modal-section-block">
-                    <h4>최근 실시간 체결 및 거래 기록 ({historyData.length}건)</h4>
-                    <div className="history-table-wrapper">
-                      <table className="mabi-table compact">
-                        <thead>
-                          <tr>
-                            <th>거래 일시</th>
-                            <th>거래 가격</th>
-                            <th>수량</th>
-                            <th>판매자</th>
-                            <th>세공/인챈트 옵션</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {historyData.map((h, idx) => (
-                            <tr key={idx}>
-                              <td className="date-cell">{h.date_auction_buy || h.recorded_at}</td>
-                              <td className="price-text font-bold">{getItemPrice(h).toLocaleString()} 골드</td>
-                              <td>{h.item_count || 1}개</td>
-                              <td>{h.seller || '익명'}</td>
-                              <td className="option-text">{h.option || '-'}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-
-                  {/* BOTTOM SECTION: Item Details & Extra Options Breakdown */}
-                  <div className="item-details-panel modal-section-block">
-                    <div className="detail-top-card">
-                      <div className="detail-header-info">
-                        <span className="category-badge">{selectedItemHistory.category || selectedCategory}</span>
-                        <h3>{selectedItemHistory.item_name}</h3>
-                        <div className="detail-price-hero">
-                          <span className="lbl">현재 등록 / 단가:</span>
-                          <span className="val">{getItemPrice(selectedItemHistory).toLocaleString()} 골드</span>
-                        </div>
-                      </div>
-                      <button
-                        className="archive-save-btn highlight-btn"
-                        onClick={() => handleSaveAuctionItemToDB(selectedItemHistory)}
-                      >
-                        <Database size={15} />
-                        <span>내 DB 아카이브에 수집 저장</span>
-                      </button>
-                    </div>
-
-                    <div className="detail-metrics-grid">
-                      <div className="metric-card">
-                        <span className="k">평균 시세</span>
-                        <span className="v purple">
-                          {Math.round(
-                            historyData.reduce((a, b) => a + getItemPrice(b), 0) / (historyData.length || 1)
-                          ).toLocaleString()} 골드
-                        </span>
-                      </div>
-                      <div className="metric-card">
-                        <span className="k">최저 거래가</span>
-                        <span className="v blue">
-                          {(historyData.length > 0
-                            ? Math.min(...historyData.map(getItemPrice))
-                            : getItemPrice(selectedItemHistory)
-                          ).toLocaleString()} 골드
-                        </span>
-                      </div>
-                      <div className="metric-card">
-                        <span className="k">최고 거래가</span>
-                        <span className="v green">
-                          {(historyData.length > 0
-                            ? Math.max(...historyData.map(getItemPrice))
-                            : getItemPrice(selectedItemHistory)
-                          ).toLocaleString()} 골드
-                        </span>
-                      </div>
-                      <div className="metric-card">
-                        <span className="k">판매 등록 수량</span>
-                        <span className="v">{selectedItemHistory.item_count || 1} 개</span>
-                      </div>
-                    </div>
-
-                    {/* EXTRA OPTIONS & REFORGE / ENCHANT BADGES LIST */}
-                    <div className="detail-section-box">
-                      <h4>아이템 세부 세공 / 인챈트 / 추가 옵션 정보</h4>
-                      {getItemOptionsList(selectedItemHistory).length > 0 ? (
-                        <div className="option-badges-grid">
-                          {getItemOptionsList(selectedItemHistory).map((opt, i) => (
-                            <div className="option-badge-item" key={i}>
-                              <span className={`opt-type-tag ${opt.type}`}>{opt.type}</span>
-                              <span className="opt-label-text">{opt.label}</span>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="option-breakdown-card">
-                          <p className="opt-text">
-                            {selectedItemHistory.option || selectedItemHistory.item_option_json || '등록된 세부 옵션 정보가 없습니다.'}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="detail-meta-grid">
-                      <div className="meta-item">
-                        <span className="lbl">판매 등록자:</span>
-                        <span className="val">{selectedItemHistory.seller || '경매장 등록 유저'}</span>
-                      </div>
-                      <div className="meta-item">
-                        <span className="lbl">등록 / 조회 일시:</span>
-                        <span className="val">{selectedItemHistory.recorded_at || selectedItemHistory.expire_date || '실시간 시세 조회'}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
+        <div className="item-detail-page-view">
+          <div className="detail-page-header">
+            <button className="back-to-list-btn" onClick={() => setSelectedItemHistory(null)}>
+              <ArrowLeft size={18} />
+              <span>경매장 검색 목록으로 돌아가기</span>
+            </button>
+            <div className="detail-page-title-group">
+              <span className="category-badge">{selectedItemHistory.category || selectedCategory}</span>
+              <h2>[{selectedItemHistory.item_name}] 상세 시세 분석 & 실시간 체결 기록</h2>
             </div>
           </div>
+
+          {historyLoading ? (
+            <div className="history-loading-box">
+              <RefreshCw size={32} className="spin" />
+              <p>[{selectedItemHistory.item_name}] 동일 명칭 실시간 거래 히스토리를 불러오는 중입니다...</p>
+            </div>
+          ) : (
+            <div className="detail-page-content-stack">
+              {/* TOP ITEM CARD & EXTRA OPTIONS BREAKDOWN */}
+              <div className="detail-page-card item-summary-hero-card">
+                <div className="detail-top-card">
+                  <div className="detail-header-info">
+                    <span className="category-badge">{selectedItemHistory.category || selectedCategory}</span>
+                    <h3>{selectedItemHistory.item_name}</h3>
+                    <div className="detail-price-hero">
+                      <span className="lbl">현재 등록 / 단가:</span>
+                      <span className="val">{getItemPrice(selectedItemHistory).toLocaleString()} 골드</span>
+                    </div>
+                  </div>
+                  <button
+                    className="archive-save-btn highlight-btn"
+                    onClick={() => handleSaveAuctionItemToDB(selectedItemHistory)}
+                  >
+                    <Database size={16} />
+                    <span>내 DB 아카이브에 수집 저장</span>
+                  </button>
+                </div>
+
+                <div className="detail-metrics-grid">
+                  <div className="metric-card">
+                    <span className="k">평균 거래가 (동일 명칭)</span>
+                    <span className="v purple">
+                      {Math.round(
+                        historyData.reduce((a, b) => a + getItemPrice(b), 0) / (historyData.length || 1)
+                      ).toLocaleString()} 골드
+                    </span>
+                  </div>
+                  <div className="metric-card">
+                    <span className="k">최저 거래가</span>
+                    <span className="v blue">
+                      {(historyData.length > 0
+                        ? Math.min(...historyData.map(getItemPrice))
+                        : getItemPrice(selectedItemHistory)
+                      ).toLocaleString()} 골드
+                    </span>
+                  </div>
+                  <div className="metric-card">
+                    <span className="k">최고 거래가</span>
+                    <span className="v green">
+                      {(historyData.length > 0
+                        ? Math.max(...historyData.map(getItemPrice))
+                        : getItemPrice(selectedItemHistory)
+                      ).toLocaleString()} 골드
+                    </span>
+                  </div>
+                  <div className="metric-card">
+                    <span className="k">등록 매물 수량</span>
+                    <span className="v">{selectedItemHistory.item_count || 1} 개</span>
+                  </div>
+                </div>
+
+                {/* EXTRA OPTIONS & REFORGE / ENCHANT BADGES LIST */}
+                <div className="detail-section-box">
+                  <h4>아이템 세부 세공 / 인챈트 / 추가 옵션 정보</h4>
+                  {getItemOptionsList(selectedItemHistory).length > 0 ? (
+                    <div className="option-badges-grid">
+                      {getItemOptionsList(selectedItemHistory).map((opt, i) => (
+                        <div className="option-badge-item" key={i}>
+                          <span className={`opt-type-tag ${opt.type}`}>{opt.type}</span>
+                          <span className="opt-label-text">{opt.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="option-breakdown-card">
+                      <p className="opt-text">
+                        {selectedItemHistory.option || selectedItemHistory.item_option_json || '등록된 세부 옵션 정보가 없습니다.'}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="detail-meta-grid">
+                  <div className="meta-item">
+                    <span className="lbl">판매 등록자:</span>
+                    <span className="val">{selectedItemHistory.seller || '경매장 등록 유저'}</span>
+                  </div>
+                  <div className="meta-item">
+                    <span className="lbl">등록 / 조회 일시:</span>
+                    <span className="val">{selectedItemHistory.recorded_at || selectedItemHistory.expire_date || '실시간 시세 조회'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* DUAL AXIS PRICE & VOLUME CHART FOR EXACT ITEM */}
+              <div className="detail-page-card chart-card-block">
+                <h4>[{selectedItemHistory.item_name}] 동일 아이템 거래 시세 추이 차트</h4>
+                <MabiAuctionChart
+                  itemName={selectedItemHistory.item_name}
+                  historyData={historyData}
+                />
+              </div>
+
+              {/* RECENT TRADE TRANSACTIONS TABLE */}
+              <div className="detail-page-card history-table-card-block">
+                <h4>[{selectedItemHistory.item_name}] 동일 명칭 실시간 체결 기록 ({historyData.length}건)</h4>
+                <div className="history-table-wrapper">
+                  <table className="mabi-table compact">
+                    <thead>
+                      <tr>
+                        <th>거래 일시</th>
+                        <th>거래 가격</th>
+                        <th>수량</th>
+                        <th>판매자</th>
+                        <th>세공/인챈트 옵션</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {historyData.length > 0 ? (
+                        historyData.map((h, idx) => (
+                          <tr key={idx}>
+                            <td className="date-cell">{h.date_auction_buy || h.recorded_at}</td>
+                            <td className="price-text font-bold">{getItemPrice(h).toLocaleString()} 골드</td>
+                            <td>{h.item_count || 1}개</td>
+                            <td>{h.seller || '익명'}</td>
+                            <td className="option-text">{h.option || '-'}</td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={5} className="empty-row">
+                            동일 명칭 아이템의 최근 체결 내역 기록이 없습니다.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
