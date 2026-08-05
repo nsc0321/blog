@@ -6,7 +6,7 @@ const API_BASE = import.meta.env.VITE_API_URL || '';
 
 // Official Nexon Mabinogi Auction Categories (73 categories)
 const MABI_CATEGORIES = [
-  "전체 카테고리 (전체)",
+  "전체",
   "개조석", "검", "경갑옷", "기타", "기타 소모품", "기타 스크롤", "기타 장비", "기타 재료",
   "꼬리", "날개", "낭만농장/달빛섬", "너클", "던전 통행증", "도끼", "도면", "둔기", "듀얼건",
   "랜스", "로브", "마기그래프", "마기그래프 도안", "마도서", "마리오네트", "마법가루", "마비노벨",
@@ -34,13 +34,70 @@ export default function MabinogiArchive() {
   const [charLoading, setCharLoading] = useState(false);
 
   // Auction Search & Filters
-  const [selectedCategory, setSelectedCategory] = useState("전체 카테고리 (전체)");
+  const [selectedCategory, setSelectedCategory] = useState("전체");
   const [auctionSearchInput, setAuctionSearchInput] = useState('');
   const [isKeywordSearch, setIsKeywordSearch] = useState(false);
   const [auctionResults, setAuctionResults] = useState([]);
   const [nextCursor, setNextCursor] = useState('');
   const [auctionLoading, setAuctionLoading] = useState(false);
   const [enchantTypeFilter, setEnchantTypeFilter] = useState('ALL'); // 'ALL', 'PREFIX', 'SUFFIX'
+
+  // Extract RGB / Hex color from item option text
+  const extractRgbColor = (opt) => {
+    if (!opt) return null;
+    const str = typeof opt === 'string' ? opt : `${opt.type || ''} ${opt.label || ''}`;
+    
+    // Hex Color (e.g. #FF0000 or #3b82f6)
+    const hexMatch = str.match(/#(?:[0-9a-fA-F]{3}){1,2}\b/);
+    if (hexMatch) return hexMatch[0];
+
+    // RGB Triplets e.g. 255.0.0 or 255, 0, 0 or (255,0,0) or R:255 G:0 B:0
+    const rgbMatch = str.match(/(?:RGB|rgb|색상|파트)?\s*\(?\s*(\d{1,3})[\s,.\/:]{1,2}(\d{1,3})[\s,.\/:]{1,2}(\d{1,3})\s*\)?/i);
+    if (rgbMatch) {
+      const r = parseInt(rgbMatch[1], 10);
+      const g = parseInt(rgbMatch[2], 10);
+      const b = parseInt(rgbMatch[3], 10);
+      if (r <= 255 && g <= 255 && b <= 255) {
+        return `rgb(${r}, ${g}, ${b})`;
+      }
+    }
+    return null;
+  };
+
+  // Generate dynamic inline style & color dot for option badge
+  const getOptionBadgeStyle = (opt) => {
+    const rgb = extractRgbColor(opt);
+    if (!rgb) return { style: {}, dot: null };
+
+    let rgbaBg = rgb;
+    if (rgb.startsWith('rgb(')) {
+      rgbaBg = rgb.replace('rgb(', 'rgba(').replace(')', ', 0.3)');
+    }
+
+    return {
+      style: {
+        backgroundColor: rgbaBg,
+        borderColor: rgb,
+        color: '#ffffff',
+        textShadow: '0 1px 2px rgba(0,0,0,0.8)'
+      },
+      dot: (
+        <span
+          style={{
+            display: 'inline-block',
+            width: '9px',
+            height: '9px',
+            borderRadius: '50%',
+            backgroundColor: rgb,
+            border: '1px solid #ffffff',
+            marginRight: '5px',
+            boxShadow: `0 0 6px ${rgb}`,
+            verticalAlign: 'middle'
+          }}
+        />
+      )
+    };
+  };
 
   // Trade History Modal & Page States
   const [selectedItemHistory, setSelectedItemHistory] = useState(null);
@@ -552,12 +609,16 @@ export default function MabinogiArchive() {
                   <h4>아이템 세부 세공 / 인챈트 / 추가 옵션 정보</h4>
                   {getItemOptionsList(selectedItemHistory).length > 0 ? (
                     <div className="option-badges-grid">
-                      {getItemOptionsList(selectedItemHistory).map((opt, i) => (
-                        <div className="option-badge-item" key={i}>
-                          <span className={`opt-type-tag ${opt.type}`}>{opt.type}</span>
-                          <span className="opt-label-text">{opt.label}</span>
-                        </div>
-                      ))}
+                      {getItemOptionsList(selectedItemHistory).map((opt, i) => {
+                        const { style, dot } = getOptionBadgeStyle(opt);
+                        return (
+                          <div className="option-badge-item" key={i} style={style}>
+                            {dot}
+                            <span className={`opt-type-tag ${opt.type}`}>{opt.type}</span>
+                            <span className="opt-label-text">{opt.label}</span>
+                          </div>
+                        );
+                      })}
                     </div>
                   ) : (
                     <div className="option-breakdown-card">
@@ -632,11 +693,14 @@ export default function MabinogiArchive() {
                             <td className="option-text">
                               {getItemOptionsList(h).length > 0 ? (
                                 <div className="table-option-badges">
-                                  {getItemOptionsList(h).map((opt, i) => (
-                                    <span className={`opt-type-tag ${opt.type}`} key={i}>
-                                      [{opt.type}] {opt.label}
-                                    </span>
-                                  ))}
+                                  {getItemOptionsList(h).map((opt, i) => {
+                                    const { style, dot } = getOptionBadgeStyle(opt);
+                                    return (
+                                      <span className={`opt-type-tag ${opt.type}`} key={i} style={style}>
+                                        {dot}[{opt.type}] {opt.label}
+                                      </span>
+                                    );
+                                  })}
                                 </div>
                               ) : (
                                 h.option && h.option !== 'None' && h.option !== 'null' ? h.option : '-'
@@ -860,11 +924,14 @@ export default function MabinogiArchive() {
                           <td className="option-text">
                             {getItemOptionsList(item).length > 0 ? (
                               <div className="table-option-badges">
-                                {getItemOptionsList(item).map((opt, i) => (
-                                  <span className={`opt-type-tag ${opt.type}`} key={i}>
-                                    [{opt.type}] {opt.label}
-                                  </span>
-                                ))}
+                                {getItemOptionsList(item).map((opt, i) => {
+                                  const { style, dot } = getOptionBadgeStyle(opt);
+                                  return (
+                                    <span className={`opt-type-tag ${opt.type}`} key={i} style={style}>
+                                      {dot}[{opt.type}] {opt.label}
+                                    </span>
+                                  );
+                                })}
                               </div>
                             ) : (
                               item.option && item.option !== 'None' && item.option !== 'null' ? item.option : '-'
