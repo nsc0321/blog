@@ -88,28 +88,38 @@ export default function MabiAuctionChart({ itemName, historyData = [] }) {
     return groupedData.slice(startIdx, endIdx);
   }, [groupedData, zoomRange]);
 
-  // Handle Mouse Wheel Zoom (Scroll Up = Zoom In, Scroll Down = Zoom Out)
-  const handleWheel = (e) => {
-    e.preventDefault();
-    const zoomFactor = e.deltaY < 0 ? -8 : 8; // negative deltaY is scroll up (zoom in)
+  // Non-passive native wheel listener to isolate scroll from parent modal & page
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
 
-    setZoomRange(prev => {
-      let newStart = prev.start - zoomFactor;
-      let newEnd = prev.end + zoomFactor;
+    const onWheelNative = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
 
-      // Bound checks (minimum 10% span)
-      if (newEnd - newStart < 15) {
-        const center = (prev.start + prev.end) / 2;
-        newStart = center - 7.5;
-        newEnd = center + 7.5;
-      }
+      const zoomFactor = e.deltaY < 0 ? -8 : 8; // negative deltaY is scroll up (zoom in)
 
-      if (newStart < 0) newStart = 0;
-      if (newEnd > 100) newEnd = 100;
+      setZoomRange(prev => {
+        let newStart = prev.start - zoomFactor;
+        let newEnd = prev.end + zoomFactor;
 
-      return { start: newStart, end: newEnd };
-    });
-  };
+        // Bound checks (minimum 15% span)
+        if (newEnd - newStart < 15) {
+          const center = (prev.start + prev.end) / 2;
+          newStart = center - 7.5;
+          newEnd = center + 7.5;
+        }
+
+        if (newStart < 0) newStart = 0;
+        if (newEnd > 100) newEnd = 100;
+
+        return { start: newStart, end: newEnd };
+      });
+    };
+
+    el.addEventListener('wheel', onWheelNative, { passive: false });
+    return () => el.removeEventListener('wheel', onWheelNative);
+  }, []);
 
   // Drag Pan handlers
   const handleMouseDown = (e) => {
@@ -250,7 +260,6 @@ export default function MabiAuctionChart({ itemName, historyData = [] }) {
       <div
         className="svg-container"
         ref={containerRef}
-        onWheel={handleWheel}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}

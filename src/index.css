@@ -1644,10 +1644,184 @@ h1, h2, h3, h4, h5, h6 {
 
 .date-cell { color: #94a3b8; font-family: monospace; font-size: 12px; }
 
+/* Modal Sub-Tab Bar & Item Details Panel */
+.modal-tab-bar {
+  display: flex;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 3px;
+  gap: 4px;
+}
+
+.modal-tab-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+
+.modal-tab-btn.active {
+  background: #8b5cf6;
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+}
+
+.item-details-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.detail-top-card {
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.9) 100%);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  border-radius: 14px;
+  padding: 20px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.detail-header-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.detail-header-info h3 {
+  font-size: 20px;
+  font-weight: 800;
+  color: #fff;
+}
+
+.detail-price-hero {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.detail-price-hero .lbl {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.detail-price-hero .val {
+  font-size: 18px;
+  font-weight: 800;
+  color: #38bdf8;
+}
+
+.archive-save-btn.highlight-btn {
+  background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+  color: #fff;
+  border: none;
+  padding: 10px 18px;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 15px rgba(139, 92, 246, 0.4);
+  transition: transform 0.15s ease;
+}
+
+.archive-save-btn.highlight-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(139, 92, 246, 0.6);
+}
+
+.detail-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.metric-card {
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.metric-card .k {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.metric-card .v {
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.metric-card .v.purple { color: #c4b5fd; }
+.metric-card .v.blue { color: #38bdf8; }
+.metric-card .v.green { color: #4ade80; }
+
+.detail-section-box h4 {
+  font-size: 14px;
+  color: var(--text-secondary);
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.option-breakdown-card {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.option-breakdown-card .opt-text {
+  color: #e2e8f0;
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-line;
+}
+
+.detail-meta-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  padding: 12px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.meta-item {
+  display: flex;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.meta-item .lbl { color: var(--text-secondary); }
+.meta-item .val { color: #fff; font-weight: 600; }
+
 @media (max-width: 800px) {
   .auction-filter-bar {
     grid-template-columns: 1fr;
   }
+  .detail-metrics-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
+
 
 
