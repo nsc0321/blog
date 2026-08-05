@@ -41,10 +41,11 @@ export default function MabinogiArchive() {
   const [nextCursor, setNextCursor] = useState('');
   const [auctionLoading, setAuctionLoading] = useState(false);
 
-  // Trade History Modal States
+  // Trade History Modal & Page States
   const [selectedItemHistory, setSelectedItemHistory] = useState(null);
   const [historyData, setHistoryData] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [selectedTimeBucket, setSelectedTimeBucket] = useState(null);
 
   // 2. DB Archive States
   const [itemArchives, setItemArchives] = useState([]);
@@ -201,6 +202,7 @@ export default function MabinogiArchive() {
   // Item Click -> Open Trade History Page View & Fetch History Data
   const handleItemClickForHistory = async (item) => {
     setSelectedItemHistory(item);
+    setSelectedTimeBucket(null);
     setHistoryLoading(true);
     setHistoryData([]);
 
@@ -237,6 +239,27 @@ export default function MabinogiArchive() {
       setHistoryLoading(false);
     }
   };
+
+  // Filter trade history by clicked chart time bucket
+  const filteredHistoryData = React.useMemo(() => {
+    if (!selectedTimeBucket || !historyData || historyData.length === 0) return historyData;
+    return historyData.filter(h => {
+      const dateObj = new Date(h.date_auction_buy || h.recorded_at);
+      if (isNaN(dateObj.getTime())) return false;
+      const scale = selectedTimeBucket.timeScale || 'month';
+      let key = '';
+      if (scale === 'year') {
+        key = `${dateObj.getFullYear()}년`;
+      } else if (scale === 'month') {
+        key = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
+      } else if (scale === 'day') {
+        key = `${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`;
+      } else if (scale === 'hour') {
+        key = `${String(dateObj.getDate()).padStart(2, '0')}일 ${String(dateObj.getHours()).padStart(2, '0')}:00`;
+      }
+      return key === selectedTimeBucket.label;
+    });
+  }, [historyData, selectedTimeBucket]);
 
   const handleSaveAuctionItemToDB = async (item) => {
     if (!item) return;
@@ -522,12 +545,30 @@ export default function MabinogiArchive() {
                 <MabiAuctionChart
                   itemName={selectedItemHistory.item_name}
                   historyData={historyData}
+                  selectedBucket={selectedTimeBucket}
+                  onSelectBucket={setSelectedTimeBucket}
                 />
               </div>
 
               {/* RECENT TRADE TRANSACTIONS TABLE */}
               <div className="detail-page-card history-table-card-block">
-                <h4>[{selectedItemHistory.item_name}] 동일 명칭 실시간 체결 기록 ({historyData.length}건)</h4>
+                <div className="table-header-flex">
+                  <h4>[{selectedItemHistory.item_name}] 거래 내역 ({filteredHistoryData.length}건)</h4>
+                  {selectedTimeBucket && (
+                    <button className="reset-filter-btn" onClick={() => setSelectedTimeBucket(null)}>
+                      <X size={14} />
+                      <span>전체 시간대 거래 내역 보기</span>
+                    </button>
+                  )}
+                </div>
+
+                {selectedTimeBucket && (
+                  <div className="active-time-filter-badge">
+                    <Filter size={14} />
+                    <span>선택 시간대 필터링 중: <strong>{selectedTimeBucket.label}</strong> ({filteredHistoryData.length}건 표시)</span>
+                  </div>
+                )}
+
                 <div className="history-table-wrapper">
                   <table className="mabi-table compact">
                     <thead>
@@ -540,8 +581,8 @@ export default function MabinogiArchive() {
                       </tr>
                     </thead>
                     <tbody>
-                      {historyData.length > 0 ? (
-                        historyData.map((h, idx) => (
+                      {filteredHistoryData.length > 0 ? (
+                        filteredHistoryData.map((h, idx) => (
                           <tr key={idx}>
                             <td className="date-cell">{h.date_auction_buy || h.recorded_at}</td>
                             <td className="price-text font-bold">{getItemPrice(h).toLocaleString()} 골드</td>
@@ -553,7 +594,7 @@ export default function MabinogiArchive() {
                       ) : (
                         <tr>
                           <td colSpan={5} className="empty-row">
-                            동일 명칭 아이템의 최근 체결 내역 기록이 없습니다.
+                            선택한 시간대({selectedTimeBucket?.label})의 거래 내역이 존재하지 않습니다.
                           </td>
                         </tr>
                       )}

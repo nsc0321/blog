@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { ZoomIn, ZoomOut, RotateCcw, Calendar, BarChart2, TrendingUp, Info } from 'lucide-react';
 
-export default function MabiAuctionChart({ itemName, historyData = [] }) {
+export default function MabiAuctionChart({ itemName, historyData = [], selectedBucket = null, onSelectBucket = null }) {
   // Time unit scale: 'hour', 'day', 'month', 'year' (Default: 'month')
   const [timeScale, setTimeScale] = useState('month');
 
@@ -154,10 +154,10 @@ export default function MabiAuctionChart({ itemName, historyData = [] }) {
 
   const handleMouseUp = () => setIsDragging(false);
 
-  // SVG dimensions
-  const svgWidth = 800;
+  // SVG dimensions with expanded margins to prevent text overlap
+  const svgWidth = 840;
   const svgHeight = 320;
-  const padding = { top: 30, right: 60, bottom: 40, left: 70 };
+  const padding = { top: 45, right: 80, bottom: 45, left: 90 };
   const chartW = svgWidth - padding.left - padding.right;
   const chartH = svgHeight - padding.top - padding.bottom;
 
@@ -257,7 +257,7 @@ export default function MabiAuctionChart({ itemName, historyData = [] }) {
 
       <div className="chart-hint">
         <Info size={13} />
-        <span>마우스 스크롤 휠로 **줌 인/아웃(확대/축소)** 하거나 드래그하여 시점을 이동할 수 있습니다.</span>
+        <span>차트 상의 <strong>점 또는 데이터 바를 클릭</strong>하면 하단 거래 내역이 선택한 시간대로 필터링됩니다.</span>
       </div>
 
       {/* SVG Interactive Dual Axis Chart */}
@@ -278,15 +278,29 @@ export default function MabiAuctionChart({ itemName, historyData = [] }) {
               </linearGradient>
             </defs>
 
-            {/* Grid lines */}
+            {/* Axis Header Titles */}
+            <text x={15} y={22} textAnchor="start" fill="#c4b5fd" fontSize="11" fontWeight="bold">
+              🟣 평균가 (만 골드)
+            </text>
+            <text x={svgWidth - 15} y={22} textAnchor="end" fill="#38bdf8" fontSize="11" fontWeight="bold">
+              🟦 거래량 (개)
+            </text>
+
+            {/* Grid lines and Dual Y Axis Labels */}
             {[0, 0.25, 0.5, 0.75, 1].map((ratio, i) => {
               const y = padding.top + chartH * ratio;
               const priceVal = Math.round(maxPrice - ratio * (maxPrice - minPrice));
+              const volVal = Math.round(maxVolume - ratio * maxVolume);
               return (
                 <g key={i}>
                   <line x1={padding.left} y1={y} x2={svgWidth - padding.right} y2={y} stroke="rgba(255,255,255,0.06)" strokeDasharray="3 3" />
-                  <text x={padding.left - 8} y={y + 4} textAnchor="end" fill="#94a3b8" fontSize="11">
+                  {/* Left Y1 Price Axis Text */}
+                  <text x={padding.left - 10} y={y + 4} textAnchor="end" fill="#c4b5fd" fontSize="11">
                     {(priceVal / 10000).toLocaleString()}만
+                  </text>
+                  {/* Right Y2 Volume Axis Text */}
+                  <text x={svgWidth - padding.right + 10} y={y + 4} textAnchor="start" fill="#38bdf8" fontSize="11">
+                    {volVal}개
                   </text>
                 </g>
               );
@@ -295,9 +309,10 @@ export default function MabiAuctionChart({ itemName, historyData = [] }) {
             {/* Volume Bars (Right Axis) */}
             {visibleData.map((d, i) => {
               const x = getX(i);
-              const barW = Math.max(4, (chartW / visibleData.length) * 0.45);
+              const barW = Math.max(6, (chartW / visibleData.length) * 0.45);
               const yVol = getYVolume(d.totalVolume);
               const hVol = padding.top + chartH - yVol;
+              const isSelected = selectedBucket?.label === d.label;
               return (
                 <rect
                   key={i}
@@ -305,8 +320,12 @@ export default function MabiAuctionChart({ itemName, historyData = [] }) {
                   y={yVol}
                   width={barW}
                   height={hVol}
-                  fill="rgba(56, 189, 248, 0.35)"
-                  rx="2"
+                  fill={isSelected ? "rgba(56, 189, 248, 0.85)" : "rgba(56, 189, 248, 0.35)"}
+                  stroke={isSelected ? "#38bdf8" : "none"}
+                  strokeWidth={isSelected ? 2 : 0}
+                  rx="3"
+                  style={{ cursor: 'pointer', transition: 'all 0.15s ease' }}
+                  onClick={() => onSelectBucket && onSelectBucket({ ...d, timeScale })}
                 />
               );
             })}
@@ -315,37 +334,30 @@ export default function MabiAuctionChart({ itemName, historyData = [] }) {
             <path d={priceAreaD} fill="url(#priceGradient)" />
             <path d={pricePathD} fill="none" stroke="#a78bfa" strokeWidth="3.5" strokeLinecap="round" />
 
-            {/* Price Points & Interactive Hover Circles */}
+            {/* Price Points & Interactive Click / Hover Circles */}
             {visibleData.map((d, i) => {
               const cx = getX(i);
               const cy = getYPrice(d.avgPrice);
               const isHovered = hoverData?.label === d.label;
+              const isSelected = selectedBucket?.label === d.label;
               return (
-                <g key={i} onMouseEnter={() => setHoverData(d)}>
+                <g key={i} onMouseEnter={() => setHoverData(d)} onClick={() => onSelectBucket && onSelectBucket({ ...d, timeScale })}>
                   <circle
                     cx={cx}
                     cy={cy}
-                    r={isHovered ? 7 : 4}
-                    fill={isHovered ? "#38bdf8" : "#8b5cf6"}
-                    stroke="#ffffff"
-                    strokeWidth={isHovered ? 3 : 1.5}
+                    r={isSelected ? 9 : isHovered ? 7 : 4.5}
+                    fill={isSelected ? "#0284c7" : isHovered ? "#38bdf8" : "#8b5cf6"}
+                    stroke={isSelected ? "#38bdf8" : "#ffffff"}
+                    strokeWidth={isSelected ? 3.5 : 1.5}
                     style={{ cursor: 'pointer', transition: 'all 0.15s ease' }}
                   />
-                  {/* X Axis Labels */}
-                  <text x={cx} y={svgHeight - 12} textAnchor="middle" fill="#94a3b8" fontSize="11">
+                  {/* X Axis Date Labels */}
+                  <text x={cx} y={svgHeight - 12} textAnchor="middle" fill={isSelected ? "#38bdf8" : "#94a3b8"} fontSize="11" fontWeight={isSelected ? "bold" : "normal"}>
                     {d.label}
                   </text>
                 </g>
               );
             })}
-
-            {/* Y2 Volume Axis Text */}
-            <text x={svgWidth - 10} y={padding.top} textAnchor="end" fill="#38bdf8" fontSize="10" fontWeight="bold">
-              거래량 (개)
-            </text>
-            <text x={10} y={padding.top} textAnchor="start" fill="#a78bfa" fontSize="10" fontWeight="bold">
-              가격 (골드)
-            </text>
           </svg>
         ) : (
           <div className="empty-chart-msg">
