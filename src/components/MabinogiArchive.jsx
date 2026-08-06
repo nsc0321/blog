@@ -520,12 +520,19 @@ export default function MabinogiArchive() {
   };
 
   const handleDeleteItem = async (id) => {
-    if (!confirm('정말 삭제하시겠습니까?')) return;
+    const pwd = prompt('삭제 비밀번호를 입력하세요:');
+    if (!pwd) return;
     try {
-      const res = await fetch(`${API_BASE}/api/mabinogi/archives/items/${id}`, { method: 'DELETE' });
-      if (res.ok) fetchItemArchives();
+      const res = await fetch(`${API_BASE}/api/mabinogi/archives/items/${id}?password=${encodeURIComponent(pwd)}`, { method: 'DELETE' });
+      if (res.ok) {
+        fetchItemArchives();
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        alert(errData.detail || '삭제 실패: 비밀번호가 올바르지 않거나 권한이 없습니다.');
+      }
     } catch (err) {
       console.error(err);
+      alert('삭제 실패: ' + err.message);
     }
   };
 
@@ -605,12 +612,19 @@ export default function MabinogiArchive() {
   };
 
   const handleDeleteNote = async (id) => {
-    if (!confirm('노트를 삭제하시겠습니까?')) return;
+    const pwd = prompt('삭제 비밀번호를 입력하세요:');
+    if (!pwd) return;
     try {
-      const res = await fetch(`${API_BASE}/api/mabinogi/archives/notes/${id}`, { method: 'DELETE' });
-      if (res.ok) fetchNoteArchives();
+      const res = await fetch(`${API_BASE}/api/mabinogi/archives/notes/${id}?password=${encodeURIComponent(pwd)}`, { method: 'DELETE' });
+      if (res.ok) {
+        fetchNoteArchives();
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        alert(errData.detail || '삭제 실패: 비밀번호가 올바르지 않거나 권한이 없습니다.');
+      }
     } catch (err) {
       console.error(err);
+      alert('삭제 실패: ' + err.message);
     }
   };
 
