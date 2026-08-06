@@ -111,6 +111,12 @@ export default function MabinogiArchive() {
   const [noteArchives, setNoteArchives] = useState([]);
   const [categoryFilter, setCategoryFilter] = useState('ALL');
 
+  // Reset Modal & Password state
+  const [showResetPasswordModal, setShowResetPasswordModal] = useState(false);
+  const [resetTarget, setResetTarget] = useState(null); // 'items' | 'enchants'
+  const [resetPasswordInput, setResetPasswordInput] = useState('');
+  const [resetError, setResetError] = useState('');
+
   // Helper to extract valid price from multiple potential Nexon API keys
   const getItemPrice = (item) => {
     if (!item) return 0;
@@ -523,33 +529,50 @@ export default function MabinogiArchive() {
     }
   };
 
-  const handleResetItems = async () => {
-    if (!confirm('⚠️ 아이템 아카이브를 전체 초기화하시겠습니까?\n모든 아이템 데이터가 삭제됩니다.')) return;
-    if (!confirm('⚠️ 정말로 모든 아이템 아카이브 데이터를 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.')) return;
-    try {
-      const res = await fetch(`${API_BASE}/api/mabinogi/archives/items/all`, { method: 'DELETE' });
-      if (res.ok) {
-        const data = await res.json();
-        alert(`아이템 아카이브 초기화 완료 (${data.deleted_count}건 삭제)`);
-        fetchItemArchives();
-      }
-    } catch (err) {
-      alert('초기화 실패: ' + err.message);
-    }
+  const openItemResetModal = () => {
+    setResetTarget('items');
+    setResetPasswordInput('');
+    setResetError('');
+    setShowResetPasswordModal(true);
   };
 
-  const handleResetEnchants = async () => {
-    if (!confirm('⚠️ 인챈트 도감을 전체 초기화하시겠습니까?\n모든 인챈트 데이터가 삭제됩니다.')) return;
-    if (!confirm('⚠️ 정말로 모든 인챈트 도감 데이터를 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.')) return;
+  const openEnchantResetModal = () => {
+    setResetTarget('enchants');
+    setResetPasswordInput('');
+    setResetError('');
+    setShowResetPasswordModal(true);
+  };
+
+  const handleConfirmReset = async (e) => {
+    if (e) e.preventDefault();
+    if (resetPasswordInput !== 'Yuha69') {
+      setResetError('비밀번호가 올바르지 않습니다.');
+      return;
+    }
+    setResetError('');
+
     try {
-      const res = await fetch(`${API_BASE}/api/mabinogi/archives/enchants/all`, { method: 'DELETE' });
+      const endpoint = resetTarget === 'items'
+        ? `${API_BASE}/api/mabinogi/archives/items/all?password=${encodeURIComponent(resetPasswordInput)}`
+        : `${API_BASE}/api/mabinogi/archives/enchants/all?password=${encodeURIComponent(resetPasswordInput)}`;
+
+      const res = await fetch(endpoint, { method: 'DELETE' });
       if (res.ok) {
         const data = await res.json();
-        alert(`인챈트 도감 초기화 완료 (${data.deleted_count}건 삭제)`);
-        fetchEnchantArchives();
+        const targetLabel = resetTarget === 'items' ? '아이템 아카이브' : '인챈트 도감';
+        alert(`✅ ${targetLabel} DB 데이터 전체 초기화가 완료되었습니다. (${data.deleted_count}건 삭제)`);
+        if (resetTarget === 'items') {
+          fetchItemArchives();
+        } else {
+          fetchEnchantArchives();
+        }
+        setShowResetPasswordModal(false);
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        setResetError(errData.detail || '초기화 처리 중 오류가 발생했습니다.');
       }
     } catch (err) {
-      alert('초기화 실패: ' + err.message);
+      setResetError('초기화 실패: ' + err.message);
     }
   };
 
@@ -1351,7 +1374,7 @@ export default function MabinogiArchive() {
                   <span>새 아이템 아카이브 수집</span>
                 </button>
 
-                <button className="reset-archive-btn" onClick={handleResetItems}>
+                <button className="reset-archive-btn" onClick={openItemResetModal}>
                   <Trash2 size={16} />
                   <span>아이템 초기화</span>
                 </button>
@@ -1470,7 +1493,7 @@ export default function MabinogiArchive() {
               <h3>🔮 마비노기 인챈트 도감 (마스터 DB)</h3>
               <p className="sub">경매장 검색 시 자동 수집되는 접두/접미 인챈트별 유동 옵션 최소~최대 수치 범위 정보</p>
             </div>
-            <button className="reset-archive-btn" onClick={handleResetEnchants}>
+            <button className="reset-archive-btn" onClick={openEnchantResetModal}>
               <Trash2 size={16} />
               <span>인챈트 초기화</span>
             </button>
@@ -1542,19 +1565,32 @@ export default function MabinogiArchive() {
                     <div className="stat-ranges-box">
                       <span className="box-lbl">유동 옵션 최소 ~ 최대 수치 범위</span>
                       {Object.keys(statsMap).length > 0 ? (
-                        Object.entries(statsMap).map(([statName, info], i) => (
-                          <div className="stat-gauge-row" key={i}>
-                            <div className="stat-header">
-                              <span className="stat-name">{statName}</span>
-                              <span className="stat-range-val font-bold">
-                                {info.min === info.max ? `${info.min}${info.unit}` : `${info.min} ~ ${info.max} ${info.unit}`}
-                              </span>
+                        Object.entries(statsMap).map(([statName, info], i) => {
+                          const isDecrease = info.direction === '감소';
+                          const themeColor = isDecrease ? '#ef4444' : '#3b82f6';
+                          const conditionText = info.condition ? `(${info.condition}) ` : '';
+                          const targetText = info.target || statName;
+                          const displayVal = info.min === info.max 
+                            ? `${info.min}${info.unit || ''} ${info.direction || '증가'}`
+                            : `(${info.min} ~ ${info.max})${info.unit || ''} ${info.direction || '증가'}`;
+
+                          return (
+                            <div className="stat-gauge-row" key={i} style={{ borderLeft: `3px solid ${themeColor}`, paddingLeft: '8px' }}>
+                              <div className="stat-header">
+                                <span className="stat-name">
+                                  {conditionText && <span style={{ color: '#9ca3af', fontSize: '11px', marginRight: '4px' }}>{conditionText}</span>}
+                                  <strong style={{ color: isDecrease ? '#f87171' : '#60a5fa' }}>{targetText}</strong>
+                                </span>
+                                <span className="stat-range-val font-bold" style={{ color: isDecrease ? '#f87171' : '#60a5fa' }}>
+                                  {displayVal}
+                                </span>
+                              </div>
+                              <div className="gauge-track">
+                                <div className="gauge-fill" style={{ width: '100%', background: themeColor }} />
+                              </div>
                             </div>
-                            <div className="gauge-track">
-                              <div className="gauge-fill" style={{ width: '100%' }} />
-                            </div>
-                          </div>
-                        ))
+                          );
+                        })
                       ) : (
                         <p className="summary-text">{enc.effect_summary || '효과 정보 요약 준비 중'}</p>
                       )}
@@ -1730,6 +1766,68 @@ export default function MabinogiArchive() {
               <div className="modal-actions">
                 <button type="button" className="cancel-btn" onClick={() => setShowAddNoteModal(false)}>취소</button>
                 <button type="submit" className="save-btn">노트 저장</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 3: 비밀번호 확인 및 초기화 모달 */}
+      {showResetPasswordModal && (
+        <div className="modal-overlay" onClick={() => setShowResetPasswordModal(false)}>
+          <div className="modal-container reset-password-modal" onClick={e => e.stopPropagation()}>
+            <h3>🔒 {resetTarget === 'items' ? '아이템 아카이브' : '인챈트 도감'} 데이터 전체 초기화</h3>
+            <form onSubmit={handleConfirmReset}>
+              <div className="reset-warning-box" style={{
+                background: 'rgba(239, 68, 68, 0.1)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                borderRadius: '8px',
+                padding: '12px 16px',
+                marginBottom: '16px',
+                color: '#f87171',
+                fontSize: '13px',
+                lineHeight: '1.5'
+              }}>
+                <p style={{ margin: 0, fontWeight: 'bold' }}>⚠️ 주의: 데이터가 전체 삭제됩니다!</p>
+                <p style={{ margin: '4px 0 0 0', opacity: 0.9 }}>
+                  해당 항목({resetTarget === 'items' ? '아이템' : '인챈트'})의 모든 DB 데이터가 영구 삭제됩니다.
+                </p>
+              </div>
+
+              <div className="form-group">
+                <label>관리자 비밀번호 입력</label>
+                <input
+                  type="password"
+                  required
+                  autoFocus
+                  placeholder="비밀번호를 입력하세요"
+                  value={resetPasswordInput}
+                  onChange={e => {
+                    setResetPasswordInput(e.target.value);
+                    if (resetError) setResetError('');
+                  }}
+                />
+              </div>
+
+              {resetError && (
+                <div className="reset-error-msg" style={{
+                  color: '#ef4444',
+                  fontSize: '13px',
+                  marginTop: '8px',
+                  fontWeight: '600',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}>
+                  ⚠️ {resetError}
+                </div>
+              )}
+
+              <div className="modal-actions" style={{ marginTop: '20px' }}>
+                <button type="button" className="cancel-btn" onClick={() => setShowResetPasswordModal(false)}>취소</button>
+                <button type="submit" className="save-btn reset-confirm-btn" style={{ background: '#dc2626', color: '#fff' }}>
+                  초기화 실행
+                </button>
               </div>
             </form>
           </div>
