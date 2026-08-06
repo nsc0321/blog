@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Database, Key, Plus, Trash2, Tag, ShieldAlert, Sparkles, Filter, RefreshCw, ChevronRight, ExternalLink, Award, User, ShoppingBag, BookOpen, Check, Layers, AlertCircle, FileText, Pin, TrendingUp, X, ArrowRight, ArrowLeft } from 'lucide-react';
+import { Search, Database, Key, Plus, Trash2, Tag, ShieldAlert, Sparkles, Filter, RefreshCw, ChevronRight, ExternalLink, Award, User, ShoppingBag, BookOpen, Check, Layers, AlertCircle, FileText, Pin, TrendingUp, X, ArrowRight, ArrowLeft, Info, Zap } from 'lucide-react';
 import MabiAuctionChart from './MabiAuctionChart';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
@@ -569,7 +569,15 @@ export default function MabinogiArchive() {
         setShowResetPasswordModal(false);
       } else {
         const errData = await res.json().catch(() => ({}));
-        setResetError(errData.detail || '초기화 처리 중 오류가 발생했습니다.');
+        let errMsg = '초기화 처리 중 오류가 발생했습니다.';
+        if (typeof errData.detail === 'string') {
+          errMsg = errData.detail;
+        } else if (Array.isArray(errData.detail)) {
+          errMsg = errData.detail.map(d => d.msg || JSON.stringify(d)).join(', ');
+        } else if (errData.detail && typeof errData.detail === 'object') {
+          errMsg = JSON.stringify(errData.detail);
+        }
+        setResetError(errMsg);
       }
     } catch (err) {
       setResetError('초기화 실패: ' + err.message);
