@@ -40,7 +40,9 @@ export default function MabinogiArchive() {
 
   const fetchBatchConfig = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/mabinogi/batch/config`);
+      const res = await fetch(`${API_BASE}/api/mabinogi/batch/config`, {
+        headers: { 'ngrok-skip-browser-warning': 'true' }
+      });
       if (res.ok) {
         const data = await res.json();
         setBatchConfig(data);
@@ -53,7 +55,9 @@ export default function MabinogiArchive() {
   const fetchBatchLogs = async (page = 1) => {
     try {
       setBatchLoading(true);
-      const res = await fetch(`${API_BASE}/api/mabinogi/batch/logs?page=${page}&page_size=15`);
+      const res = await fetch(`${API_BASE}/api/mabinogi/batch/logs?page=${page}&page_size=15`, {
+        headers: { 'ngrok-skip-browser-warning': 'true' }
+      });
       if (res.ok) {
         const data = await res.json();
         setBatchLogs(data.logs || []);
@@ -71,7 +75,10 @@ export default function MabinogiArchive() {
     try {
       const res = await fetch(`${API_BASE}/api/mabinogi/batch/config`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true'
+        },
         body: JSON.stringify({ is_enabled, interval_minutes })
       });
       if (res.ok) {
@@ -86,7 +93,8 @@ export default function MabinogiArchive() {
     try {
       setBatchTriggering(true);
       const res = await fetch(`${API_BASE}/api/mabinogi/batch/trigger`, {
-        method: 'POST'
+        method: 'POST',
+        headers: { 'ngrok-skip-browser-warning': 'true' }
       });
       if (res.ok) {
         setTimeout(() => {
@@ -1443,6 +1451,143 @@ export default function MabinogiArchive() {
                 )}
               </div>
             </>
+          )}
+        </div>
+      )}
+
+      {/* TAB 3: 인챈트 도감 (Dedicated Enchant Master Knowledge Base) */}
+      {activeTab === 'enchants' && (
+        <div className="tab-content enchants-tab">
+          <div className="archive-section-header">
+            <div>
+              <h3>🔮 마비노기 인챈트 도감 (마스터 DB)</h3>
+              <p className="sub">경매장 검색 시 자동 수집되는 접두/접미 인챈트별 유동 옵션 최소~최대 수치 범위 정보</p>
+            </div>
+            <button className="reset-archive-btn" onClick={openEnchantResetModal}>
+              <Trash2 size={16} />
+              <span>인챈트 초기화</span>
+            </button>
+          </div>
+
+          <div className="enchant-archive-filter-bar">
+            <div className="enchant-type-toggle-group">
+              <button
+                className={`enchant-type-btn ${enchantArchiveFilter === 'ALL' ? 'active' : ''}`}
+                onClick={() => setEnchantArchiveFilter('ALL')}
+              >
+                전체 인챈트
+              </button>
+              <button
+                className={`enchant-type-btn prefix ${enchantArchiveFilter === '접두' ? 'active' : ''}`}
+                onClick={() => setEnchantArchiveFilter('접두')}
+              >
+                ✨ 접두 (Prefix)
+              </button>
+              <button
+                className={`enchant-type-btn suffix ${enchantArchiveFilter === '접미' ? 'active' : ''}`}
+                onClick={() => setEnchantArchiveFilter('접미')}
+              >
+                🔮 접미 (Suffix)
+              </button>
+            </div>
+
+            <div className="enchant-search-input-box">
+              <Search size={14} />
+              <input
+                type="text"
+                placeholder="인챈트 명칭 / 효과 검색 (예: 의지의, 알레고리)"
+                value={enchantSearchInput}
+                onChange={e => setEnchantSearchInput(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Enchant Master Cards Grid */}
+          <div className="enchant-master-cards-grid">
+            {enchantArchives
+              .filter(enc => {
+                if (enchantArchiveFilter !== 'ALL' && enc.enchant_type !== enchantArchiveFilter) return false;
+                if (enchantSearchInput.trim()) {
+                  const q = enchantSearchInput.trim().toLowerCase();
+                  return (enc.enchant_name || '').toLowerCase().includes(q) ||
+                         (enc.effect_summary || '').toLowerCase().includes(q) ||
+                         (enc.target_equip || '').toLowerCase().includes(q);
+                }
+                return true;
+              })
+              .map(enc => {
+                let statsMap = {};
+                try {
+                  if (enc.stats_min_max_json) statsMap = JSON.parse(enc.stats_min_max_json);
+                } catch (e) {}
+
+                return (
+                  <div key={enc.id} className="enchant-master-card">
+                    <div className="card-top">
+                      <span className={`opt-type-tag ${enc.enchant_type}`}>{enc.enchant_type}</span>
+                      <span className="rank-badge">{enc.rank || '1랭크'}</span>
+                    </div>
+
+                    <h4 className="enchant-title">{enc.enchant_name} 인챈트</h4>
+                    <span className="target-equip-badge"><ShieldAlert size={12} /> {enc.target_equip || '전용 장비'}</span>
+
+                    {/* Min / Max Stat Gauges */}
+                    <div className="stat-ranges-box">
+                      <span className="box-lbl">유동 옵션 최소 ~ 최대 수치 범위</span>
+                      {Object.keys(statsMap).length > 0 ? (
+                        Object.entries(statsMap).map(([statName, info], i) => {
+                          const isDecrease = info.direction === '감소';
+                          const themeColor = isDecrease ? '#ef4444' : '#3b82f6';
+                          const conditionText = info.condition ? `(${info.condition}) ` : '';
+                          const targetText = info.target || statName;
+                          const displayVal = info.min === info.max 
+                            ? `${info.min}${info.unit || ''} ${info.direction || '증가'}`
+                            : `(${info.min} ~ ${info.max})${info.unit || ''} ${info.direction || '증가'}`;
+
+                          return (
+                            <div className="stat-gauge-row" key={i} style={{ borderLeft: `3px solid ${themeColor}`, paddingLeft: '8px' }}>
+                              <div className="stat-header">
+                                <span className="stat-name">
+                                  {conditionText && <span style={{ color: '#9ca3af', fontSize: '11px', marginRight: '4px' }}>{conditionText}</span>}
+                                  <strong style={{ color: isDecrease ? '#f87171' : '#60a5fa' }}>{targetText}</strong>
+                                </span>
+                                <span className="stat-range-val font-bold" style={{ color: isDecrease ? '#f87171' : '#60a5fa' }}>
+                                  {displayVal}
+                                </span>
+                              </div>
+                              <div className="gauge-track">
+                                <div className="gauge-fill" style={{ width: '100%', background: themeColor }} />
+                              </div>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <p className="summary-text">{enc.effect_summary || '효과 정보 요약 준비 중'}</p>
+                      )}
+                    </div>
+
+                    <div className="card-footer">
+                      <span className="sample-lbl">실시간 수집 데이터: {enc.sample_count || 1}건 수집</span>
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+
+          {enchantArchives.filter(enc => {
+            if (enchantArchiveFilter !== 'ALL' && enc.enchant_type !== enchantArchiveFilter) return false;
+            if (enchantSearchInput.trim()) {
+              const q = enchantSearchInput.trim().toLowerCase();
+              return (enc.enchant_name || '').toLowerCase().includes(q) ||
+                     (enc.effect_summary || '').toLowerCase().includes(q) ||
+                     (enc.target_equip || '').toLowerCase().includes(q);
+            }
+            return true;
+          }).length === 0 && (
+            <div className="empty-archive-box">
+              <Sparkles size={32} />
+              <p>수집된 인챈트 도감 데이터가 없습니다. 경매장 검색 시 자동으로 수집 수치 범위가 등록됩니다.</p>
+            </div>
           )}
         </div>
       )}
