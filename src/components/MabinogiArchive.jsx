@@ -27,8 +27,12 @@ export default function MabinogiArchive() {
   });
   const [showKeyInput, setShowKeyInput] = useState(false);
 
-  // 1. Live Search States (Auction Search)
   const [searchType, setSearchType] = useState('auction');
+
+  // Archive Detail View States (Artisan Upgrade & Reforge Collapsing/Search)
+  const [artisanCollapsed, setArtisanCollapsed] = useState(false);
+  const [reforgeCollapsed, setReforgeCollapsed] = useState(false);
+  const [reforgeSearchQuery, setReforgeSearchQuery] = useState('');
   
   // Batch Management States
   const [batchConfig, setBatchConfig] = useState(null);
@@ -1203,7 +1207,7 @@ export default function MabinogiArchive() {
                     )}
                   </div>
 
-                  {/* 2. 그룹별 옵션 유동 수치 범위 (Min~Max Ranges) */}
+                  {/* 3, 4, 8. 그룹별 옵션 유동 수치 범위 (기본 옵션, 개조, 에르그 등) */}
                   <div className="detail-card-box">
                     <h3><Zap size={18} /> 그룹별 옵션 유동 수치 범위 (Min~Max Range)</h3>
                     {selectedArchiveItem.grouped_options_json ? (
@@ -1211,28 +1215,30 @@ export default function MabinogiArchive() {
                         try {
                           const grp = JSON.parse(selectedArchiveItem.grouped_options_json);
                           const grpNames = {
-                            base_stats: '📊 기본 능력치 수치 범위',
-                            reforge: '⚡ 세공 옵션 레벨 범위',
-                            modification: '🛠️ 개조 및 강화 단계',
-                            erg: '🔥 에르그 단계/효과',
-                            set_effects: '✨ 세트 효과 포인트',
-                            enchant: '🔮 부여된 인챈트'
+                            base_stats: '📊 3. 기본 옵션 유동수치 범위 (Min~Max)',
+                            modification: '🛠️ 4. 개조 및 강화 단계 (일반/보석/특별 개조)',
+                            erg: '🔥 8. 에르그 단계/효과',
+                            reforge: '⚡ 세공 레벨 범위',
+                            set_effects: '✨ 세트 효과 포인트'
                           };
 
-                          const hasItems = Object.values(grp).some(dict => dict && Object.keys(dict).length > 0);
+                          const displayKeys = ['base_stats', 'modification', 'erg'];
+                          const hasItems = displayKeys.some(catKey => grp[catKey] && Object.keys(grp[catKey]).length > 0);
+                          
                           if (!hasItems) {
-                            return <p className="empty-text font-medium">수집된 그룹별 수치 범위 데이터가 없습니다.</p>;
+                            return <p className="empty-text font-medium">수집된 기본 옵션 및 개조/에르그 범위 데이터가 없습니다.</p>;
                           }
 
                           return (
                             <div className="grouped-options-sections-container">
-                              {Object.entries(grp).map(([catKey, itemsDict]) => {
+                              {displayKeys.map(catKey => {
+                                const itemsDict = grp[catKey];
                                 const entries = Object.entries(itemsDict || {});
                                 if (entries.length === 0) return null;
 
                                 return (
-                                  <div className="option-category-group" key={catKey}>
-                                    <h4 className="group-title">{grpNames[catKey] || catKey}</h4>
+                                  <div className="option-category-group" key={catKey} style={{ marginBottom: '16px' }}>
+                                    <h4 className="group-title" style={{ fontSize: '0.95rem', color: '#60a5fa', marginBottom: '8px' }}>{grpNames[catKey] || catKey}</h4>
                                     <div className="group-items-list">
                                       {entries.map(([optName, optInfo], idx) => (
                                         <div className="option-range-card" key={idx}>
@@ -1277,9 +1283,51 @@ export default function MabinogiArchive() {
                     )}
                   </div>
 
-                  {/* 3. 세트 효과 (Set Effects) */}
+                  {/* 5. 장인 개조 (Artisan Upgrades - Foldable) */}
+                  <div className="detail-card-box collapsible-card">
+                    <div 
+                      className="card-header-toggle" 
+                      onClick={() => setArtisanCollapsed(!artisanCollapsed)} 
+                      style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                    >
+                      <h3><Layers size={18} /> 🛠️ 5. 장인 개조 (Artisan Upgrades)</h3>
+                      <span className="collapse-badge" style={{ fontSize: '0.8rem', color: '#9ca3af', padding: '2px 8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px' }}>
+                        {artisanCollapsed ? '펼치기 ▲' : '접기 ▼'}
+                      </span>
+                    </div>
+                    {!artisanCollapsed && (
+                      <div className="collapsible-body" style={{ marginTop: '12px' }}>
+                        {(() => {
+                          let artisanMap = {};
+                          if (selectedArchiveItem.artisan_upgrades_json) {
+                            try { artisanMap = JSON.parse(selectedArchiveItem.artisan_upgrades_json); } catch(e){}
+                          }
+                          const entries = Object.entries(artisanMap);
+                          if (entries.length === 0) {
+                            return <p className="empty-text">수집된 장인 개조 정보가 없습니다.</p>;
+                          }
+                          return (
+                            <div className="artisan-grid-list" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '8px' }}>
+                              {entries.map(([statName, info], idx) => (
+                                <div className="artisan-item-card" key={idx} style={{ padding: '8px 12px', background: 'rgba(255,255,255,0.05)', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                                  <span className="font-bold">{statName}</span>: {' '}
+                                  <span style={{ color: '#6ee7b7', fontWeight: 600 }}>
+                                    {info.min === info.max || info.min === null
+                                      ? `${info.max ?? info.raw} ${info.direction || ''}`
+                                      : `${info.min} ~ ${info.max} ${info.direction || ''}`}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 6. 세트 효과 (Set Effects) */}
                   <div className="detail-card-box">
-                    <h3><Sparkles size={18} /> 발동 세트 효과 (Set Effects)</h3>
+                    <h3><Sparkles size={18} /> ✨ 6. 발동 세트 효과 (Set Effects)</h3>
                     {selectedArchiveItem.set_effects_json ? (
                       <div className="set-effects-list-box">
                         {(() => {
@@ -1300,6 +1348,63 @@ export default function MabinogiArchive() {
                       </div>
                     ) : (
                       <p className="empty-text">수집된 세트 효과가 없습니다.</p>
+                    )}
+                  </div>
+
+                  {/* 7. 세공 목록 (Reforging Options List - Foldable & Searchable) */}
+                  <div className="detail-card-box collapsible-card">
+                    <div 
+                      className="card-header-toggle" 
+                      onClick={() => setReforgeCollapsed(!reforgeCollapsed)} 
+                      style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                    >
+                      <h3><Zap size={18} /> ⚡ 7. 세공 목록 (Reforging Options)</h3>
+                      <span className="collapse-badge" style={{ fontSize: '0.8rem', color: '#9ca3af', padding: '2px 8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px' }}>
+                        {reforgeCollapsed ? '펼치기 ▲' : '접기 ▼'}
+                      </span>
+                    </div>
+                    {!reforgeCollapsed && (
+                      <div className="collapsible-body" style={{ marginTop: '12px' }}>
+                        <div className="reforge-search-box" style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(0,0,0,0.25)', padding: '8px 12px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                          <Search size={14} style={{ color: '#9ca3af' }} />
+                          <input
+                            type="text"
+                            placeholder="세공 효과 검색 (예: 스매시, 마법 공격력)..."
+                            value={reforgeSearchQuery}
+                            onChange={e => setReforgeSearchQuery(e.target.value)}
+                            style={{ background: 'transparent', border: 'none', color: '#fff', width: '100%', outline: 'none', fontSize: '0.88rem' }}
+                          />
+                          {reforgeSearchQuery && (
+                            <X size={14} style={{ cursor: 'pointer', color: '#9ca3af' }} onClick={() => setReforgeSearchQuery('')} />
+                          )}
+                        </div>
+                        {(() => {
+                          let reforgeList = [];
+                          if (selectedArchiveItem.reforge_options_json) {
+                            try { reforgeList = JSON.parse(selectedArchiveItem.reforge_options_json); } catch(e){}
+                          }
+                          const filtered = reforgeList.filter(item => {
+                            const query = reforgeSearchQuery.toLowerCase();
+                            return (item.display || item.name || '').toLowerCase().includes(query);
+                          });
+
+                          if (filtered.length === 0) {
+                            return <p className="empty-text">검색 조건에 맞는 세공 옵션이 없습니다.</p>;
+                          }
+                          return (
+                            <div className="reforge-items-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '8px' }}>
+                              {filtered.map((rf, idx) => (
+                                <div className="reforge-card" key={idx} style={{ padding: '8px 12px', background: 'rgba(124, 58, 237, 0.12)', border: '1px solid rgba(124, 58, 237, 0.3)', borderRadius: '6px' }}>
+                                  <span className="bullet">⚡ </span>
+                                  <span className="reforge-display font-medium" style={{ color: '#c084fc' }}>
+                                    {rf.display || `${rf.name}(${rf.level}레벨:${rf.value})`}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        })()}
+                      </div>
                     )}
                   </div>
                 </div>
