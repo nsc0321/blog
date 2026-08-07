@@ -204,6 +204,12 @@ export default function MabinogiArchive() {
   const [charArchives, setCharArchives] = useState([]);
   const [noteArchives, setNoteArchives] = useState([]);
   const [categoryFilter, setCategoryFilter] = useState('ALL');
+  const [itemSearchInput, setItemSearchInput] = useState('');
+  const [itemPage, setItemPage] = useState(1);
+  const [itemLimit, setItemLimit] = useState(50);
+  const [itemTotal, setItemTotal] = useState(0);
+  const [itemTotalPages, setItemTotalPages] = useState(1);
+  const [itemLoading, setItemLoading] = useState(false);
 
   // Reset Modal & Password state
   const [showResetPasswordModal, setShowResetPasswordModal] = useState(false);
@@ -304,7 +310,7 @@ export default function MabinogiArchive() {
   const [enchantArchiveFilter, setEnchantArchiveFilter] = useState('ALL'); // 'ALL', '접두', '접미'
   const [enchantSearchInput, setEnchantSearchInput] = useState('');
   const [enchantPage, setEnchantPage] = useState(1);
-  const [enchantLimit, setEnchantLimit] = useState(100);
+  const [enchantLimit, setEnchantLimit] = useState(50);
   const [enchantTotal, setEnchantTotal] = useState(0);
   const [enchantTotalPages, setEnchantTotalPages] = useState(1);
   const [enchantLoading, setEnchantLoading] = useState(false);
@@ -507,19 +513,79 @@ export default function MabinogiArchive() {
   };
 
   // --- Fetch DB Archives ---
-  const fetchItemArchives = async () => {
+  const fetchItemArchives = async (overridePage, overrideLimit, overrideCategory, overrideQuery) => {
+    setItemLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/mabinogi/archives/items`, {
+      const pageToFetch = overridePage !== undefined ? overridePage : itemPage;
+      const limitToFetch = overrideLimit !== undefined ? overrideLimit : itemLimit;
+      const catToFetch = overrideCategory !== undefined ? overrideCategory : categoryFilter;
+      const queryToFetch = overrideQuery !== undefined ? overrideQuery : itemSearchInput;
+
+      const params = new URLSearchParams();
+      params.append('page', pageToFetch);
+      params.append('limit', limitToFetch);
+      if (catToFetch && catToFetch !== 'ALL' && catToFetch !== '전체') {
+        params.append('category', catToFetch);
+      }
+      if (queryToFetch && queryToFetch.trim()) {
+        params.append('query', queryToFetch.trim());
+      }
+
+      const res = await fetch(`${API_BASE}/api/mabinogi/archives/items?${params.toString()}`, {
         headers: { 'ngrok-skip-browser-warning': 'true' }
       });
       if (res.ok) {
         const data = await res.json();
-        setItemArchives(data);
+        if (Array.isArray(data)) {
+          setItemArchives(data || []);
+          setItemTotal((data || []).length);
+          setItemTotalPages(1);
+        } else {
+          setItemArchives(data.items || []);
+          setItemTotal(data.total || data.total_count || 0);
+          setItemPage(data.page || 1);
+          setItemLimit(data.limit || data.page_size || 50);
+          setItemTotalPages(data.total_pages || 1);
+        }
       }
     } catch (err) {
-      console.log('Using local fallback for items');
+      console.log('Using local fallback for items', err);
+    } finally {
+      setItemLoading(false);
     }
   };
+
+  const handleItemPageChange = (newPage) => {
+    if (newPage < 1 || newPage > itemTotalPages || newPage === itemPage) return;
+    setItemPage(newPage);
+    fetchItemArchives(newPage, itemLimit, categoryFilter, itemSearchInput);
+  };
+
+  const handleItemLimitChange = (newLimit) => {
+    setItemLimit(newLimit);
+    setItemPage(1);
+    fetchItemArchives(1, newLimit, categoryFilter, itemSearchInput);
+  };
+
+  const handleItemCategoryChange = (newCat) => {
+    setCategoryFilter(newCat);
+    setItemPage(1);
+    fetchItemArchives(1, itemLimit, newCat, itemSearchInput);
+  };
+
+  const handleItemSearchChange = (val) => {
+    setItemSearchInput(val);
+  };
+
+  useEffect(() => {
+    if (activeTab === 'items') {
+      const timer = setTimeout(() => {
+        setItemPage(1);
+        fetchItemArchives(1, itemLimit, categoryFilter, itemSearchInput);
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [itemSearchInput]);
 
   const fetchEnchantArchives = async (overridePage, overrideLimit, overrideFilter, overrideQuery) => {
     setEnchantLoading(true);
@@ -1067,7 +1133,7 @@ export default function MabinogiArchive() {
         </button>
         <button className={`mabi-tab ${activeTab === 'items' ? 'active' : ''}`} onClick={() => setActiveTab('items')}>
           <Layers size={16} />
-          <span>아이템/장비 아카이브 ({itemArchives.length})</span>
+          <span>아이템/장비 아카이브 ({itemTotal || itemArchives.length})</span>
         </button>
         <button className={`mabi-tab ${activeTab === 'enchants' ? 'active' : ''}`} onClick={() => setActiveTab('enchants')}>
           <Sparkles size={16} />
@@ -1554,100 +1620,225 @@ export default function MabinogiArchive() {
           ) : (
             /* ARCHIVE CARDS GRID VIEW */
             <>
-              <div className="tab-toolbar">
-                <div className="filter-group">
-                  <Filter size={16} />
-                  <select
-                    className="mabi-select category-filter-select"
-                    value={categoryFilter}
-                    onChange={e => setCategoryFilter(e.target.value)}
-                  >
-                    <option value="ALL">전체 아이템 분류 보기</option>
-                    {MABI_CATEGORIES.filter(c => c !== "전체").map(cat => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
-                  </select>
+              <div className="tab-toolbar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '20px' }}>
+                <div className="toolbar-left-group" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                  <div className="filter-group">
+                    <Filter size={16} />
+                    <select
+                      className="mabi-select category-filter-select"
+                      value={categoryFilter}
+                      onChange={e => handleItemCategoryChange(e.target.value)}
+                    >
+                      <option value="ALL">전체 아이템 분류 보기</option>
+                      {MABI_CATEGORIES.filter(c => c !== "전체").map(cat => (
+                        <option key={cat} value={cat}>{cat}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="item-search-input-box" style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(15, 23, 42, 0.6)', border: '1px solid rgba(255, 255, 255, 0.15)', borderRadius: '8px', padding: '6px 12px', width: '320px' }}>
+                    <Search size={14} style={{ color: '#9ca3af' }} />
+                    <input
+                      type="text"
+                      placeholder="아이템 명칭 / 세공 / 옵션 / 태그 검색..."
+                      value={itemSearchInput}
+                      onChange={e => handleItemSearchChange(e.target.value)}
+                      style={{ background: 'none', border: 'none', color: '#ffffff', fontSize: '13px', width: '100%', outline: 'none' }}
+                    />
+                    {itemSearchInput && (
+                      <button
+                        onClick={() => {
+                          handleItemSearchChange('');
+                          setItemPage(1);
+                          fetchItemArchives(1, itemLimit, categoryFilter, '');
+                        }}
+                        title="검색어 초기화"
+                        style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '2px' }}
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
+                  </div>
                 </div>
 
-                <button className="create-archive-btn" onClick={() => setShowAddItemModal(true)}>
-                  <Plus size={16} />
-                  <span>새 아이템 아카이브 수집</span>
-                </button>
+                <div className="toolbar-right-group" style={{ display: 'flex', gap: '8px' }}>
+                  <button className="create-archive-btn" onClick={() => setShowAddItemModal(true)}>
+                    <Plus size={16} />
+                    <span>새 아이템 아카이브 수집</span>
+                  </button>
 
-                <button className="reset-archive-btn" onClick={openItemResetModal}>
-                  <Trash2 size={16} />
-                  <span>아이템 초기화</span>
-                </button>
+                  <button className="reset-archive-btn" onClick={openItemResetModal}>
+                    <Trash2 size={16} />
+                    <span>아이템 초기화</span>
+                  </button>
+                </div>
               </div>
 
-              <div className="archive-cards-grid">
-                {filteredItems.map(item => (
-                  <div
-                    className="archive-item-card clickable-archive-card"
-                    key={item.id}
-                    onClick={() => setSelectedArchiveItem(item)}
-                  >
-                    <div className="card-top">
-                      <span className="category-pill">{item.category || '장비'}</span>
-                      <button 
-                        className="delete-mini-btn" 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteItem(item.id);
-                        }}
-                      >
-                        <Trash2 size={14} />
-                      </button>
+              {itemLoading ? (
+                <div className="loading-state-box" style={{ textAlign: 'center', padding: '40px', color: '#9ca3af' }}>
+                  <RefreshCw size={24} className="spin-icon" style={{ marginBottom: '8px' }} />
+                  <p>아이템/장비 수집 데이터를 불러오는 중...</p>
+                </div>
+              ) : (
+                <>
+                  <div className="archive-cards-grid">
+                    {filteredItems.map(item => {
+                      const updatedTimeStr = item.updated_at || item.created_at;
+                      const formattedDate = updatedTimeStr ? new Date(updatedTimeStr).toLocaleString('ko-KR', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      }) : '';
+
+                      return (
+                        <div
+                          className="archive-item-card clickable-archive-card"
+                          key={item.id}
+                          onClick={() => setSelectedArchiveItem(item)}
+                        >
+                          <div className="card-top">
+                            <span className="category-pill">{item.category || '장비'}</span>
+                            <button 
+                              className="delete-mini-btn" 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteItem(item.id);
+                              }}
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                          <h4>{item.item_display_name || item.item_name}</h4>
+                          <p className="desc">{item.description || '클릭하여 상세 옵션 및 세트 효과 보기'}</p>
+                          
+                          {/* Options List Display */}
+                          {item.options_json && (
+                            <div className="archive-options-text">
+                              <span className="opt-lbl">옵션/세공:</span> {item.options_json}
+                            </div>
+                          )}
+
+                          {/* Set Effects Display */}
+                          {item.set_effects_json && (
+                            <div className="set-effects-container">
+                              {(() => {
+                                try {
+                                  const setArr = JSON.parse(item.set_effects_json);
+                                  if (Array.isArray(setArr) && setArr.length > 0) {
+                                    return setArr.map((se, idx) => (
+                                      <span className="set-effect-badge" key={idx}>
+                                        ✨ 세트: {se.name} {se.value}
+                                      </span>
+                                    ));
+                                  }
+                                } catch (e) {}
+                                return null;
+                              })()}
+                            </div>
+                          )}
+
+                          {item.tags && (
+                            <div className="tags-container">
+                              {item.tags.split(',').map((t, i) => (
+                                <span className="tag-badge" key={i}>#{t.trim()}</span>
+                              ))}
+                            </div>
+                          )}
+
+                          {formattedDate && (
+                            <div className="card-footer" style={{ marginTop: '12px', paddingTop: '8px', borderTop: '1px solid rgba(255, 255, 255, 0.05)', display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
+                              <span className="collected-date-badge" style={{ fontSize: '11px', color: '#9ca3af', backgroundColor: 'rgba(255, 255, 255, 0.05)', padding: '2px 6px', borderRadius: '4px' }}>
+                                📅 {formattedDate}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    {filteredItems.length === 0 && (
+                      <div className="empty-archive-box">
+                        <Database size={32} />
+                        <p>등록된 아이템 아카이브가 없습니다. 실시간 API 검색을 통해 카테고리별 아이템 정보를 자동으로 등록할 수 있습니다.</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Item Archive Pagination Controls Bar */}
+                  {itemTotalPages > 0 && (
+                    <div className="archive-pagination" style={{ marginTop: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', padding: '16px', background: 'rgba(30, 41, 59, 0.5)', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
+                      <div className="pagination-info" style={{ color: '#9ca3af', fontSize: '13px' }}>
+                        전체 <strong style={{ color: '#60a5fa' }}>{itemTotal}</strong>건 중{' '}
+                        <strong style={{ color: '#e2e8f0' }}>
+                          {itemTotal === 0 ? 0 : (itemPage - 1) * itemLimit + 1} - {Math.min(itemPage * itemLimit, itemTotal)}
+                        </strong>건 표시 ({itemPage} / {itemTotalPages} 페이지)
+                      </div>
+
+                      <div className="pagination-controls" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <button
+                          className="page-nav-btn"
+                          disabled={itemPage <= 1 || itemLoading}
+                          onClick={() => handleItemPageChange(itemPage - 1)}
+                          style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '6px 12px', borderRadius: '6px', border: '1px solid rgba(255, 255, 255, 0.15)', background: 'rgba(15, 23, 42, 0.6)', color: itemPage <= 1 ? '#475569' : '#e2e8f0', cursor: itemPage <= 1 ? 'not-allowed' : 'pointer' }}
+                        >
+                          <ChevronLeft size={16} /> 이전
+                        </button>
+
+                        <div className="page-numbers" style={{ display: 'flex', gap: '4px' }}>
+                          {getPageNumbers(itemPage, itemTotalPages).map((pNum, idx) => (
+                            pNum === '...' ? (
+                              <span key={`ellipsis-${idx}`} className="page-ellipsis" style={{ padding: '6px 8px', color: '#64748b' }}>...</span>
+                            ) : (
+                              <button
+                                key={`page-${pNum}`}
+                                className={`page-number-btn ${itemPage === pNum ? 'active' : ''}`}
+                                disabled={itemLoading}
+                                onClick={() => handleItemPageChange(pNum)}
+                                style={{
+                                  padding: '6px 12px',
+                                  borderRadius: '6px',
+                                  border: itemPage === pNum ? '1px solid #3b82f6' : '1px solid rgba(255, 255, 255, 0.1)',
+                                  background: itemPage === pNum ? '#2563eb' : 'rgba(15, 23, 42, 0.4)',
+                                  color: '#ffffff',
+                                  fontWeight: itemPage === pNum ? 'bold' : 'normal',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                {pNum}
+                              </button>
+                            )
+                          ))}
+                        </div>
+
+                        <button
+                          className="page-nav-btn"
+                          disabled={itemPage >= itemTotalPages || itemLoading}
+                          onClick={() => handleItemPageChange(itemPage + 1)}
+                          style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '6px 12px', borderRadius: '6px', border: '1px solid rgba(255, 255, 255, 0.15)', background: 'rgba(15, 23, 42, 0.6)', color: itemPage >= itemTotalPages ? '#475569' : '#e2e8f0', cursor: itemPage >= itemTotalPages ? 'not-allowed' : 'pointer' }}
+                        >
+                          다음 <ChevronRight size={16} />
+                        </button>
+
+                        <select
+                          className="page-limit-select"
+                          value={itemLimit}
+                          onChange={(e) => handleItemLimitChange(Number(e.target.value))}
+                          style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid rgba(255, 255, 255, 0.15)', background: '#0f172a', color: '#e2e8f0', fontSize: '13px', cursor: 'pointer', marginLeft: '8px' }}
+                        >
+                          <option value={20}>20개씩</option>
+                          <option value={50}>50개씩 (기본)</option>
+                          <option value={100}>100개씩</option>
+                          <option value={200}>200개씩</option>
+                        </select>
+                      </div>
                     </div>
-                    <h4>{item.item_display_name || item.item_name}</h4>
-                    <p className="desc">{item.description || '클릭하여 상세 옵션 및 세트 효과 보기'}</p>
-                    
-                    {/* Options List Display */}
-                    {item.options_json && (
-                      <div className="archive-options-text">
-                        <span className="opt-lbl">옵션/세공:</span> {item.options_json}
-                      </div>
-                    )}
-
-                    {/* Set Effects Display */}
-                    {item.set_effects_json && (
-                      <div className="set-effects-container">
-                        {(() => {
-                          try {
-                            const setArr = JSON.parse(item.set_effects_json);
-                            if (Array.isArray(setArr) && setArr.length > 0) {
-                              return setArr.map((se, idx) => (
-                                <span className="set-effect-badge" key={idx}>
-                                  ✨ 세트: {se.name} {se.value}
-                                </span>
-                              ));
-                            }
-                          } catch (e) {}
-                          return null;
-                        })()}
-                      </div>
-                    )}
-
-                    {item.tags && (
-                      <div className="tags-container">
-                        {item.tags.split(',').map((t, i) => (
-                          <span className="tag-badge" key={i}>#{t.trim()}</span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
-
-                {filteredItems.length === 0 && (
-                  <div className="empty-archive-box">
-                    <Database size={32} />
-                    <p>등록된 아이템 아카이브가 없습니다. 실시간 API 검색을 통해 카테고리별 아이템 정보를 자동으로 등록할 수 있습니다.</p>
-                  </div>
-                )}
-              </div>
+                  )}
+                </>
+              )}
             </>
-          )}
-        </div>
+          )}</div>
       )}
 
       {/* TAB 3: 인챈트 도감 (Dedicated Enchant Master Knowledge Base) */}
@@ -1656,7 +1847,7 @@ export default function MabinogiArchive() {
           <div className="archive-section-header">
             <div>
               <h3>🔮 마비노기 인챈트 도감 (마스터 DB)</h3>
-              <p className="sub">경매장 수집 데이터 기반 인챈트 수치 범위 (수집 일자 내림차순 정렬, 기본 100건 표시)</p>
+              <p className="sub">경매장 수집 데이터 기반 인챈트 수치 범위 (수집 일자 내림차순 정렬, 기본 50건 표시)</p>
             </div>
             <button className="reset-archive-btn" onClick={openEnchantResetModal}>
               <Trash2 size={16} />
@@ -1861,8 +2052,9 @@ export default function MabinogiArchive() {
                       onChange={(e) => handleEnchantLimitChange(Number(e.target.value))}
                       style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid rgba(255, 255, 255, 0.15)', background: '#0f172a', color: '#e2e8f0', fontSize: '13px', cursor: 'pointer', marginLeft: '8px' }}
                     >
-                      <option value={50}>50개씩</option>
-                      <option value={100}>100개씩 (기본)</option>
+                      <option value={20}>20개씩</option>
+                      <option value={50}>50개씩 (기본)</option>
+                      <option value={100}>100개씩</option>
                       <option value={200}>200개씩</option>
                       <option value={500}>500개씩</option>
                     </select>
