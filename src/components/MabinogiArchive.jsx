@@ -71,15 +71,20 @@ export default function MabinogiArchive() {
     }
   };
 
-  const handleUpdateBatchConfig = async (is_enabled, interval_minutes) => {
+  const handleUpdateBatchConfig = async (is_enabled, interval_minutes, item_target_count) => {
     try {
+      const payload = {};
+      if (is_enabled !== undefined && is_enabled !== null) payload.is_enabled = is_enabled;
+      if (interval_minutes !== undefined && interval_minutes !== null) payload.interval_minutes = interval_minutes;
+      if (item_target_count !== undefined && item_target_count !== null) payload.item_target_count = item_target_count;
+
       const res = await fetch(`${API_BASE}/api/mabinogi/batch/config`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
           'ngrok-skip-browser-warning': 'true'
         },
-        body: JSON.stringify({ is_enabled, interval_minutes })
+        body: JSON.stringify(payload)
       });
       if (res.ok) {
         await fetchBatchConfig();
@@ -1635,12 +1640,26 @@ export default function MabinogiArchive() {
                   <select 
                     className="mabi-select interval-select"
                     value={batchConfig?.interval_minutes || 60}
-                    onChange={e => handleUpdateBatchConfig(batchConfig?.is_enabled ?? true, parseInt(e.target.value))}
+                    onChange={e => handleUpdateBatchConfig(batchConfig?.is_enabled ?? true, parseInt(e.target.value), batchConfig?.item_target_count || 500)}
                   >
                     <option value={30}>30분 마다 수집</option>
                     <option value={60}>60분 (매시간 수집 - 기본)</option>
                     <option value={120}>120분 (2시간 마다 수집)</option>
                     <option value={240}>240분 (4시간 마다 수집)</option>
+                  </select>
+                </div>
+                <div className="info-item">
+                  <span className="lbl">수집 분량 설정 (1page = 500건 / max 5page)</span>
+                  <select 
+                    className="mabi-select interval-select"
+                    value={batchConfig?.max_pages || Math.ceil((batchConfig?.item_target_count || 500) / 500)}
+                    onChange={e => handleUpdateBatchConfig(batchConfig?.is_enabled ?? true, batchConfig?.interval_minutes || 60, parseInt(e.target.value) * 500)}
+                  >
+                    <option value={1}>1 page (500건 수집 - 기본)</option>
+                    <option value={2}>2 page (1,000건 수집)</option>
+                    <option value={3}>3 page (1,500건 수집)</option>
+                    <option value={4}>4 page (2,000건 수집)</option>
+                    <option value={5}>5 page (2,500건 수집 - 최대)</option>
                   </select>
                 </div>
                 <div className="info-item">
