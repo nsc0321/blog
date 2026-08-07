@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Database, Key, Plus, Trash2, Tag, ShieldAlert, Sparkles, Filter, RefreshCw, ChevronRight, ExternalLink, Award, User, ShoppingBag, BookOpen, Check, Layers, AlertCircle, FileText, Pin, TrendingUp, X, ArrowRight, ArrowLeft, Info, Zap } from 'lucide-react';
+import { Search, Database, Key, Plus, Trash2, Tag, ShieldAlert, Sparkles, Filter, RefreshCw, ChevronRight, ChevronLeft, ExternalLink, Award, User, ShoppingBag, BookOpen, Check, Layers, AlertCircle, FileText, Pin, TrendingUp, X, ArrowRight, ArrowLeft, Info, Zap } from 'lucide-react';
 import MabiAuctionChart from './MabiAuctionChart';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
@@ -303,6 +303,11 @@ export default function MabinogiArchive() {
   const [enchantArchives, setEnchantArchives] = useState([]);
   const [enchantArchiveFilter, setEnchantArchiveFilter] = useState('ALL'); // 'ALL', '접두', '접미'
   const [enchantSearchInput, setEnchantSearchInput] = useState('');
+  const [enchantPage, setEnchantPage] = useState(1);
+  const [enchantLimit, setEnchantLimit] = useState(100);
+  const [enchantTotal, setEnchantTotal] = useState(0);
+  const [enchantTotalPages, setEnchantTotalPages] = useState(1);
+  const [enchantLoading, setEnchantLoading] = useState(false);
 
   // Selected Archive Item State for Dedicated Detail View
   const [selectedArchiveItem, setSelectedArchiveItem] = useState(null);
@@ -516,19 +521,97 @@ export default function MabinogiArchive() {
     }
   };
 
-  const fetchEnchantArchives = async () => {
+  const fetchEnchantArchives = async (overridePage, overrideLimit, overrideFilter, overrideQuery) => {
+    setEnchantLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/mabinogi/archives/enchants`, {
+      const pageToFetch = overridePage !== undefined ? overridePage : enchantPage;
+      const limitToFetch = overrideLimit !== undefined ? overrideLimit : enchantLimit;
+      const filterToFetch = overrideFilter !== undefined ? overrideFilter : enchantArchiveFilter;
+      const queryToFetch = overrideQuery !== undefined ? overrideQuery : enchantSearchInput;
+
+      const params = new URLSearchParams();
+      params.append('page', pageToFetch);
+      params.append('limit', limitToFetch);
+      if (filterToFetch && filterToFetch !== 'ALL') {
+        params.append('enchant_type', filterToFetch);
+      }
+      if (queryToFetch && queryToFetch.trim()) {
+        params.append('query', queryToFetch.trim());
+      }
+
+      const res = await fetch(`${API_BASE}/api/mabinogi/archives/enchants?${params.toString()}`, {
         headers: { 'ngrok-skip-browser-warning': 'true' }
       });
       if (res.ok) {
         const data = await res.json();
-        setEnchantArchives(data || []);
+        if (Array.isArray(data)) {
+          setEnchantArchives(data || []);
+          setEnchantTotal((data || []).length);
+          setEnchantTotalPages(1);
+        } else {
+          setEnchantArchives(data.items || []);
+          setEnchantTotal(data.total || 0);
+          setEnchantPage(data.page || 1);
+          setEnchantLimit(data.limit || 100);
+          setEnchantTotalPages(data.total_pages || 1);
+        }
       }
     } catch (err) {
-      console.log('Using local fallback for enchants');
+      console.log('Using local fallback for enchants', err);
+    } finally {
+      setEnchantLoading(false);
     }
   };
+
+  const handleEnchantPageChange = (newPage) => {
+    if (newPage < 1 || newPage > enchantTotalPages || newPage === enchantPage) return;
+    setEnchantPage(newPage);
+    fetchEnchantArchives(newPage, enchantLimit, enchantArchiveFilter, enchantSearchInput);
+  };
+
+  const handleEnchantLimitChange = (newLimit) => {
+    setEnchantLimit(newLimit);
+    setEnchantPage(1);
+    fetchEnchantArchives(1, newLimit, enchantArchiveFilter, enchantSearchInput);
+  };
+
+  const handleEnchantFilterChange = (newFilter) => {
+    setEnchantArchiveFilter(newFilter);
+    setEnchantPage(1);
+    fetchEnchantArchives(1, enchantLimit, newFilter, enchantSearchInput);
+  };
+
+  const handleEnchantSearchChange = (val) => {
+    setEnchantSearchInput(val);
+  };
+
+  const getPageNumbers = (current, total) => {
+    const pages = [];
+    if (total <= 7) {
+      for (let i = 1; i <= total; i++) pages.push(i);
+    } else {
+      pages.push(1);
+      if (current > 3) pages.push('...');
+      const start = Math.max(2, current - 1);
+      const end = Math.min(total - 1, current + 1);
+      for (let i = start; i <= end; i++) {
+        pages.push(i);
+      }
+      if (current < total - 2) pages.push('...');
+      pages.push(total);
+    }
+    return pages;
+  };
+
+  useEffect(() => {
+    if (activeTab === 'enchants') {
+      const timer = setTimeout(() => {
+        setEnchantPage(1);
+        fetchEnchantArchives(1, enchantLimit, enchantArchiveFilter, enchantSearchInput);
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [enchantSearchInput]);
 
   const fetchCharArchives = async () => {
     try {
@@ -988,7 +1071,7 @@ export default function MabinogiArchive() {
         </button>
         <button className={`mabi-tab ${activeTab === 'enchants' ? 'active' : ''}`} onClick={() => setActiveTab('enchants')}>
           <Sparkles size={16} />
-          <span>인챈트 도감 ({enchantArchives.length})</span>
+          <span>인챈트 도감 ({enchantTotal || enchantArchives.length})</span>
         </button>
         <button className={`mabi-tab ${activeTab === 'management' ? 'active' : ''}`} onClick={() => setActiveTab('management')}>
           <Database size={16} />
@@ -1573,7 +1656,7 @@ export default function MabinogiArchive() {
           <div className="archive-section-header">
             <div>
               <h3>🔮 마비노기 인챈트 도감 (마스터 DB)</h3>
-              <p className="sub">경매장 검색 시 자동 수집되는 접두/접미 인챈트별 유동 옵션 최소~최대 수치 범위 정보</p>
+              <p className="sub">경매장 수집 데이터 기반 인챈트 수치 범위 (수집 일자 내림차순 정렬, 기본 100건 표시)</p>
             </div>
             <button className="reset-archive-btn" onClick={openEnchantResetModal}>
               <Trash2 size={16} />
@@ -1585,19 +1668,19 @@ export default function MabinogiArchive() {
             <div className="enchant-type-toggle-group">
               <button
                 className={`enchant-type-btn ${enchantArchiveFilter === 'ALL' ? 'active' : ''}`}
-                onClick={() => setEnchantArchiveFilter('ALL')}
+                onClick={() => handleEnchantFilterChange('ALL')}
               >
                 전체 인챈트
               </button>
               <button
                 className={`enchant-type-btn prefix ${enchantArchiveFilter === '접두' ? 'active' : ''}`}
-                onClick={() => setEnchantArchiveFilter('접두')}
+                onClick={() => handleEnchantFilterChange('접두')}
               >
                 ✨ 접두 (Prefix)
               </button>
               <button
                 className={`enchant-type-btn suffix ${enchantArchiveFilter === '접미' ? 'active' : ''}`}
-                onClick={() => setEnchantArchiveFilter('접미')}
+                onClick={() => handleEnchantFilterChange('접미')}
               >
                 🔮 접미 (Suffix)
               </button>
@@ -1607,99 +1690,186 @@ export default function MabinogiArchive() {
               <Search size={14} />
               <input
                 type="text"
-                placeholder="인챈트 명칭 / 효과 검색 (예: 의지의, 알레고리)"
+                placeholder="인챈트 명칭 / 효과 / 랭크 / 대상 검색 (예: 의지의, 알레고리)"
                 value={enchantSearchInput}
-                onChange={e => setEnchantSearchInput(e.target.value)}
+                onChange={e => handleEnchantSearchChange(e.target.value)}
               />
+              {enchantSearchInput && (
+                <button 
+                  className="clear-search-btn"
+                  onClick={() => {
+                    handleEnchantSearchChange('');
+                    setEnchantPage(1);
+                    fetchEnchantArchives(1, enchantLimit, enchantArchiveFilter, '');
+                  }}
+                  title="검색어 초기화"
+                  style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '2px' }}
+                >
+                  <X size={14} />
+                </button>
+              )}
             </div>
           </div>
 
           {/* Enchant Master Cards Grid */}
-          <div className="enchant-master-cards-grid">
-            {enchantArchives
-              .filter(enc => {
-                if (enchantArchiveFilter !== 'ALL' && enc.enchant_type !== enchantArchiveFilter) return false;
-                if (enchantSearchInput.trim()) {
-                  const q = enchantSearchInput.trim().toLowerCase();
-                  return (enc.enchant_name || '').toLowerCase().includes(q) ||
-                         (enc.effect_summary || '').toLowerCase().includes(q) ||
-                         (enc.target_equip || '').toLowerCase().includes(q);
-                }
-                return true;
-              })
-              .map(enc => {
-                let statsMap = {};
-                try {
-                  if (enc.stats_min_max_json) statsMap = JSON.parse(enc.stats_min_max_json);
-                } catch (e) {}
-
-                return (
-                  <div key={enc.id} className="enchant-master-card">
-                    <div className="card-top">
-                      <span className={`opt-type-tag ${enc.enchant_type}`}>{enc.enchant_type}</span>
-                      <span className="rank-badge">{enc.rank || '1랭크'}</span>
-                    </div>
-
-                    <h4 className="enchant-title">{enc.enchant_name} 인챈트</h4>
-                    <span className="target-equip-badge"><ShieldAlert size={12} /> {enc.target_equip || '전용 장비'}</span>
-
-                    {/* Min / Max Stat Gauges */}
-                    <div className="stat-ranges-box">
-                      <span className="box-lbl">유동 옵션 최소 ~ 최대 수치 범위</span>
-                      {Object.keys(statsMap).length > 0 ? (
-                        Object.entries(statsMap).map(([statName, info], i) => {
-                          const isDecrease = info.direction === '감소';
-                          const themeColor = isDecrease ? '#ef4444' : '#3b82f6';
-                          const conditionText = info.condition ? `(${info.condition}) ` : '';
-                          const targetText = info.target || statName;
-                          const displayVal = info.min === info.max 
-                            ? `${info.min}${info.unit || ''} ${info.direction || '증가'}`
-                            : `(${info.min} ~ ${info.max})${info.unit || ''} ${info.direction || '증가'}`;
-
-                          return (
-                            <div className="stat-gauge-row" key={i} style={{ borderLeft: `3px solid ${themeColor}`, paddingLeft: '8px' }}>
-                              <div className="stat-header">
-                                <span className="stat-name">
-                                  {conditionText && <span style={{ color: '#9ca3af', fontSize: '11px', marginRight: '4px' }}>{conditionText}</span>}
-                                  <strong style={{ color: isDecrease ? '#f87171' : '#60a5fa' }}>{targetText}</strong>
-                                </span>
-                                <span className="stat-range-val font-bold" style={{ color: isDecrease ? '#f87171' : '#60a5fa' }}>
-                                  {displayVal}
-                                </span>
-                              </div>
-                              <div className="gauge-track">
-                                <div className="gauge-fill" style={{ width: '100%', background: themeColor }} />
-                              </div>
-                            </div>
-                          );
-                        })
-                      ) : (
-                        <p className="summary-text">{enc.effect_summary || '효과 정보 요약 준비 중'}</p>
-                      )}
-                    </div>
-
-                    <div className="card-footer">
-                      <span className="sample-lbl">실시간 수집 데이터: {enc.sample_count || 1}건 수집</span>
-                    </div>
-                  </div>
-                );
-              })}
-          </div>
-
-          {enchantArchives.filter(enc => {
-            if (enchantArchiveFilter !== 'ALL' && enc.enchant_type !== enchantArchiveFilter) return false;
-            if (enchantSearchInput.trim()) {
-              const q = enchantSearchInput.trim().toLowerCase();
-              return (enc.enchant_name || '').toLowerCase().includes(q) ||
-                     (enc.effect_summary || '').toLowerCase().includes(q) ||
-                     (enc.target_equip || '').toLowerCase().includes(q);
-            }
-            return true;
-          }).length === 0 && (
-            <div className="empty-archive-box">
-              <Sparkles size={32} />
-              <p>수집된 인챈트 도감 데이터가 없습니다. 경매장 검색 시 자동으로 수집 수치 범위가 등록됩니다.</p>
+          {enchantLoading ? (
+            <div className="loading-state-box" style={{ textAlign: 'center', padding: '40px', color: '#9ca3af' }}>
+              <RefreshCw size={24} className="spin-icon" style={{ marginBottom: '8px' }} />
+              <p>인챈트 도감 수집 데이터를 불러오는 중...</p>
             </div>
+          ) : (
+            <>
+              <div className="enchant-master-cards-grid">
+                {enchantArchives.map(enc => {
+                  let statsMap = {};
+                  try {
+                    if (enc.stats_min_max_json) statsMap = JSON.parse(enc.stats_min_max_json);
+                  } catch (e) {}
+
+                  const updatedTimeStr = enc.updated_at || enc.created_at;
+                  const formattedDate = updatedTimeStr ? new Date(updatedTimeStr).toLocaleString('ko-KR', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  }) : '';
+
+                  return (
+                    <div key={enc.id} className="enchant-master-card">
+                      <div className="card-top">
+                        <span className={`opt-type-tag ${enc.enchant_type}`}>{enc.enchant_type}</span>
+                        <span className="rank-badge">{enc.rank || '1랭크'}</span>
+                      </div>
+
+                      <h4 className="enchant-title">{enc.enchant_name} 인챈트</h4>
+                      <span className="target-equip-badge"><ShieldAlert size={12} /> {enc.target_equip || '전용 장비'}</span>
+
+                      {/* Min / Max Stat Gauges */}
+                      <div className="stat-ranges-box">
+                        <span className="box-lbl">유동 옵션 최소 ~ 최대 수치 범위</span>
+                        {Object.keys(statsMap).length > 0 ? (
+                          Object.entries(statsMap).map(([statName, info], i) => {
+                            const isDecrease = info.direction === '감소';
+                            const themeColor = isDecrease ? '#ef4444' : '#3b82f6';
+                            const conditionText = info.condition ? `(${info.condition}) ` : '';
+                            const targetText = info.target || statName;
+                            const displayVal = info.min === info.max 
+                              ? `${info.min}${info.unit || ''} ${info.direction || '증가'}`
+                              : `(${info.min} ~ ${info.max})${info.unit || ''} ${info.direction || '증가'}`;
+
+                            return (
+                              <div className="stat-gauge-row" key={i} style={{ borderLeft: `3px solid ${themeColor}`, paddingLeft: '8px' }}>
+                                <div className="stat-header">
+                                  <span className="stat-name">
+                                    {conditionText && <span style={{ color: '#9ca3af', fontSize: '11px', marginRight: '4px' }}>{conditionText}</span>}
+                                    <strong style={{ color: isDecrease ? '#f87171' : '#60a5fa' }}>{targetText}</strong>
+                                  </span>
+                                  <span className="stat-range-val font-bold" style={{ color: isDecrease ? '#f87171' : '#60a5fa' }}>
+                                    {displayVal}
+                                  </span>
+                                </div>
+                                <div className="gauge-track">
+                                  <div className="gauge-fill" style={{ width: '100%', background: themeColor }} />
+                                </div>
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <p className="summary-text">{enc.effect_summary || '효과 정보 요약 준비 중'}</p>
+                        )}
+                      </div>
+
+                      <div className="card-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
+                        <span className="sample-lbl">실시간 수집 데이터: {enc.sample_count || 1}건</span>
+                        {formattedDate && (
+                          <span className="collected-date-badge" style={{ fontSize: '11px', color: '#9ca3af', backgroundColor: 'rgba(255, 255, 255, 0.05)', padding: '2px 6px', borderRadius: '4px' }}>
+                            📅 {formattedDate}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {enchantArchives.length === 0 && (
+                <div className="empty-archive-box">
+                  <Sparkles size={32} />
+                  <p>수집된 인챈트 도감 데이터가 없습니다. 경매장 검색 시 자동으로 수집 수치 범위가 등록됩니다.</p>
+                </div>
+              )}
+
+              {/* Pagination Controls Bar */}
+              {enchantTotalPages > 0 && (
+                <div className="archive-pagination" style={{ marginTop: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', padding: '16px', background: 'rgba(30, 41, 59, 0.5)', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
+                  <div className="pagination-info" style={{ color: '#9ca3af', fontSize: '13px' }}>
+                    전체 <strong style={{ color: '#60a5fa' }}>{enchantTotal}</strong>건 중{' '}
+                    <strong style={{ color: '#e2e8f0' }}>
+                      {enchantTotal === 0 ? 0 : (enchantPage - 1) * enchantLimit + 1} - {Math.min(enchantPage * enchantLimit, enchantTotal)}
+                    </strong>건 표시 ({enchantPage} / {enchantTotalPages} 페이지)
+                  </div>
+
+                  <div className="pagination-controls" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <button
+                      className="page-nav-btn"
+                      disabled={enchantPage <= 1 || enchantLoading}
+                      onClick={() => handleEnchantPageChange(enchantPage - 1)}
+                      style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '6px 12px', borderRadius: '6px', border: '1px solid rgba(255, 255, 255, 0.15)', background: 'rgba(15, 23, 42, 0.6)', color: enchantPage <= 1 ? '#475569' : '#e2e8f0', cursor: enchantPage <= 1 ? 'not-allowed' : 'pointer' }}
+                    >
+                      <ChevronLeft size={16} /> 이전
+                    </button>
+
+                    <div className="page-numbers" style={{ display: 'flex', gap: '4px' }}>
+                      {getPageNumbers(enchantPage, enchantTotalPages).map((pNum, idx) => (
+                        pNum === '...' ? (
+                          <span key={`ellipsis-${idx}`} className="page-ellipsis" style={{ padding: '6px 8px', color: '#64748b' }}>...</span>
+                        ) : (
+                          <button
+                            key={`page-${pNum}`}
+                            className={`page-number-btn ${enchantPage === pNum ? 'active' : ''}`}
+                            disabled={enchantLoading}
+                            onClick={() => handleEnchantPageChange(pNum)}
+                            style={{
+                              padding: '6px 12px',
+                              borderRadius: '6px',
+                              border: enchantPage === pNum ? '1px solid #3b82f6' : '1px solid rgba(255, 255, 255, 0.1)',
+                              background: enchantPage === pNum ? '#2563eb' : 'rgba(15, 23, 42, 0.4)',
+                              color: '#ffffff',
+                              fontWeight: enchantPage === pNum ? 'bold' : 'normal',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {pNum}
+                          </button>
+                        )
+                      ))}
+                    </div>
+
+                    <button
+                      className="page-nav-btn"
+                      disabled={enchantPage >= enchantTotalPages || enchantLoading}
+                      onClick={() => handleEnchantPageChange(enchantPage + 1)}
+                      style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '6px 12px', borderRadius: '6px', border: '1px solid rgba(255, 255, 255, 0.15)', background: 'rgba(15, 23, 42, 0.6)', color: enchantPage >= enchantTotalPages ? '#475569' : '#e2e8f0', cursor: enchantPage >= enchantTotalPages ? 'not-allowed' : 'pointer' }}
+                    >
+                      다음 <ChevronRight size={16} />
+                    </button>
+
+                    <select
+                      className="page-limit-select"
+                      value={enchantLimit}
+                      onChange={(e) => handleEnchantLimitChange(Number(e.target.value))}
+                      style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid rgba(255, 255, 255, 0.15)', background: '#0f172a', color: '#e2e8f0', fontSize: '13px', cursor: 'pointer', marginLeft: '8px' }}
+                    >
+                      <option value={50}>50개씩</option>
+                      <option value={100}>100개씩 (기본)</option>
+                      <option value={200}>200개씩</option>
+                      <option value={500}>500개씩</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       )}
