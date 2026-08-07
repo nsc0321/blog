@@ -310,7 +310,7 @@ export default function MabinogiArchive() {
   const [enchantArchiveFilter, setEnchantArchiveFilter] = useState('ALL'); // 'ALL', '접두', '접미'
   const [enchantSearchInput, setEnchantSearchInput] = useState('');
   const [enchantPage, setEnchantPage] = useState(1);
-  const [enchantLimit, setEnchantLimit] = useState(50);
+  const [enchantLimit, setEnchantLimit] = useState(20);
   const [enchantTotal, setEnchantTotal] = useState(0);
   const [enchantTotalPages, setEnchantTotalPages] = useState(1);
   const [enchantLoading, setEnchantLoading] = useState(false);
@@ -2046,8 +2046,8 @@ export default function MabinogiArchive() {
                       onChange={(e) => handleEnchantLimitChange(Number(e.target.value))}
                       style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid rgba(255, 255, 255, 0.15)', background: '#0f172a', color: '#e2e8f0', fontSize: '13px', cursor: 'pointer', marginLeft: '8px' }}
                     >
-                      <option value={20}>20개씩</option>
-                      <option value={50}>50개씩 (기본)</option>
+                      <option value={20}>20개씩 (기본)</option>
+                      <option value={50}>50개씩</option>
                       <option value={100}>100개씩</option>
                       <option value={200}>200개씩</option>
                       <option value={500}>500개씩</option>
