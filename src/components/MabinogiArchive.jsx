@@ -1662,11 +1662,6 @@ export default function MabinogiArchive() {
                 </div>
 
                 <div className="toolbar-right-group" style={{ display: 'flex', gap: '8px' }}>
-                  <button className="create-archive-btn" onClick={() => setShowAddItemModal(true)}>
-                    <Plus size={16} />
-                    <span>새 아이템 아카이브 수집</span>
-                  </button>
-
                   <button className="reset-archive-btn" onClick={openItemResetModal}>
                     <Trash2 size={16} />
                     <span>아이템 초기화</span>
@@ -1844,61 +1839,60 @@ export default function MabinogiArchive() {
       {/* TAB 3: 인챈트 도감 (Dedicated Enchant Master Knowledge Base) */}
       {activeTab === 'enchants' && (
         <div className="tab-content enchants-tab">
-          <div className="archive-section-header">
-            <div>
-              <h3>🔮 마비노기 인챈트 도감 (마스터 DB)</h3>
-              <p className="sub">경매장 수집 데이터 기반 인챈트 수치 범위 (수집 일자 내림차순 정렬, 기본 50건 표시)</p>
-            </div>
-            <button className="reset-archive-btn" onClick={openEnchantResetModal}>
-              <Trash2 size={16} />
-              <span>인챈트 초기화</span>
-            </button>
-          </div>
-
-          <div className="enchant-archive-filter-bar">
-            <div className="enchant-type-toggle-group">
-              <button
-                className={`enchant-type-btn ${enchantArchiveFilter === 'ALL' ? 'active' : ''}`}
-                onClick={() => handleEnchantFilterChange('ALL')}
-              >
-                전체 인챈트
-              </button>
-              <button
-                className={`enchant-type-btn prefix ${enchantArchiveFilter === '접두' ? 'active' : ''}`}
-                onClick={() => handleEnchantFilterChange('접두')}
-              >
-                ✨ 접두 (Prefix)
-              </button>
-              <button
-                className={`enchant-type-btn suffix ${enchantArchiveFilter === '접미' ? 'active' : ''}`}
-                onClick={() => handleEnchantFilterChange('접미')}
-              >
-                🔮 접미 (Suffix)
-              </button>
-            </div>
-
-            <div className="enchant-search-input-box">
-              <Search size={14} />
-              <input
-                type="text"
-                placeholder="인챈트 명칭 / 효과 / 랭크 / 대상 검색 (예: 의지의, 알레고리)"
-                value={enchantSearchInput}
-                onChange={e => handleEnchantSearchChange(e.target.value)}
-              />
-              {enchantSearchInput && (
-                <button 
-                  className="clear-search-btn"
-                  onClick={() => {
-                    handleEnchantSearchChange('');
-                    setEnchantPage(1);
-                    fetchEnchantArchives(1, enchantLimit, enchantArchiveFilter, '');
-                  }}
-                  title="검색어 초기화"
-                  style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '2px' }}
+          <div className="tab-toolbar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '20px' }}>
+            <div className="toolbar-left-group" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+              <div className="enchant-type-toggle-group">
+                <button
+                  className={`enchant-type-btn ${enchantArchiveFilter === 'ALL' ? 'active' : ''}`}
+                  onClick={() => handleEnchantFilterChange('ALL')}
                 >
-                  <X size={14} />
+                  전체 인챈트
                 </button>
-              )}
+                <button
+                  className={`enchant-type-btn prefix ${enchantArchiveFilter === '접두' ? 'active' : ''}`}
+                  onClick={() => handleEnchantFilterChange('접두')}
+                >
+                  ✨ 접두 (Prefix)
+                </button>
+                <button
+                  className={`enchant-type-btn suffix ${enchantArchiveFilter === '접미' ? 'active' : ''}`}
+                  onClick={() => handleEnchantFilterChange('접미')}
+                >
+                  🔮 접미 (Suffix)
+                </button>
+              </div>
+
+              <div className="item-search-input-box" style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(15, 23, 42, 0.6)', border: '1px solid rgba(255, 255, 255, 0.15)', borderRadius: '8px', padding: '6px 12px', width: '320px' }}>
+                <Search size={14} style={{ color: '#9ca3af' }} />
+                <input
+                  type="text"
+                  placeholder="인챈트 명칭 / 효과 / 랭크 / 대상 검색..."
+                  value={enchantSearchInput}
+                  onChange={e => handleEnchantSearchChange(e.target.value)}
+                  style={{ background: 'none', border: 'none', color: '#ffffff', fontSize: '13px', width: '100%', outline: 'none' }}
+                />
+                {enchantSearchInput && (
+                  <button 
+                    className="clear-search-btn"
+                    onClick={() => {
+                      handleEnchantSearchChange('');
+                      setEnchantPage(1);
+                      fetchEnchantArchives(1, enchantLimit, enchantArchiveFilter, '');
+                    }}
+                    title="검색어 초기화"
+                    style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '2px' }}
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="toolbar-right-group" style={{ display: 'flex', gap: '8px' }}>
+              <button className="reset-archive-btn" onClick={openEnchantResetModal}>
+                <Trash2 size={16} />
+                <span>인챈트 초기화</span>
+              </button>
             </div>
           </div>
 
