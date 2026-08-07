@@ -1307,17 +1307,19 @@ export default function MabinogiArchive() {
                             return <p className="empty-text">수집된 장인 개조 정보가 없습니다.</p>;
                           }
                           return (
-                            <div className="artisan-grid-list" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '8px' }}>
-                              {entries.map(([statName, info], idx) => (
-                                <div className="artisan-item-card" key={idx} style={{ padding: '8px 12px', background: 'rgba(255,255,255,0.05)', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)' }}>
-                                  <span className="font-bold">{statName}</span>: {' '}
-                                  <span style={{ color: '#6ee7b7', fontWeight: 600 }}>
-                                    {info.min === info.max || info.min === null
-                                      ? `${info.max ?? info.raw} ${info.direction || ''}`
-                                      : `${info.min} ~ ${info.max} ${info.direction || ''}`}
-                                  </span>
-                                </div>
-                              ))}
+                            <div className="artisan-grid-list" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                              {entries.map(([statName, info], idx) => {
+                                const valStr = (info.min === info.max || info.min === null || info.min === undefined)
+                                  ? `${info.max ?? info.min ?? info.raw}`
+                                  : `${info.min}~${info.max}`;
+                                return (
+                                  <div className="artisan-item-card" key={idx} style={{ padding: '6px 12px', background: 'rgba(255,255,255,0.04)', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.08)', display: 'inline-flex', alignItems: 'center', gap: '6px', width: 'fit-content' }}>
+                                    <span style={{ color: '#9ca3af', fontWeight: 'bold' }}>-</span>
+                                    <span className="font-bold" style={{ color: '#e5e7eb' }}>{statName}</span>
+                                    <span style={{ color: '#6ee7b7', fontWeight: 600 }}>{valStr}</span>
+                                  </div>
+                                );
+                              })}
                             </div>
                           );
                         })()}
