@@ -537,14 +537,35 @@ export default function MabinogiArchive() {
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
-          setItemArchives(data || []);
-          setItemTotal((data || []).length);
-          setItemTotalPages(1);
+          let filtered = data || [];
+          if (catToFetch && catToFetch !== 'ALL' && catToFetch !== '전체') {
+            filtered = filtered.filter(i => i.category === catToFetch);
+          }
+          if (queryToFetch && queryToFetch.trim()) {
+            const q = queryToFetch.trim().toLowerCase();
+            filtered = filtered.filter(i => 
+              (i.item_name || '').toLowerCase().includes(q) ||
+              (i.item_display_name || '').toLowerCase().includes(q) ||
+              (i.description || '').toLowerCase().includes(q) ||
+              (i.options_json || '').toLowerCase().includes(q) ||
+              (i.tags || '').toLowerCase().includes(q)
+            );
+          }
+          const totalCount = filtered.length;
+          const totalPages = Math.ceil(totalCount / limitToFetch) || 1;
+          const startIndex = (pageToFetch - 1) * limitToFetch;
+          const pagedItems = filtered.slice(startIndex, startIndex + limitToFetch);
+
+          setItemArchives(pagedItems);
+          setItemTotal(totalCount);
+          setItemPage(pageToFetch);
+          setItemLimit(limitToFetch);
+          setItemTotalPages(totalPages);
         } else {
           setItemArchives(data.items || []);
           setItemTotal(data.total || data.total_count || 0);
-          setItemPage(data.page || 1);
-          setItemLimit(data.limit || data.page_size || 50);
+          setItemPage(data.page || pageToFetch);
+          setItemLimit(data.limit || data.page_size || limitToFetch);
           setItemTotalPages(data.total_pages || 1);
         }
       }
@@ -611,14 +632,34 @@ export default function MabinogiArchive() {
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
-          setEnchantArchives(data || []);
-          setEnchantTotal((data || []).length);
-          setEnchantTotalPages(1);
+          let filtered = data || [];
+          if (filterToFetch && filterToFetch !== 'ALL') {
+            filtered = filtered.filter(e => e.enchant_type === filterToFetch);
+          }
+          if (queryToFetch && queryToFetch.trim()) {
+            const q = queryToFetch.trim().toLowerCase();
+            filtered = filtered.filter(e => 
+              (e.enchant_name || '').toLowerCase().includes(q) ||
+              (e.effect_summary || '').toLowerCase().includes(q) ||
+              (e.target_equip || '').toLowerCase().includes(q) ||
+              (e.rank || '').toLowerCase().includes(q)
+            );
+          }
+          const totalCount = filtered.length;
+          const totalPages = Math.ceil(totalCount / limitToFetch) || 1;
+          const startIndex = (pageToFetch - 1) * limitToFetch;
+          const pagedItems = filtered.slice(startIndex, startIndex + limitToFetch);
+
+          setEnchantArchives(pagedItems);
+          setEnchantTotal(totalCount);
+          setEnchantPage(pageToFetch);
+          setEnchantLimit(limitToFetch);
+          setEnchantTotalPages(totalPages);
         } else {
           setEnchantArchives(data.items || []);
           setEnchantTotal(data.total || 0);
-          setEnchantPage(data.page || 1);
-          setEnchantLimit(data.limit || 100);
+          setEnchantPage(data.page || pageToFetch);
+          setEnchantLimit(data.limit || limitToFetch);
           setEnchantTotalPages(data.total_pages || 1);
         }
       }
