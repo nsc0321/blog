@@ -27,11 +27,88 @@ export default function MabinogiArchive() {
   });
   const [showKeyInput, setShowKeyInput] = useState(false);
 
-  // 1. Live Search States
-  const [searchType, setSearchType] = useState('auction'); // 'character' or 'auction'
-  const [charSearchInput, setCharSearchInput] = useState('판타지아');
-  const [charResult, setCharResult] = useState(null);
-  const [charLoading, setCharLoading] = useState(false);
+  // 1. Live Search States (Auction Search)
+  const [searchType, setSearchType] = useState('auction');
+  
+  // Batch Management States
+  const [batchConfig, setBatchConfig] = useState(null);
+  const [batchLogs, setBatchLogs] = useState([]);
+  const [batchLogsPage, setBatchLogsPage] = useState(1);
+  const [batchLogsTotalPages, setBatchLogsTotalPages] = useState(1);
+  const [batchLoading, setBatchLoading] = useState(false);
+  const [batchTriggering, setBatchTriggering] = useState(false);
+
+  const fetchBatchConfig = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/mabinogi/batch/config`);
+      if (res.ok) {
+        const data = await res.json();
+        setBatchConfig(data);
+      }
+    } catch (e) {
+      console.error("Failed to fetch batch config:", e);
+    }
+  };
+
+  const fetchBatchLogs = async (page = 1) => {
+    try {
+      setBatchLoading(true);
+      const res = await fetch(`${API_BASE}/api/mabinogi/batch/logs?page=${page}&page_size=15`);
+      if (res.ok) {
+        const data = await res.json();
+        setBatchLogs(data.logs || []);
+        setBatchLogsPage(data.page || 1);
+        setBatchLogsTotalPages(data.total_pages || 1);
+      }
+    } catch (e) {
+      console.error("Failed to fetch batch logs:", e);
+    } finally {
+      setBatchLoading(false);
+    }
+  };
+
+  const handleUpdateBatchConfig = async (is_enabled, interval_minutes) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/mabinogi/batch/config`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_enabled, interval_minutes })
+      });
+      if (res.ok) {
+        await fetchBatchConfig();
+      }
+    } catch (e) {
+      console.error("Failed to update batch config:", e);
+    }
+  };
+
+  const handleTriggerBatch = async () => {
+    try {
+      setBatchTriggering(true);
+      const res = await fetch(`${API_BASE}/api/mabinogi/batch/trigger`, {
+        method: 'POST'
+      });
+      if (res.ok) {
+        setTimeout(() => {
+          fetchBatchConfig();
+          fetchBatchLogs(1);
+          setBatchTriggering(false);
+        }, 1500);
+      } else {
+        setBatchTriggering(false);
+      }
+    } catch (e) {
+      console.error("Failed to trigger batch:", e);
+      setBatchTriggering(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'management') {
+      fetchBatchConfig();
+      fetchBatchLogs(1);
+    }
+  }, [activeTab]);
 
   // Auction Search & Filters
   const [selectedCategory, setSelectedCategory] = useState("전체");
@@ -40,7 +117,7 @@ export default function MabinogiArchive() {
   const [auctionResults, setAuctionResults] = useState([]);
   const [nextCursor, setNextCursor] = useState('');
   const [auctionLoading, setAuctionLoading] = useState(false);
-  const [enchantTypeFilter, setEnchantTypeFilter] = useState('ALL'); // 'ALL', 'PREFIX', 'SUFFIX'
+  const [enchantTypeFilter, setEnchantTypeFilter] = useState('ALL');
 
   // Extract RGB / Hex color from item option text
   const extractRgbColor = (opt) => {
@@ -886,7 +963,7 @@ export default function MabinogiArchive() {
       <div className="mabi-tabs">
         <button className={`mabi-tab ${activeTab === 'live_search' ? 'active' : ''}`} onClick={() => setActiveTab('live_search')}>
           <Search size={16} />
-          <span>실시간 API 조회</span>
+          <span>경매장 검색</span>
         </button>
         <button className={`mabi-tab ${activeTab === 'items' ? 'active' : ''}`} onClick={() => setActiveTab('items')}>
           <Layers size={16} />
@@ -896,32 +973,16 @@ export default function MabinogiArchive() {
           <Sparkles size={16} />
           <span>인챈트 도감 ({enchantArchives.length})</span>
         </button>
-        <button className={`mabi-tab ${activeTab === 'characters' ? 'active' : ''}`} onClick={() => setActiveTab('characters')}>
-          <User size={16} />
-          <span>캐릭터 스냅샷 ({charArchives.length})</span>
-        </button>
-        <button className={`mabi-tab ${activeTab === 'notes' ? 'active' : ''}`} onClick={() => setActiveTab('notes')}>
-          <FileText size={16} />
-          <span>아카이브 노트 ({noteArchives.length})</span>
+        <button className={`mabi-tab ${activeTab === 'management' ? 'active' : ''}`} onClick={() => setActiveTab('management')}>
+          <Database size={16} />
+          <span>수집 관리</span>
         </button>
       </div>
 
-      {/* TAB 1: 실시간 API 조회 */}
+      {/* TAB 1: 경매장 검색 */}
       {activeTab === 'live_search' && (
         <div className="tab-content live-search-tab">
-          <div className="search-type-selector">
-            <button className={`type-btn ${searchType === 'auction' ? 'active' : ''}`} onClick={() => setSearchType('auction')}>
-              <ShoppingBag size={16} />
-              <span>경매장 실시간 시세 & 거래 내역</span>
-            </button>
-            <button className={`type-btn ${searchType === 'character' ? 'active' : ''}`} onClick={() => setSearchType('character')}>
-              <User size={16} />
-              <span>캐릭터 정보 검색</span>
-            </button>
-          </div>
-
-          {searchType === 'auction' && (
-            <div className="search-section">
+          <div className="search-section">
               {/* Category & Search Filter Bar */}
               <div className="auction-filter-bar">
                 <div className="filter-item category-select-box">
@@ -1074,92 +1135,6 @@ export default function MabinogiArchive() {
                 </div>
               )}
             </div>
-          )}
-
-          {searchType === 'character' && (
-            <div className="search-section">
-              <div className="search-input-box">
-                <input
-                  type="text"
-                  placeholder="캐릭터 명을 입력하세요 (예: 판타지아)"
-                  value={charSearchInput}
-                  onChange={e => setCharSearchInput(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleSearchCharacter()}
-                />
-                <button className="search-submit-btn" onClick={handleSearchCharacter} disabled={charLoading}>
-                  {charLoading ? <RefreshCw size={16} className="spin" /> : <Search size={16} />}
-                  <span>조회하기</span>
-                </button>
-              </div>
-
-              {charResult && (
-                <div className="char-result-card">
-                  <div className="char-card-header">
-                    <div className="char-main-info">
-                      <h3>{charResult.character_name}</h3>
-                      <span className="server-badge">{charResult.server_name || '류트'} 서버</span>
-                      <span className="race-badge">{charResult.race || '인간'}</span>
-                      {charResult.is_live_api ? (
-                        <span className="live-api-tag">Live Nexon API</span>
-                      ) : (
-                        <span className="mock-api-tag">Sample Data</span>
-                      )}
-                    </div>
-                    <button className="archive-save-btn" onClick={() => handleSaveCharToDB(charResult)}>
-                      <Database size={14} />
-                      <span>DB 아카이브에 저장</span>
-                    </button>
-                  </div>
-
-                  <div className="char-stats-grid">
-                    <div className="char-stat-box">
-                      <span className="label">누적 레벨</span>
-                      <span className="val highlight">{charResult.cumulative_level?.toLocaleString() || 45820}</span>
-                    </div>
-                    <div className="char-stat-box">
-                      <span className="label">대표 칭호</span>
-                      <span className="val">{charResult.title_name || '판타지스타'}</span>
-                    </div>
-                    <div className="char-stat-box">
-                      <span className="label">소속 길드</span>
-                      <span className="val">{charResult.guild_name || '아카이브'}</span>
-                    </div>
-                  </div>
-
-                  {charResult.stats && (
-                    <div className="char-sub-section">
-                      <h4>주요 능력치 스탯</h4>
-                      <div className="stats-pills-container">
-                        {Object.entries(charResult.stats).map(([key, val]) => (
-                          <div className="stat-pill" key={key}>
-                            <span className="k">{key}</span>
-                            <span className="v">{val}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {charResult.equipment && (
-                    <div className="char-sub-section">
-                      <h4>착용 세팅 및 장비</h4>
-                      <div className="equip-list">
-                        {charResult.equipment.map((eq, idx) => (
-                          <div className="equip-item" key={idx}>
-                            <span className="slot-badge">{eq.slot}</span>
-                            <div className="equip-details">
-                              <span className="name">{eq.name}</span>
-                              <span className="opt">{eq.option}</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
         </div>
       )}
 
@@ -1472,214 +1447,175 @@ export default function MabinogiArchive() {
         </div>
       )}
 
-      {/* TAB 3: 캐릭터 아카이브 */}
-      {activeTab === 'characters' && (
-        <div className="tab-content characters-tab">
-          <div className="tab-toolbar">
-            <span className="sub-info-text">저장된 캐릭터 스냅샷 및 메모 관리</span>
-          </div>
-
-          <div className="char-snapshots-grid">
-            {charArchives.map(char => (
-              <div className="char-snapshot-card" key={char.id}>
-                <div className="snapshot-header">
-                  <div className="char-title">
-                    <h3>{char.character_name}</h3>
-                    <span className="server">{char.server_name} ({char.race})</span>
-                  </div>
-                  <span className="level-badge">Lv. {char.cumulative_level?.toLocaleString()}</span>
-                </div>
-
-                <div className="snapshot-body">
-                  <p className="memo-text">{char.memo || '작성된 메모가 없습니다.'}</p>
-                  <span className="date-text">저장 일시: {new Date(char.created_at).toLocaleDateString()}</span>
-                </div>
-              </div>
-            ))}
-
-            {charArchives.length === 0 && (
-              <div className="empty-archive-box">
-                <User size={32} />
-                <p>저장된 캐릭터 아카이브가 없습니다. '실시간 API 조회' 탭에서 검색 후 저장하실 수 있습니다.</p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* TAB 3: 인챈트 도감 (Dedicated Enchant Master Knowledge Base) */}
-      {activeTab === 'enchants' && (
-        <div className="tab-content enchants-tab">
+      {/* TAB 4: 수집 관리 (Batch Scheduler & Collection Monitor) */}
+      {activeTab === 'management' && (
+        <div className="tab-content management-tab">
           <div className="archive-section-header">
             <div>
-              <h3>🔮 마비노기 인챈트 도감 (마스터 DB)</h3>
-              <p className="sub">경매장 검색 시 자동 수집되는 접두/접미 인챈트별 유동 옵션 최소~최대 수치 범위 정보</p>
+              <h3>⚙️ 백그라운드 자동 수집 & 수집 관리</h3>
+              <p className="sub">매시간 백그라운드 경매장 데이터 전체 조회 배치 제어 및 신규/업데이트 수집 이력 모니터링</p>
             </div>
-            <button className="reset-archive-btn" onClick={openEnchantResetModal}>
-              <Trash2 size={16} />
-              <span>인챈트 초기화</span>
-            </button>
-          </div>
-
-          <div className="enchant-archive-filter-bar">
-            <div className="enchant-type-toggle-group">
-              <button
-                className={`enchant-type-btn ${enchantArchiveFilter === 'ALL' ? 'active' : ''}`}
-                onClick={() => setEnchantArchiveFilter('ALL')}
+            <div className="header-actions">
+              <button 
+                className="trigger-batch-btn" 
+                onClick={handleTriggerBatch} 
+                disabled={batchTriggering || batchConfig?.is_running}
               >
-                전체 인챈트
+                <RefreshCw size={16} className={batchTriggering || batchConfig?.is_running ? "spin-icon" : ""} />
+                <span>{batchTriggering || batchConfig?.is_running ? '백그라운드 수집 실행 중...' : '즉시 수집 실행'}</span>
               </button>
-              <button
-                className={`enchant-type-btn prefix ${enchantArchiveFilter === '접두' ? 'active' : ''}`}
-                onClick={() => setEnchantArchiveFilter('접두')}
-              >
-                ✨ 접두 (Prefix)
-              </button>
-              <button
-                className={`enchant-type-btn suffix ${enchantArchiveFilter === '접미' ? 'active' : ''}`}
-                onClick={() => setEnchantArchiveFilter('접미')}
-              >
-                🔮 접미 (Suffix)
+              <button className="refresh-logs-btn" onClick={() => { fetchBatchConfig(); fetchBatchLogs(batchLogsPage); }}>
+                <RefreshCw size={16} />
+                <span>새로고침</span>
               </button>
             </div>
-
-            <div className="enchant-search-input-box">
-              <Search size={14} />
-              <input
-                type="text"
-                placeholder="인챈트 명칭 / 효과 검색 (예: 의지의, 알레고리)"
-                value={enchantSearchInput}
-                onChange={e => setEnchantSearchInput(e.target.value)}
-              />
-            </div>
           </div>
 
-          {/* Enchant Master Cards Grid */}
-          <div className="enchant-master-cards-grid">
-            {enchantArchives
-              .filter(enc => {
-                if (enchantArchiveFilter !== 'ALL' && enc.enchant_type !== enchantArchiveFilter) return false;
-                if (enchantSearchInput.trim()) {
-                  const q = enchantSearchInput.trim().toLowerCase();
-                  return (enc.enchant_name || '').toLowerCase().includes(q) ||
-                         (enc.effect_summary || '').toLowerCase().includes(q) ||
-                         (enc.target_equip || '').toLowerCase().includes(q);
-                }
-                return true;
-              })
-              .map(enc => {
-                let statsMap = {};
-                try {
-                  if (enc.stats_min_max_json) statsMap = JSON.parse(enc.stats_min_max_json);
-                } catch (e) {}
-
-                return (
-                  <div key={enc.id} className="enchant-master-card">
-                    <div className="card-top">
-                      <span className={`opt-type-tag ${enc.enchant_type}`}>{enc.enchant_type}</span>
-                      <span className="rank-badge">{enc.rank || '1랭크'}</span>
-                    </div>
-
-                    <h4 className="enchant-title">{enc.enchant_name} 인챈트</h4>
-                    <span className="target-equip-badge"><ShieldAlert size={12} /> {enc.target_equip || '전용 장비'}</span>
-
-                    {/* Min / Max Stat Gauges */}
-                    <div className="stat-ranges-box">
-                      <span className="box-lbl">유동 옵션 최소 ~ 최대 수치 범위</span>
-                      {Object.keys(statsMap).length > 0 ? (
-                        Object.entries(statsMap).map(([statName, info], i) => {
-                          const isDecrease = info.direction === '감소';
-                          const themeColor = isDecrease ? '#ef4444' : '#3b82f6';
-                          const conditionText = info.condition ? `(${info.condition}) ` : '';
-                          const targetText = info.target || statName;
-                          const displayVal = info.min === info.max 
-                            ? `${info.min}${info.unit || ''} ${info.direction || '증가'}`
-                            : `(${info.min} ~ ${info.max})${info.unit || ''} ${info.direction || '증가'}`;
-
-                          return (
-                            <div className="stat-gauge-row" key={i} style={{ borderLeft: `3px solid ${themeColor}`, paddingLeft: '8px' }}>
-                              <div className="stat-header">
-                                <span className="stat-name">
-                                  {conditionText && <span style={{ color: '#9ca3af', fontSize: '11px', marginRight: '4px' }}>{conditionText}</span>}
-                                  <strong style={{ color: isDecrease ? '#f87171' : '#60a5fa' }}>{targetText}</strong>
-                                </span>
-                                <span className="stat-range-val font-bold" style={{ color: isDecrease ? '#f87171' : '#60a5fa' }}>
-                                  {displayVal}
-                                </span>
-                              </div>
-                              <div className="gauge-track">
-                                <div className="gauge-fill" style={{ width: '100%', background: themeColor }} />
-                              </div>
-                            </div>
-                          );
-                        })
-                      ) : (
-                        <p className="summary-text">{enc.effect_summary || '효과 정보 요약 준비 중'}</p>
-                      )}
-                    </div>
-
-                    <div className="card-footer">
-                      <span className="sample-lbl">실시간 수집 데이터: {enc.sample_count || 1}건 수집</span>
-                    </div>
-                  </div>
-                );
-              })}
-          </div>
-
-          {enchantArchives.filter(enc => {
-            if (enchantArchiveFilter !== 'ALL' && enc.enchant_type !== enchantArchiveFilter) return false;
-            if (enchantSearchInput.trim()) {
-              const q = enchantSearchInput.trim().toLowerCase();
-              return (enc.enchant_name || '').toLowerCase().includes(q) ||
-                     (enc.effect_summary || '').toLowerCase().includes(q) ||
-                     (enc.target_equip || '').toLowerCase().includes(q);
-            }
-            return true;
-          }).length === 0 && (
-            <div className="empty-archive-box">
-              <Sparkles size={32} />
-              <p>수집된 인챈트 도감 데이터가 없습니다. '실시간 API 조회' 탭에서 경매장 검색 시 자동으로 수집 수치 범위가 등록됩니다.</p>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* TAB 4: 아카이브 노트 */}
-      {activeTab === 'notes' && (
-        <div className="tab-content notes-tab">
-          <div className="tab-toolbar">
-            <span className="sub-info-text">마비노기 공략, 장비 세팅 팁, 아카이브 노트</span>
-            <button className="create-archive-btn" onClick={() => setShowAddNoteModal(true)}>
-              <Plus size={16} />
-              <span>새 노트 작성</span>
-            </button>
-          </div>
-
-          <div className="notes-list">
-            {noteArchives.map(note => (
-              <div className={`note-card ${note.is_pinned ? 'pinned' : ''}`} key={note.id}>
-                <div className="note-header">
-                  <div className="note-title-group">
-                    {note.is_pinned && <Pin size={16} className="pin-icon" />}
-                    <span className="category-tag">{note.category}</span>
-                    <h4>{note.title}</h4>
-                  </div>
-                  <button className="delete-mini-btn" onClick={() => handleDeleteNote(note.id)}>
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-                <div className="note-content">
-                  <p>{note.content}</p>
-                </div>
-                {note.tags && (
-                  <div className="tags-container">
-                    {note.tags.split(',').map((t, i) => (
-                      <span className="tag-badge" key={i}>#{t.trim()}</span>
-                    ))}
-                  </div>
+          {/* Config Controls & Status Box */}
+          <div className="batch-status-panel">
+            <div className="status-card-main">
+              <div className="status-badge-row">
+                <span className={`batch-status-pill ${batchConfig?.is_enabled ? 'enabled' : 'disabled'}`}>
+                  {batchConfig?.is_enabled ? '● 자동 수집 활성화' : '○ 수집 일시 정지'}
+                </span>
+                {batchConfig?.is_running && (
+                  <span className="batch-status-pill running">
+                    ⚡ 수집 작업 실행 중...
+                  </span>
                 )}
               </div>
-            ))}
+              <div className="schedule-info-group">
+                <div className="info-item">
+                  <span className="lbl">수집 주기 설정</span>
+                  <select 
+                    className="mabi-select interval-select"
+                    value={batchConfig?.interval_minutes || 60}
+                    onChange={e => handleUpdateBatchConfig(batchConfig?.is_enabled ?? true, parseInt(e.target.value))}
+                  >
+                    <option value={30}>30분 마다 수집</option>
+                    <option value={60}>60분 (매시간 수집 - 기본)</option>
+                    <option value={120}>120분 (2시간 마다 수집)</option>
+                    <option value={240}>240분 (4시간 마다 수집)</option>
+                  </select>
+                </div>
+                <div className="info-item">
+                  <span className="lbl">자동 수집 On/Off</span>
+                  <button 
+                    className={`toggle-switch-btn ${batchConfig?.is_enabled ? 'active' : ''}`}
+                    onClick={() => handleUpdateBatchConfig(!batchConfig?.is_enabled, batchConfig?.interval_minutes || 60)}
+                  >
+                    {batchConfig?.is_enabled ? '수집 중지하기' : '자동 수집 시작하기'}
+                  </button>
+                </div>
+                <div className="info-item">
+                  <span className="lbl">최근 실행 시각</span>
+                  <span className="val">{batchConfig?.last_run_at ? new Date(batchConfig.last_run_at).toLocaleString() : '실행 이력 없음'}</span>
+                </div>
+                <div className="info-item">
+                  <span className="lbl">다음 예정 수집 시각</span>
+                  <span className="val highlight">{batchConfig?.next_run_at ? new Date(batchConfig.next_run_at).toLocaleString() : '-'}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Totals Summary Cards */}
+            <div className="batch-totals-grid">
+              <div className="total-stat-card">
+                <span className="stat-num">{batchConfig?.totals?.total_batch_runs || 0}회</span>
+                <span className="stat-label">총 배치 수집 실행</span>
+              </div>
+              <div className="total-stat-card green">
+                <span className="stat-num">+{batchConfig?.totals?.total_new_items || 0}개</span>
+                <span className="stat-label">신규 등록 아이템</span>
+              </div>
+              <div className="total-stat-card blue">
+                <span className="stat-num">{batchConfig?.totals?.total_updated_items || 0}개</span>
+                <span className="stat-label">옵션 업데이트 아이템</span>
+              </div>
+              <div className="total-stat-card purple">
+                <span className="stat-num">+{batchConfig?.totals?.total_new_enchants || 0}개</span>
+                <span className="stat-label">신규 등록 인챈트</span>
+              </div>
+              <div className="total-stat-card cyan">
+                <span className="stat-num">{batchConfig?.totals?.total_updated_enchants || 0}개</span>
+                <span className="stat-label">인챈트 옵션 업데이트</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Batch History Table */}
+          <div className="batch-history-section">
+            <h4>📋 회차별 데이터 수집 실행 이력 ({batchLogs.length}건)</h4>
+            <div className="table-responsive">
+              <table className="mabi-table compact">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>실행 유형</th>
+                    <th>상태</th>
+                    <th>시작 시각</th>
+                    <th>소요 시간</th>
+                    <th>처리 개수</th>
+                    <th>신규 아이템</th>
+                    <th>업데이트 아이템</th>
+                    <th>신규 인챈트</th>
+                    <th>업데이트 인챈트</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {batchLogs.map(log => (
+                    <tr key={log.id}>
+                      <td>#{log.id}</td>
+                      <td>
+                        <span className={`job-type-badge ${log.job_type}`}>
+                          {log.job_type === 'manual_trigger' ? '수동 실행' : '자동 주기 배치'}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={`log-status-pill ${log.status}`}>
+                          {log.status === 'completed' ? '성공' : (log.status === 'running' ? '진행중' : '실패')}
+                        </span>
+                      </td>
+                      <td>{log.started_at ? new Date(log.started_at).toLocaleString() : '-'}</td>
+                      <td>{log.duration_seconds ? `${log.duration_seconds.toFixed(1)}초` : '-'}</td>
+                      <td><strong>{log.total_items_processed || 0}개</strong></td>
+                      <td><span className="text-green font-bold">+{log.new_items_count || 0}개</span></td>
+                      <td><span className="text-blue">{log.updated_items_count || 0}개</span></td>
+                      <td><span className="text-purple font-bold">+{log.new_enchants_count || 0}개</span></td>
+                      <td><span className="text-cyan">{log.updated_enchants_count || 0}개</span></td>
+                    </tr>
+                  ))}
+                  {batchLogs.length === 0 && (
+                    <tr>
+                      <td colSpan="10" className="text-center py-6">
+                        {batchLoading ? '수집 이력을 불러오는 중...' : '저장된 배치 수집 이력이 없습니다.'}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination Controls */}
+            {batchLogsTotalPages > 1 && (
+              <div className="pagination-bar">
+                <button 
+                  className="page-btn" 
+                  disabled={batchLogsPage <= 1}
+                  onClick={() => fetchBatchLogs(batchLogsPage - 1)}
+                >
+                  <ArrowLeft size={14} /> 이전
+                </button>
+                <span className="page-info">{batchLogsPage} / {batchLogsTotalPages} 페이지</span>
+                <button 
+                  className="page-btn" 
+                  disabled={batchLogsPage >= batchLogsTotalPages}
+                  onClick={() => fetchBatchLogs(batchLogsPage + 1)}
+                >
+                  다음 <ArrowRight size={14} />
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

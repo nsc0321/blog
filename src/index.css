@@ -2538,6 +2538,259 @@ h1, h2, h3, h4, h5, h6 {
   border-radius: 6px;
 }
 
+/* --- Batch Management Tab Styles --- */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.trigger-batch-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+}
+
+.trigger-batch-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(99, 102, 241, 0.4);
+}
+
+.trigger-batch-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.refresh-logs-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #e2e8f0;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.refresh-logs-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.spin-icon {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  100% { transform: rotate(360deg); }
+}
+
+.batch-status-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.status-card-main {
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 12px;
+  padding: 20px;
+  backdrop-filter: blur(10px);
+}
+
+.status-badge-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.batch-status-pill {
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.batch-status-pill.enabled {
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.batch-status-pill.disabled {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.batch-status-pill.running {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  animation: pulse 1.5s infinite;
+}
+
+.schedule-info-group {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.schedule-info-group .info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.schedule-info-group .info-item .lbl {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.schedule-info-group .info-item .val {
+  font-size: 14px;
+  font-weight: 600;
+  color: #f1f5f9;
+}
+
+.schedule-info-group .info-item .val.highlight {
+  color: #38bdf8;
+}
+
+.interval-select {
+  padding: 6px 12px;
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.8);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.toggle-switch-btn {
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s ease;
+}
+
+.toggle-switch-btn.active {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+}
+
+.toggle-switch-btn:not(.active) {
+  background: rgba(34, 197, 94, 0.2);
+  color: #4ade80;
+  border: 1px solid rgba(34, 197, 94, 0.4);
+}
+
+.batch-totals-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.total-stat-card {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.total-stat-card .stat-num {
+  font-size: 20px;
+  font-weight: 800;
+  color: #f1f5f9;
+}
+
+.total-stat-card.green .stat-num { color: #4ade80; }
+.total-stat-card.blue .stat-num { color: #60a5fa; }
+.total-stat-card.purple .stat-num { color: #c084fc; }
+.total-stat-card.cyan .stat-num { color: #22d3ee; }
+
+.total-stat-card .stat-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.batch-history-section {
+  background: rgba(30, 41, 59, 0.5);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.batch-history-section h4 {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 16px;
+  color: #f8fafc;
+}
+
+.job-type-badge {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.job-type-badge.manual_trigger {
+  background: rgba(168, 85, 247, 0.2);
+  color: #c084fc;
+}
+
+.job-type-badge.auto_full_ingest {
+  background: rgba(59, 130, 246, 0.2);
+  color: #60a5fa;
+}
+
+.log-status-pill {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.log-status-pill.completed {
+  background: rgba(34, 197, 94, 0.2);
+  color: #4ade80;
+}
+
+.log-status-pill.running {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+}
+
+.log-status-pill.failed {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+}
+
+.text-green { color: #4ade80; }
+.text-blue { color: #60a5fa; }
+.text-purple { color: #c084fc; }
+.text-cyan { color: #22d3ee; }
+.font-bold { font-weight: 700; }
+
 
 
 
