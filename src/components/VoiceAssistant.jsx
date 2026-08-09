@@ -1,11 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Mic, MicOff, Send, Volume2, VolumeX, Menu, X, ChevronLeft, ChevronRight, Key, Plus, Trash2, Edit2, Save, Link2, Lock, LogOut, User, Eye, EyeOff, Activity, AlertCircle, CheckCircle, Loader, StopCircle, Clock, History, Calendar, Filter, Search, ArrowUpDown, Bot, Globe, RefreshCw, AlertTriangle } from 'lucide-react';
+import { Mic, MicOff, Send, Volume2, VolumeX, Menu, X, ChevronLeft, ChevronRight, Key, Plus, Trash2, Edit2, Save, Link2, Lock, LogOut, User, Eye, EyeOff, Search, Package, RefreshCw, ChevronDown, ChevronUp, Database } from 'lucide-react';
 import AvatarCanvas from './AvatarCanvas';
-import AgentChat from './AgentChat';
-import SkillWorkshop from './SkillWorkshop';
-import CredentialsManager from './CredentialsManager';
-import RealtimeMonitor from './RealtimeMonitor';
-import ExecutionHistory from './ExecutionHistory';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -183,6 +178,14 @@ export default function VoiceAssistant() {
 
   const [newSkillName, setNewSkillName] = useState('');
   const [newSkillDesc, setNewSkillDesc] = useState('');
+  const [importSkillForm, setImportSkillForm] = useState({
+    name: '',
+    url: '',
+    code: '',
+    description: ''
+  });
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isImportingSkill, setIsImportingSkill] = useState(false);
 
   // Agent Control Center states (integrated from agentCli)
   const [dbConnected, setDbConnected] = useState(false);
@@ -205,14 +208,20 @@ export default function VoiceAssistant() {
   const [isSavingCred, setIsSavingCred] = useState(false);
   const [isNewCredFormOpen, setIsNewCredFormOpen] = useState(false);
 
-  // Monitor tab states
-  const [monitorTasks, setMonitorTasks] = useState([]);
-  const [monitorLogs, setMonitorLogs] = useState([]);
-  const [isCancellingTask, setIsCancellingTask] = useState({});
-  const monitorLogsEndRef = useRef(null);
-  const monitorPollRef = useRef(null);
+  // Nexon Open API Key Modal States
+  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
+  const [nexonApiKeyInput, setNexonApiKeyInput] = useState('');
+  const [hasNexonApiKey, setHasNexonApiKey] = useState(false);
+  const [isSavingApiKey, setIsSavingApiKey] = useState(false);
 
-
+  const checkNexonApiKey = useCallback((credsList) => {
+    if (!Array.isArray(credsList)) return;
+    const found = credsList.find(c => c.site_name === 'NEXON_MABINOGI_OPEN_API_KEY');
+    setHasNexonApiKey(!!found);
+    if (found && found.secret_key) {
+      setNexonApiKeyInput(found.secret_key);
+    }
+  }, []);
 
   const fetchCredentials = useCallback(async () => {
     setIsCredLoading(true);
@@ -221,65 +230,284 @@ export default function VoiceAssistant() {
       if (resp.ok) {
         const data = await resp.json();
         setCredentials(data);
+        checkNexonApiKey(data);
       }
     } catch (err) {
       console.error("Failed to fetch credentials:", err);
     } finally {
       setIsCredLoading(false);
     }
+  }, [authFetch, checkNexonApiKey]);
+
+  useEffect(() => {
+    fetchCredentials();
+  }, [fetchCredentials]);
+
+  const handleSaveNexonApiKey = async (e) => {
+    if (e) e.preventDefault();
+    if (!nexonApiKeyInput.trim()) return;
+    setIsSavingApiKey(true);
+    try {
+      const existing = credentials.find(c => c.site_name === 'NEXON_MABINOGI_OPEN_API_KEY');
+      const url = existing ? `/api/credentials/${existing.id}` : '/api/credentials';
+      const method = existing ? 'PUT' : 'POST';
+      const resp = await authFetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          site_name: 'NEXON_MABINOGI_OPEN_API_KEY',
+          domain: 'open.api.nexon.com',
+          username: 'Mabinogi Open API',
+          secret_key: nexonApiKeyInput.trim(),
+          description: '넥슨 마비노기 공식 Open API Key'
+        })
+      });
+      if (resp.ok) {
+        setIsApiKeyModalOpen(false);
+        fetchCredentials();
+        alert('넥슨 Open API Key가 성공적으로 저장되었습니다!');
+      } else {
+        const errData = await resp.json().catch(() => ({}));
+        alert(`저장 실패: ${errData.detail || resp.statusText}`);
+      }
+    } catch (err) {
+      console.error('API Key save error:', err);
+      alert('API Key 저장 중 오류가 발생했습니다.');
+    } finally {
+      setIsSavingApiKey(false);
+    }
+  };
+
+  // Item & Enchant Archive states
+  const [archiveSubTab, setArchiveSubTab] = useState('items'); // 'items' | 'enchants'
+  const [itemArchives, setItemArchives] = useState([]);
+  const [enchantArchives, setEnchantArchives] = useState([]);
+  const [archiveCategories, setArchiveCategories] = useState([]);
+  const [archiveQuery, setArchiveQuery] = useState('');
+  const [selectedArchiveCategory, setSelectedArchiveCategory] = useState('');
+  const [selectedEnchantType, setSelectedEnchantType] = useState('');
+  const [archivePage, setArchivePage] = useState(1);
+  const [archivePageSize, setArchivePageSize] = useState(20);
+  const [archiveTotalCount, setArchiveTotalCount] = useState(0);
+  const [archiveTotalPages, setArchiveTotalPages] = useState(1);
+  const [isArchiveLoading, setIsArchiveLoading] = useState(false);
+  const [expandedItemId, setExpandedItemId] = useState(null);
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return '-';
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return dateStr;
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      const hours = String(d.getHours()).padStart(2, '0');
+      const mins = String(d.getMinutes()).padStart(2, '0');
+      return `${year}-${month}-${day} ${hours}:${mins}`;
+    } catch (e) {
+      return dateStr;
+    }
+  };
+
+  const formatPrice = (priceVal) => {
+    if (priceVal === null || priceVal === undefined || priceVal === '' || priceVal === 0) return '-';
+    const num = Number(priceVal);
+    if (isNaN(num) || num <= 0) return '-';
+    return `${Math.round(num).toLocaleString()} Gold`;
+  };
+
+  const fetchArchiveCategories = useCallback(async () => {
+    try {
+      const resp = await authFetch('/api/mabinogi/archives/items/categories');
+      if (resp.ok) {
+        const data = await resp.json();
+        setArchiveCategories(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch archive categories:", err);
+    }
   }, [authFetch]);
 
-  useEffect(() => {
-    if (activeTab === 'credentials') {
-      fetchCredentials();
-    }
-  }, [activeTab, fetchCredentials]);
-
-  // Monitor: polling
-  const fetchMonitorData = useCallback(async () => {
+  const fetchItemArchives = useCallback(async (targetPage = 1, queryOverride = null, categoryOverride = null, pageSizeOverride = null) => {
+    setIsArchiveLoading(true);
     try {
-      const [tasksResp, logsResp] = await Promise.all([
-        fetch(`${API_BASE}/api/agent/tasks`, { headers: { 'ngrok-skip-browser-warning': 'true' } }),
-        fetch(`${API_BASE}/api/agent/logs?limit=100`, { headers: { 'ngrok-skip-browser-warning': 'true' } }),
-      ]);
-      if (tasksResp.ok) setMonitorTasks(await tasksResp.json());
-      if (logsResp.ok) setMonitorLogs(await logsResp.json());
-    } catch (e) {
-      console.warn('Monitor poll failed:', e);
-    }
-  }, []);
+      const p = targetPage;
+      const q = queryOverride !== null ? queryOverride : archiveQuery;
+      const c = categoryOverride !== null ? categoryOverride : selectedArchiveCategory;
+      const ps = pageSizeOverride !== null ? pageSizeOverride : archivePageSize;
 
-  useEffect(() => {
-    if (activeTab === 'monitor') {
-      fetchMonitorData();
-      monitorPollRef.current = setInterval(fetchMonitorData, 3000);
-    } else {
-      if (monitorPollRef.current) clearInterval(monitorPollRef.current);
-    }
-    return () => { if (monitorPollRef.current) clearInterval(monitorPollRef.current); };
-  }, [activeTab, fetchMonitorData]);
+      const params = new URLSearchParams();
+      params.set('page', String(p));
+      params.set('page_size', String(ps));
+      if (q && q.trim()) params.set('query', q.trim());
+      if (c && c !== '전체') params.set('category', c);
 
-  useEffect(() => {
-    if (activeTab === 'monitor' && monitorLogsEndRef.current) {
-      monitorLogsEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [monitorLogs, activeTab]);
-
-  const handleCancelTask = async (taskId) => {
-    setIsCancellingTask(prev => ({ ...prev, [taskId]: true }));
-    try {
-      const resp = await authFetch(`/api/agent/tasks/${taskId}`, { method: 'DELETE' });
+      const resp = await authFetch(`/api/mabinogi/archives/items?${params.toString()}`);
       if (resp.ok) {
-        await fetchMonitorData();
-        fetchHistoryData();
+        const data = await resp.json();
+        if (Array.isArray(data)) {
+          setItemArchives(data);
+          setArchiveTotalCount(data.length);
+          setArchiveTotalPages(1);
+          setArchivePage(1);
+        } else {
+          setItemArchives(data.items || []);
+          setArchiveTotalCount(data.total_count || 0);
+          setArchiveTotalPages(data.total_pages || 1);
+          setArchivePage(data.page || p);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch item archives:", err);
+    } finally {
+      setIsArchiveLoading(false);
+    }
+  }, [authFetch, archiveQuery, selectedArchiveCategory, archivePageSize]);
+
+  const fetchEnchantArchives = useCallback(async (queryOverride = null, typeOverride = null) => {
+    setIsArchiveLoading(true);
+    try {
+      const q = queryOverride !== null ? queryOverride : archiveQuery;
+      const t = typeOverride !== null ? typeOverride : selectedEnchantType;
+
+      const params = new URLSearchParams();
+      if (q && q.trim()) params.set('query', q.trim());
+      if (t && t !== '전체') params.set('enchant_type', t);
+
+      const resp = await authFetch(`/api/mabinogi/archives/enchants?${params.toString()}`);
+      if (resp.ok) {
+        const data = await resp.json();
+        setEnchantArchives(data || []);
+      }
+    } catch (err) {
+      console.error("Failed to fetch enchant archives:", err);
+    } finally {
+      setIsArchiveLoading(false);
+    }
+  }, [authFetch, archiveQuery, selectedEnchantType]);
+
+  useEffect(() => {
+    if (activeTab === 'archives') {
+      if (archiveSubTab === 'items') {
+        fetchArchiveCategories();
+        fetchItemArchives(1);
+      } else if (archiveSubTab === 'enchants') {
+        fetchEnchantArchives();
+      }
+    }
+  }, [activeTab, archiveSubTab, fetchArchiveCategories, fetchItemArchives, fetchEnchantArchives]);
+
+  const handleSearchArchive = (e) => {
+    if (e) e.preventDefault();
+    setArchivePage(1);
+    fetchItemArchives(1);
+  };
+
+  const handleResetSearch = () => {
+    setArchiveQuery('');
+    setSelectedArchiveCategory('');
+    setArchivePage(1);
+    fetchItemArchives(1, '', '', archivePageSize);
+  };
+
+  const handleCategoryChange = (cat) => {
+    setSelectedArchiveCategory(cat);
+    setArchivePage(1);
+    fetchItemArchives(1, archiveQuery, cat, archivePageSize);
+  };
+
+  const handlePageSizeChange = (size) => {
+    const newSize = parseInt(size, 10);
+    setArchivePageSize(newSize);
+    setArchivePage(1);
+    fetchItemArchives(1, archiveQuery, selectedArchiveCategory, newSize);
+  };
+
+  const handlePageChange = (newPage) => {
+    if (newPage < 1 || newPage > archiveTotalPages) return;
+    setArchivePage(newPage);
+    fetchItemArchives(newPage);
+  };
+
+  const handleDeleteItemArchive = async (itemId, itemName) => {
+    const password = prompt(`'${itemName}' 아이템 아카이브 항목을 삭제하시겠습니까?\n삭제를 진행하려면 비밀번호를 입력하세요:`);
+    if (password === null) return;
+    try {
+      const resp = await authFetch(`/api/mabinogi/archives/items/${itemId}?password=${encodeURIComponent(password)}`, {
+        method: 'DELETE'
+      });
+      if (resp.ok) {
+        alert("성공적으로 삭제되었습니다.");
+        fetchItemArchives(archivePage);
       } else {
         const data = await resp.json();
-        alert(data.detail || '중단 요청 실패');
+        alert("삭제 실패: " + (data.detail || "오류가 발생했습니다."));
       }
-    } catch (e) {
-      alert('중단 요청 중 오류: ' + e.message);
-    } finally {
-      setIsCancellingTask(prev => ({ ...prev, [taskId]: false }));
+    } catch (err) {
+      console.error(err);
+      alert("삭제 요청 중 오류가 발생했습니다.");
+    }
+  };
+
+  const handleResetAllItemArchives = async () => {
+    const password = prompt("⚠️ 경고: 모든 아이템 아카이브가 영구 삭제됩니다!\n진행하시려면 관리자 비밀번호를 입력하세요:");
+    if (password === null) return;
+    try {
+      const resp = await authFetch(`/api/mabinogi/archives/items/all?password=${encodeURIComponent(password)}`, {
+        method: 'DELETE'
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        alert(`초기화 완료되었습니다. (삭제된 항목: ${data.deleted_count}개)`);
+        fetchItemArchives(1);
+      } else {
+        const data = await resp.json();
+        alert("초기화 실패: " + (data.detail || "비밀번호가 올바르지 않습니다."));
+      }
+    } catch (err) {
+      console.error(err);
+      alert("초기화 요청 실패.");
+    }
+  };
+
+  const handleDeleteEnchantArchive = async (enchantId, enchantName) => {
+    const password = prompt(`'${enchantName}' 인챈트 아카이브 항목을 삭제하시겠습니까?\n삭제를 진행하려면 비밀번호를 입력하세요:`);
+    if (password === null) return;
+    try {
+      const resp = await authFetch(`/api/mabinogi/archives/enchants/${enchantId}?password=${encodeURIComponent(password)}`, {
+        method: 'DELETE'
+      });
+      if (resp.ok) {
+        alert("성공적으로 삭제되었습니다.");
+        fetchEnchantArchives();
+      } else {
+        const data = await resp.json();
+        alert("삭제 실패: " + (data.detail || "오류가 발생했습니다."));
+      }
+    } catch (err) {
+      console.error(err);
+      alert("삭제 요청 중 오류가 발생했습니다.");
+    }
+  };
+
+  const handleResetAllEnchantArchives = async () => {
+    const password = prompt("⚠️ 경고: 모든 인챈트 아카이브가 영구 삭제됩니다!\n진행하시려면 관리자 비밀번호를 입력하세요:");
+    if (password === null) return;
+    try {
+      const resp = await authFetch(`/api/mabinogi/archives/enchants/all?password=${encodeURIComponent(password)}`, {
+        method: 'DELETE'
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        alert(`초기화 완료되었습니다. (삭제된 항목: ${data.deleted_count}개)`);
+        fetchEnchantArchives();
+      } else {
+        const data = await resp.json();
+        alert("초기화 실패: " + (data.detail || "비밀번호가 올바르지 않습니다."));
+      }
+    } catch (err) {
+      console.error(err);
+      alert("초기화 요청 실패.");
     }
   };
 
@@ -840,6 +1068,29 @@ export default function VoiceAssistant() {
     }
   };
 
+  // Dynamic UI Action Handler sent from Agent
+  const handleUiAction = useCallback((actionData) => {
+    if (!actionData) return;
+    const { action, value, css } = actionData;
+    if (action === 'toggle_avatar') {
+      setShowAvatar(Boolean(value));
+      localStorage.setItem('agent_show_avatar', String(Boolean(value)));
+    } else if (action === 'toggle_tts') {
+      setTtsEnabled(Boolean(value));
+      localStorage.setItem('agent_tts_enabled', String(Boolean(value)));
+    } else if (action === 'inject_css' && css) {
+      let styleTag = document.getElementById('dynamic-agent-styles');
+      if (!styleTag) {
+        styleTag = document.createElement('style');
+        styleTag.id = 'dynamic-agent-styles';
+        document.head.appendChild(styleTag);
+      }
+      styleTag.appendChild(document.createTextNode(css));
+    } else if (action === 'reload') {
+      window.location.reload();
+    }
+  }, []);
+
   // Call Agent REST API
   const handleSendMessage = async (textToSend) => {
     unlockAudio();
@@ -913,6 +1164,8 @@ export default function VoiceAssistant() {
                   }
                   return updated;
                 });
+              } else if (data.type === 'ui_action' || data.ui_action) {
+                handleUiAction(data.ui_action || data);
               } else if (data.type === 'answer') {
                 finalAnswer = data.content;
                 setMessages(prev => {
@@ -1060,6 +1313,74 @@ export default function VoiceAssistant() {
       alert("스킬 생성 실패: " + err.message);
     } finally {
       setIsGeneratingSkill(false);
+    }
+  };
+
+  const handleImportSkill = async (e) => {
+    if (e) e.preventDefault();
+    if (!importSkillForm.name) {
+      alert("스킬명을 입력해 주세요.");
+      return;
+    }
+    setIsImportingSkill(true);
+    try {
+      const resp = await authFetch('/api/skills/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(importSkillForm)
+      });
+      const data = await resp.json();
+      if (resp.ok && data.success) {
+        alert(data.message);
+        setImportSkillForm({ name: '', url: '', code: '', description: '' });
+        setIsImportModalOpen(false);
+        fetchSkills();
+      } else {
+        alert("가져오기 실패: " + (data.detail || data.message || "알 수 없는 오류"));
+      }
+    } catch (err) {
+      console.error(err);
+      alert("오류 발생: " + err.message);
+    } finally {
+      setIsImportingSkill(false);
+    }
+  };
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    const nameWithoutExt = file.name.replace(/\.[^/.]+$/, "");
+    if (!importSkillForm.name) {
+      setImportSkillForm(prev => ({ ...prev, name: nameWithoutExt }));
+    }
+    
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      setImportSkillForm(prev => ({ ...prev, code: evt.target.result }));
+    };
+    reader.readAsText(file);
+  };
+
+  const handleApproveSkill = async (skillName, isApproved) => {
+    try {
+      const resp = await authFetch('/api/skills/approve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: skillName,
+          is_approved: isApproved
+        })
+      });
+      const data = await resp.json();
+      if (data.success) {
+        setSkills(prev => prev.map(s => s.name === skillName ? { ...s, is_approved: data.is_approved } : s));
+      } else {
+        alert("승인 처리 실패: " + data.message);
+      }
+    } catch (err) {
+      console.error(err);
+      alert("오류 발생: " + err.message);
     }
   };
 
@@ -1380,12 +1701,12 @@ export default function VoiceAssistant() {
           </h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-secondary)' }}>
-              <span>Max Steps: <strong>{maxSteps === 0 ? '♾️ 무제한 (Unlimited)' : `${maxSteps}단계`}</strong></span>
+              <span>Max Steps: <strong>{maxSteps}</strong></span>
             </div>
             <input 
               type="range" 
-              min="0" 
-              max="100" 
+              min="1" 
+              max="50" 
               value={maxSteps} 
               onChange={(e) => setMaxSteps(parseInt(e.target.value))} 
               style={{
@@ -1398,7 +1719,7 @@ export default function VoiceAssistant() {
               }}
             />
             <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', fontStyle: 'italic' }}>
-              최대 실행 단계 수 지정 (0 설정 시 무제한, 기본: 50)
+              최대 실행 단계 수 지정
             </span>
           </div>
 
@@ -1563,9 +1884,9 @@ export default function VoiceAssistant() {
               accounts
             </button>
             <button 
-              onClick={() => setActiveTab('monitor')}
+              onClick={() => setActiveTab('archives')}
               style={{
-                background: activeTab === 'monitor' ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' : 'rgba(255, 255, 255, 0.08)',
+                background: activeTab === 'archives' ? 'var(--accent-gradient)' : 'rgba(255, 255, 255, 0.08)',
                 border: 'none',
                 color: '#fff',
                 padding: '6px 14px',
@@ -1573,51 +1894,34 @@ export default function VoiceAssistant() {
                 cursor: 'pointer',
                 fontSize: '13px',
                 fontWeight: '600',
-                transition: 'background 0.2s',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '5px'
+                transition: 'background 0.2s'
               }}
             >
-              <Activity size={13} />
-              monitor
-              {monitorTasks.filter(t => t.status === 'running' || t.status === 'cancelling').length > 0 && (
-                <span style={{
-                  background: '#ef4444',
-                  color: '#fff',
-                  borderRadius: '999px',
-                  fontSize: '10px',
-                  padding: '1px 5px',
-                  fontWeight: '700',
-                  lineHeight: '1.4'
-                }}>
-                  {monitorTasks.filter(t => t.status === 'running' || t.status === 'cancelling').length}
-                </span>
-              )}
-            </button>
-            <button 
-              onClick={() => setActiveTab('history')}
-              style={{
-                background: activeTab === 'history' ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : 'rgba(255, 255, 255, 0.08)',
-                border: 'none',
-                color: '#fff',
-                padding: '6px 14px',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                fontSize: '13px',
-                fontWeight: '600',
-                transition: 'background 0.2s',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '5px'
-              }}
-            >
-              <History size={13} />
-              처리 내역
+              archives
             </button>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: '10px', flexShrink: 0 }}>
+        <div style={{ display: 'flex', gap: '10px', flexShrink: 0, alignItems: 'center' }}>
+          <button 
+            onClick={() => setIsApiKeyModalOpen(true)}
+            style={{
+              background: hasNexonApiKey ? 'rgba(34, 197, 94, 0.15)' : 'rgba(245, 158, 11, 0.2)',
+              border: `1px solid ${hasNexonApiKey ? 'rgba(34, 197, 94, 0.3)' : 'rgba(245, 158, 11, 0.4)'}`,
+              color: hasNexonApiKey ? '#4ade80' : '#fbbf24',
+              padding: '6px 12px',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontSize: '12px',
+              fontWeight: '700',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.2s'
+            }}
+            title="넥슨 Open API Key 설정"
+          >
+            <Key size={14} /> API Key {hasNexonApiKey ? '설정됨' : '미설정'}
+          </button>
           {activeTab === 'agent' && (
             <>
               <select 
@@ -1670,75 +1974,1920 @@ export default function VoiceAssistant() {
       </div>
 
       {activeTab === 'agent' ? (
-        <AgentChat
-          showAvatar={showAvatar}
-          isSpeaking={isSpeaking}
-          isListening={isListening}
-          isLoading={isLoading}
-          messages={messages}
-          transcript={transcript}
-          inputText={inputText}
-          setInputText={setInputText}
-          handleSendMessage={handleSendMessage}
-          toggleListening={toggleListening}
-          speak={speak}
-          messageEndRef={messageEndRef}
-        />
+        <>
+          {/* Main Layout: Split Avatar & Chat */}
+          <div style={{
+            display: 'flex',
+            flexDirection: 'row',
+            flexWrap: 'wrap',
+            gap: '20px',
+            alignItems: 'stretch',
+            justifyContent: 'center',
+            width: '100%',
+            minHeight: '420px',
+            flex: 1
+          }}>
+            
+            {/* Avatar Column */}
+            {showAvatar && (
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flex: '1 1 320px',
+                maxWidth: '360px'
+              }}>
+                <AvatarCanvas 
+                  isSpeaking={isSpeaking} 
+                  isListening={isListening} 
+                  isLoading={isLoading} 
+                />
+              </div>
+            )}
+
+            {/* Chat / Messages Panel */}
+            <div className="chat-panel" style={{
+              background: 'rgba(0, 0, 0, 0.2)',
+              borderRadius: '16px',
+              padding: '16px',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              border: '1px solid rgba(255, 255, 255, 0.05)',
+              flex: '2 1 400px',
+              height: '420px',
+              overflow: 'hidden'
+            }}>
+              <div style={{ overflowY: 'auto', flex: 1, paddingRight: '6px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {messages.map((m, i) => (
+                  <div key={i} style={{
+                    alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start',
+                    background: m.role === 'user' ? 'var(--accent-gradient)' : 'rgba(255, 255, 255, 0.1)',
+                    padding: '10px 14px',
+                    borderRadius: m.role === 'user' ? '16px 16px 0 16px' : '16px 16px 16px 0',
+                    maxWidth: '85%',
+                    fontSize: '14px',
+                    lineHeight: '1.4',
+                    whiteSpace: 'pre-wrap',
+                    position: 'relative',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '6px',
+                    wordBreak: 'break-word',
+                    overflowWrap: 'break-word'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                      {m.role === 'assistant' && (
+                        <button 
+                          onClick={() => speak(m.content)}
+                          style={{
+                            background: 'rgba(255, 255, 255, 0.1)',
+                            border: '1px solid rgba(255, 255, 255, 0.15)',
+                            color: 'rgba(255, 255, 255, 0.8)',
+                            cursor: 'pointer',
+                            padding: '4px',
+                            borderRadius: '6px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                            marginTop: '2px',
+                            transition: 'all 0.2s ease'
+                          }}
+                          title="다시 듣기"
+                        >
+                          <Volume2 size={14} />
+                        </button>
+                      )}
+                      <div style={{ flex: 1 }}>{m.content}</div>
+                    </div>
+                    {m.logs && m.logs.length > 0 && (
+                      <details open={i === messages.length - 1 && isLoading} style={{
+                        marginTop: '8px',
+                        padding: '8px',
+                        background: 'rgba(0, 0, 0, 0.25)',
+                        borderRadius: '8px',
+                        fontSize: '12px',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        width: '100%'
+                      }}>
+                        <summary style={{ cursor: 'pointer', fontWeight: 'bold', color: '#38bdf8', outline: 'none' }}>
+                          ⚙️ Agent Execution Logs ({m.logs.length} steps)
+                        </summary>
+                        <div style={{ marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '4px', fontFamily: 'monospace', color: '#e2e8f0' }}>
+                          {m.logs.map((log, idx) => (
+                            <div key={idx} style={{ 
+                              padding: '4px 6px', 
+                              borderLeft: '2px solid #38bdf8', 
+                              background: 'rgba(56, 189, 248, 0.05)',
+                              wordBreak: 'break-all'
+                            }}>
+                              {log}
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    )}
+                  </div>
+                ))}
+                {isLoading && (
+                  <div style={{ display: 'flex', gap: '4px', alignSelf: 'flex-start', padding: '10px 14px', background: 'rgba(255, 255, 255, 0.05)', borderRadius: '12px' }}>
+                    <span className="dot" style={{ animationDelay: '0s' }}>●</span>
+                    <span className="dot" style={{ animationDelay: '0.2s' }}>●</span>
+                    <span className="dot" style={{ animationDelay: '0.4s' }}>●</span>
+                  </div>
+                )}
+                <div ref={messageEndRef} />
+              </div>
+            </div>
+          </div>
+ 
+          {/* Voice Visualizer / Audio Meter */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', padding: '10px 0' }}>
+            {isListening ? (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center', height: '20px' }}>
+                  <span className="wave-bar" style={{ height: '100%', animationDelay: '0.1s' }}></span>
+                  <span className="wave-bar" style={{ height: '60%', animationDelay: '0.3s' }}></span>
+                  <span className="wave-bar" style={{ height: '80%', animationDelay: '0.5s' }}></span>
+                  <span className="wave-bar" style={{ height: '40%', animationDelay: '0.2s' }}></span>
+                  <span className="wave-bar" style={{ height: '90%', animationDelay: '0.4s' }}></span>
+                </div>
+                <div style={{ color: '#38bdf8', fontSize: '14px', fontWeight: '600', fontStyle: 'italic', background: 'rgba(56, 189, 248, 0.1)', padding: '4px 12px', borderRadius: '8px', border: '1px solid rgba(56, 189, 248, 0.2)' }}>
+                  {transcript ? `🎙️ "${transcript}"` : "🎙️ 듣고 있습니다..."}
+                </div>
+              </div>
+            ) : (
+              <div style={{ height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {isSpeaking && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#06b6d4', fontSize: '13px', fontWeight: '500' }}>
+                    <span>🔊 대답하는 중...</span>
+                  </div>
+                )}
+              </div>
+            )}
+ 
+            {/* Controls Panel */}
+            <div style={{ display: 'flex', width: '100%', gap: '12px', alignItems: 'center' }}>
+              <button
+                onClick={toggleListening}
+                style={{
+                  width: '52px',
+                  height: '52px',
+                  borderRadius: '50%',
+                  background: isListening ? '#ef4444' : 'var(--accent-gradient)',
+                  border: 'none',
+                  color: '#fff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+                  transition: 'transform 0.2s'
+                }}
+              >
+                {isListening ? <MicOff size={24} /> : <Mic size={24} />}
+              </button>
+              
+              <input
+                type="text"
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                placeholder="여기에 명령을 직접 입력할 수도 있습니다..."
+                style={{
+                  flex: 1,
+                  background: 'rgba(255, 255, 255, 0.1)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '12px',
+                  padding: '12px 16px',
+                  color: '#fff',
+                  outline: 'none',
+                  fontSize: '14px'
+                }}
+              />
+              
+              <button
+                onClick={() => handleSendMessage()}
+                disabled={!inputText.trim()}
+                style={{
+                  background: 'var(--accent-gradient)',
+                  border: 'none',
+                  padding: '12px 20px',
+                  borderRadius: '12px',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  opacity: inputText.trim() ? 1 : 0.5
+                }}
+              >
+                <Send size={16} /> 전송
+              </button>
+            </div>
+          </div>
+        </>
       ) : activeTab === 'workshop' ? (
-        <SkillWorkshop
-          skills={skills}
-          selectedSkillName={selectedSkillName}
-          setSelectedSkillName={setSelectedSkillName}
-          skillDescription={skillDescription}
-          setSkillDescription={setSkillDescription}
-          skillCode={skillCode}
-          setSkillCode={setSkillCode}
-          handleSaveSkill={handleSaveSkill}
-          isSavingSkill={isSavingSkill}
-          handleDeleteSkill={handleDeleteSkill}
-          skillRunnerArgs={skillRunnerArgs}
-          setSkillRunnerArgs={setSkillRunnerArgs}
-          handleRunSkill={handleRunSkill}
-          isRunningSkill={isRunningSkill}
-          skillRunnerOutput={skillRunnerOutput}
-          newSkillName={newSkillName}
-          setNewSkillName={setNewSkillName}
-          newSkillDesc={newSkillDesc}
-          setNewSkillDesc={setNewSkillDesc}
-          handleGenerateSkill={handleGenerateSkill}
-          isGeneratingSkill={isGeneratingSkill}
-        />
+        /* Tab 2: Skill Workshop Panel */
+        <div className="responsive-grid">
+          {/* Left Column: Explorer & Editor */}
+          <div style={{
+            background: 'rgba(0, 0, 0, 0.2)',
+            borderRadius: '16px',
+            padding: '20px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '16px',
+            border: '1px solid rgba(255, 255, 255, 0.05)',
+            height: '100%'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', paddingBottom: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, marginRight: '12px' }}>
+                <span style={{ fontSize: '13px', color: 'rgba(255, 255, 255, 0.5)' }}>스킬 선택:</span>
+                <select
+                  value={selectedSkillName}
+                  onChange={(e) => setSelectedSkillName(e.target.value)}
+                  style={{
+                    flex: 1,
+                    background: 'rgba(255, 255, 255, 0.1)',
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                    color: '#fff',
+                    padding: '6px 12px',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontSize: '14px'
+                  }}
+                >
+                  <option value="" disabled style={{ color: '#000' }}>스킬을 선택하세요</option>
+                  {skills.map(s => {
+                    const isApp = s.is_approved ? '🔵' : '⚪';
+                    const isVer = s.is_verified ? '✅' : '❌';
+                    return (
+                      <option key={s.name} value={s.name} style={{ color: '#000' }}>
+                        {isApp} {s.name} ({isVer})
+                      </option>
+                    );
+                  })}
+                </select>
+                <button
+                  onClick={() => setIsImportModalOpen(true)}
+                  style={{
+                    background: 'rgba(56, 189, 248, 0.15)',
+                    border: '1px solid rgba(56, 189, 248, 0.3)',
+                    color: '#38bdf8',
+                    padding: '6px 12px',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontSize: '13px',
+                    fontWeight: '600',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  📥 가져오기
+                </button>
+              </div>
+
+              {selectedSkillName && (
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    onClick={() => handleDeleteSkill(selectedSkillName)}
+                    style={{
+                      background: '#ef4444',
+                      border: 'none',
+                      color: '#fff',
+                      padding: '6px 12px',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      fontSize: '13px',
+                      fontWeight: '600'
+                    }}
+                  >
+                    🗑️ 삭제
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {selectedSkillName ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', flex: 1 }}>
+                <div>
+                  <span style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.5)' }}>설명 / Docstring</span>
+                  <input
+                    type="text"
+                    value={skillDescription}
+                    onChange={(e) => setSkillDescription(e.target.value)}
+                    style={{
+                      width: '100%',
+                      background: 'rgba(255, 255, 255, 0.05)',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      borderRadius: '8px',
+                      padding: '8px 12px',
+                      color: '#fff',
+                      fontSize: '13px',
+                      marginTop: '4px',
+                      outline: 'none'
+                    }}
+                  />
+                </div>
+
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.5)' }}>Python 소스 코드</span>
+                    {skills.find(s => s.name === selectedSkillName)?.is_verified ? (
+                      <span style={{ fontSize: '12px', color: '#10b981', fontWeight: '600' }}>✅ 검증 완료</span>
+                    ) : (
+                      <span style={{ fontSize: '12px', color: '#ef4444', fontWeight: '600' }}>❌ 검증 실패 / 미검증</span>
+                    )}
+                  </div>
+                  
+                  <textarea
+                    value={skillCode}
+                    onChange={(e) => setSkillCode(e.target.value)}
+                    style={{
+                      width: '100%',
+                      height: '220px',
+                      background: 'rgba(0, 0, 0, 0.4)',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      borderRadius: '12px',
+                      padding: '12px',
+                      color: '#38bdf8',
+                      fontFamily: 'monospace',
+                      fontSize: '13px',
+                      lineHeight: '1.5',
+                      marginTop: '6px',
+                      resize: 'none',
+                      outline: 'none'
+                    }}
+                  />
+                  
+                  {/* Approval Toggle */}
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginTop: '10px',
+                    background: 'rgba(255, 255, 255, 0.03)',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(255, 255, 255, 0.05)'
+                  }}>
+                    <span style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.6)', fontWeight: '600' }}>에이전트 실행 권한 승인</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '11px', color: skills.find(s => s.name === selectedSkillName)?.is_approved ? '#38bdf8' : 'rgba(255,255,255,0.4)', fontWeight: '700' }}>
+                        {skills.find(s => s.name === selectedSkillName)?.is_approved ? '🟢 승인됨 (에이전트 사용 가능)' : '⚪ 미승인 (에이전트 사용 불가)'}
+                      </span>
+                      <button
+                        onClick={() => handleApproveSkill(selectedSkillName, !skills.find(s => s.name === selectedSkillName)?.is_approved)}
+                        style={{
+                          background: skills.find(s => s.name === selectedSkillName)?.is_approved ? 'rgba(56, 189, 248, 0.2)' : 'rgba(255, 255, 255, 0.1)',
+                          border: `1px solid ${skills.find(s => s.name === selectedSkillName)?.is_approved ? '#38bdf8' : 'rgba(255, 255, 255, 0.2)'}`,
+                          color: skills.find(s => s.name === selectedSkillName)?.is_approved ? '#38bdf8' : '#fff',
+                          padding: '4px 10px',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          fontSize: '11px',
+                          fontWeight: '600',
+                          transition: 'all 0.2s ease'
+                        }}
+                      >
+                        {skills.find(s => s.name === selectedSkillName)?.is_approved ? '승인 취소' : '승인 활성화'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {skills.find(s => s.name === selectedSkillName)?.verification_error && (
+                  <div style={{
+                    background: 'rgba(239, 68, 68, 0.1)',
+                    borderLeft: '3px solid #ef4444',
+                    padding: '8px 12px',
+                    borderRadius: '4px',
+                    fontSize: '11px',
+                    color: '#fca5a5',
+                    fontFamily: 'monospace',
+                    whiteSpace: 'pre-wrap',
+                    maxHeight: '60px',
+                    overflowY: 'auto'
+                  }}>
+                    {skills.find(s => s.name === selectedSkillName).verification_error}
+                  </div>
+                )}
+
+                {/* AST Security Warnings Display */}
+                {skills.find(s => s.name === selectedSkillName)?.security_warnings && (
+                  <div style={{
+                    background: 'rgba(245, 158, 11, 0.1)',
+                    borderLeft: '3px solid #f59e0b',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    fontSize: '11px',
+                    color: '#fde047',
+                    fontFamily: 'monospace',
+                    whiteSpace: 'pre-wrap',
+                    maxHeight: '80px',
+                    overflowY: 'auto',
+                    border: '1px solid rgba(245, 158, 11, 0.2)'
+                  }}>
+                    ⚠️ <strong>보안 검사 보고서 (AST Security Report):</strong>
+                    <div style={{ marginTop: '4px' }}>{skills.find(s => s.name === selectedSkillName).security_warnings}</div>
+                  </div>
+                )}
+
+                {/* Required Packages Display */}
+                {skills.find(s => s.name === selectedSkillName)?.required_packages && (
+                  <div style={{
+                    background: 'rgba(16, 185, 129, 0.08)',
+                    borderLeft: '3px solid #10b981',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    fontSize: '11px',
+                    color: '#a7f3d0',
+                    border: '1px solid rgba(16, 185, 129, 0.15)'
+                  }}>
+                    📦 <strong>의존 라이브러리 (Dependencies):</strong> {skills.find(s => s.name === selectedSkillName).required_packages}
+                  </div>
+                )}
+
+                <button
+                  onClick={handleSaveSkill}
+                  disabled={isSavingSkill}
+                  style={{
+                    background: 'var(--accent-gradient)',
+                    border: 'none',
+                    color: '#fff',
+                    padding: '10px 16px',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    opacity: isSavingSkill ? 0.6 : 1,
+                    textAlign: 'center'
+                  }}
+                >
+                  {isSavingSkill ? '💾 저장 및 검증 중...' : '💾 저장 및 컴파일 검증'}
+                </button>
+              </div>
+            ) : (
+              <div style={{ color: 'rgba(255,255,255,0.3)', fontStyle: 'italic', padding: '40px', textAlign: 'center', margin: 'auto' }}>
+                스킬이 없습니다. 오른쪽 패널에서 새로운 스킬을 제작해 보세요.
+              </div>
+            )}
+          </div>
+
+          {/* Right Column: Run Skill & Design New Skill */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            
+            {/* Action 1: Manual Runner */}
+            <div style={{
+              background: 'rgba(0, 0, 0, 0.2)',
+              borderRadius: '16px',
+              padding: '20px',
+              border: '1px solid rgba(255, 255, 255, 0.05)'
+            }}>
+              <h3 style={{ fontSize: '15px', fontWeight: '700', marginBottom: '12px', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', paddingBottom: '6px' }}>
+                🚀 스킬 테스트 실행
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div>
+                  <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>인자 (Arguments - 콤마 분리, e.g. key=value)</span>
+                  <input
+                    type="text"
+                    value={skillRunnerArgs}
+                    onChange={(e) => setSkillRunnerArgs(e.target.value)}
+                    placeholder="e.g. query=Seoul, limit=3"
+                    style={{
+                      width: '100%',
+                      background: 'rgba(255,255,255,0.05)',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      borderRadius: '8px',
+                      padding: '8px 12px',
+                      color: '#fff',
+                      fontSize: '12px',
+                      outline: 'none',
+                      marginTop: '4px'
+                    }}
+                  />
+                </div>
+                <button
+                  onClick={handleRunSkill}
+                  disabled={isRunningSkill || !selectedSkillName}
+                  style={{
+                    background: 'var(--accent-gradient)',
+                    border: 'none',
+                    color: '#fff',
+                    padding: '8px 14px',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontSize: '13px',
+                    fontWeight: '600',
+                    opacity: (!selectedSkillName || isRunningSkill) ? 0.5 : 1
+                  }}
+                >
+                  {isRunningSkill ? '실행 중...' : '스킬 실행'}
+                </button>
+                {skillRunnerOutput && (
+                  <div>
+                    <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>출력 결과:</span>
+                    <pre style={{
+                      marginTop: '4px',
+                      padding: '8px',
+                      background: 'rgba(0,0,0,0.3)',
+                      borderRadius: '6px',
+                      fontSize: '11px',
+                      color: '#38bdf8',
+                      fontFamily: 'monospace',
+                      maxHeight: '100px',
+                      overflowY: 'auto',
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-all'
+                    }}>
+                      {skillRunnerOutput}
+                    </pre>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Action 2: LLM Custom Generator */}
+            <div style={{
+              background: 'rgba(0, 0, 0, 0.25)',
+              borderRadius: '16px',
+              padding: '20px',
+              border: '1px solid rgba(255, 255, 255, 0.05)'
+            }}>
+              <h3 style={{ fontSize: '15px', fontWeight: '700', marginBottom: '12px', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', paddingBottom: '6px' }}>
+                ⚡ AI 스킬 자동 제작
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div>
+                  <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>스킬 식별명 (snake_case)</span>
+                  <input
+                    type="text"
+                    value={newSkillName}
+                    onChange={(e) => setNewSkillName(e.target.value)}
+                    placeholder="e.g. fetch_stock_price"
+                    style={{
+                      width: '100%',
+                      background: 'rgba(255,255,255,0.05)',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      borderRadius: '8px',
+                      padding: '8px 12px',
+                      color: '#fff',
+                      fontSize: '12px',
+                      outline: 'none',
+                      marginTop: '4px'
+                    }}
+                  />
+                </div>
+                <div>
+                  <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>스킬 사양 설명 및 요구사항</span>
+                  <textarea
+                    value={newSkillDesc}
+                    onChange={(e) => setNewSkillDesc(e.target.value)}
+                    placeholder="e.g. 야후 파이낸스 API를 이용해 주식 코드를 입력받아 실시간 가격을 가져오는 파이썬 도구를 작성해줘."
+                    style={{
+                      width: '100%',
+                      height: '60px',
+                      background: 'rgba(255,255,255,0.05)',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      borderRadius: '8px',
+                      padding: '8px 12px',
+                      color: '#fff',
+                      fontSize: '12px',
+                      outline: 'none',
+                      resize: 'none',
+                      marginTop: '4px'
+                    }}
+                  />
+                </div>
+                <button
+                  onClick={handleGenerateSkill}
+                  disabled={isGeneratingSkill}
+                  style={{
+                    background: 'linear-gradient(135deg, #a78bfa 0%, #6d28d9 100%)',
+                    border: 'none',
+                    color: '#fff',
+                    padding: '10px 16px',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontSize: '13px',
+                    fontWeight: '600',
+                    opacity: isGeneratingSkill ? 0.6 : 1,
+                    textAlign: 'center'
+                  }}
+                >
+                  {isGeneratingSkill ? '⚡ 스킬 자동 생성 중...' : '⚡ 스킬 코드 생성 및 검증'}
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
       ) : activeTab === 'credentials' ? (
-        <CredentialsManager
-          credentials={credentials}
-          isCredLoading={isCredLoading}
-          authFetch={authFetch}
-          selectedCredId={selectedCredId}
-          setSelectedCredId={setSelectedCredId}
-          credForm={credForm}
-          setCredForm={setCredForm}
-          handleSaveCredential={handleSaveCredential}
-          isSavingCred={isSavingCred}
-          handleDeleteCredential={handleDeleteCredential}
-        />
-      ) : activeTab === 'monitor' ? (
-        <RealtimeMonitor
-          monitorTasks={monitorTasks}
-          monitorLogs={monitorLogs}
-          fetchMonitorData={fetchMonitorData}
-          handleCancelTask={handleCancelTask}
-          isCancellingTask={isCancellingTask}
-          monitorLogsEndRef={monitorLogsEndRef}
-        />
-      ) : activeTab === 'history' ? (
-        <ExecutionHistory
-          API_BASE={API_BASE}
-          authFetch={authFetch}
-          activeTab={activeTab}
-          handleCancelTask={handleCancelTask}
-          isCancellingTask={isCancellingTask}
-        />
+        /* Tab 3: Credentials Panel */
+        <div className="responsive-grid credentials-grid">
+          {/* Left Column: Stored Credentials */}
+          <div style={{
+            background: 'rgba(0, 0, 0, 0.2)',
+            borderRadius: '16px',
+            padding: '20px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '16px',
+            border: '1px solid rgba(255, 255, 255, 0.05)',
+            height: '100%',
+            minWidth: '0px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', paddingBottom: '12px' }}>
+              <h3 style={{ fontSize: '16px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+                <Key size={18} style={{ color: 'var(--accent-primary)' }} /> 외부 사이트 접근 권한 목록
+              </h3>
+              <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', fontStyle: 'italic' }}>
+                스킬 실행 시 자동 연동 가능
+              </span>
+            </div>
+
+            {isCredLoading ? (
+               <div style={{ color: 'rgba(255,255,255,0.5)', padding: '40px', textAlign: 'center', margin: 'auto' }}>
+                 로딩 중...
+               </div>
+            ) : credentials.length === 0 ? (
+               <div style={{ color: 'rgba(255,255,255,0.3)', fontStyle: 'italic', padding: '40px', textAlign: 'center', margin: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+                 <Key size={40} style={{ opacity: 0.2 }} />
+                 <div>등록된 외부 계정이 없습니다.<br/>오른쪽 패널에서 에이전트에 타 사이트 접근 권한을 추가해 주세요.</div>
+               </div>
+            ) : (
+               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto', maxHeight: '420px', paddingRight: '4px' }}>
+                 {credentials.map(c => (
+                   <div key={c.id} style={{
+                     background: 'rgba(255, 255, 255, 0.03)',
+                     border: '1px solid rgba(255, 255, 255, 0.08)',
+                     borderRadius: '12px',
+                     padding: '14px',
+                     display: 'flex',
+                     flexDirection: 'column',
+                     gap: '10px',
+                     transition: 'all 0.2s ease',
+                     cursor: 'default'
+                   }}
+                   className="credential-card"
+                   >
+                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                         <span style={{
+                           background: 'var(--accent-gradient)',
+                           padding: '3px 8px',
+                           borderRadius: '6px',
+                           fontSize: '11px',
+                           fontWeight: '700',
+                           textTransform: 'uppercase',
+                           letterSpacing: '0.05em'
+                         }}>
+                           {c.site_name}
+                         </span>
+                         {c.domain && (
+                           <span style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.4)', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                             <Link2 size={10} /> {c.domain}
+                           </span>
+                         )}
+                       </div>
+                       <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                           {c.site_name.toLowerCase() === 'gmail_oauth' && (
+                            <button
+                              onClick={async () => {
+                                 try {
+                                   const currentUrl = window.location.origin + window.location.pathname;
+                                   const resp = await authFetch(`/api/auth/google/authorize?redirect_uri=${encodeURIComponent(currentUrl)}`);
+                                   const data = await resp.json();
+                                  if (data.url) {
+                                    window.location.href = data.url;
+                                  } else {
+                                    alert(data.detail || "인증 URL 생성에 실패했습니다.");
+                                  }
+                                } catch (err) {
+                                  console.error(err);
+                                  alert("인증 요청 실패: " + err.message);
+                                }
+                              }}
+                              style={{
+                                background: 'rgba(59, 130, 246, 0.15)',
+                                border: '1px solid rgba(59, 130, 246, 0.3)',
+                                color: '#60a5fa',
+                                padding: '4px 8px',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                fontSize: '11px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                transition: 'all 0.2s'
+                              }}
+                              title="구글 계정 로그인 및 인증"
+                            >
+                              인증하기
+                            </button>
+                          )}
+                          {c.site_name.toLowerCase() !== 'gmail_oauth_token' && (
+                            <button
+                              onClick={() => {
+                                setSelectedCredId(c.id);
+                                setCredForm({
+                                  site_name: c.site_name,
+                                  domain: c.domain || '',
+                                  username: c.username || '',
+                                  secret_key: c.secret_key || '',
+                                  description: c.description || ''
+                                });
+                              }}
+                              style={{
+                                background: 'rgba(255, 255, 255, 0.08)',
+                                border: 'none',
+                                color: '#fff',
+                                padding: '4px 8px',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                fontSize: '11px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                transition: 'background 0.2s'
+                              }}
+                              title="수정"
+                            >
+                              <Edit2 size={11} /> 수정
+                            </button>
+                          )}
+                         <button
+                           onClick={() => handleDeleteCredential(c.id, c.site_name)}
+                           style={{
+                             background: 'rgba(239, 68, 68, 0.15)',
+                             border: 'none',
+                             color: '#f87171',
+                             padding: '4px 8px',
+                             borderRadius: '6px',
+                             cursor: 'pointer',
+                             fontSize: '11px',
+                             display: 'flex',
+                             alignItems: 'center',
+                             gap: '4px',
+                             transition: 'background 0.2s'
+                           }}
+                           title="삭제"
+                         >
+                           <Trash2 size={11} /> 삭제
+                         </button>
+                       </div>
+                     </div>
+
+                     <div style={{ display: 'grid', gridTemplateColumns: '85px 1fr', gap: '6px', fontSize: '12px', background: 'rgba(0, 0, 0, 0.15)', padding: '10px', borderRadius: '8px' }}>
+                       <span style={{ color: 'rgba(255, 255, 255, 0.4)' }}>계정명 / ID:</span>
+                       <span style={{ color: '#fff', fontWeight: '500', wordBreak: 'break-all' }}>{c.username || '(계정명 없음)'}</span>
+
+                       <span style={{ color: 'rgba(255, 255, 255, 0.4)' }}>비밀키 / 토큰:</span>
+                       <span style={{ fontFamily: 'monospace', color: '#38bdf8', letterSpacing: '0.05em', wordBreak: 'break-all', whiteSpace: 'pre-wrap' }}>{c.secret_key}</span>
+                     </div>
+
+                     {c.description && (
+                       <div style={{
+                         fontSize: '11px',
+                         color: 'rgba(255, 255, 255, 0.5)',
+                         background: 'rgba(255, 255, 255, 0.02)',
+                         padding: '8px 12px',
+                         borderRadius: '6px',
+                         borderLeft: '2px solid var(--accent-primary)',
+                         lineHeight: '1.4',
+                         wordBreak: 'break-all',
+                         whiteSpace: 'pre-wrap'
+                       }}>
+                         {c.description}
+                       </div>
+                     )}
+                   </div>
+                 ))}
+               </div>
+            )}
+          </div>
+
+          {/* Right Column: Add/Edit Credential Form */}
+          <div style={{
+            background: 'rgba(0, 0, 0, 0.2)',
+            borderRadius: '16px',
+            padding: '20px',
+            border: '1px solid rgba(255, 255, 255, 0.05)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '16px',
+            height: 'fit-content'
+          }}>
+            <h3 style={{ fontSize: '15px', fontWeight: '700', margin: '0 0 4px 0', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', paddingBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              {selectedCredId ? <Edit2 size={16} style={{ color: '#a78bfa' }} /> : <Plus size={16} style={{ color: '#10b981' }} />}
+              {selectedCredId ? "외부 사이트 권한 수정" : "외부 사이트 권한 추가"}
+            </h3>
+
+            <form onSubmit={handleSaveCredential} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div>
+                <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: '4px' }}>사이트 식별명 (Site Name) *</span>
+                <input
+                  type="text"
+                  required
+                  value={credForm.site_name}
+                  onChange={(e) => setCredForm({ ...credForm, site_name: e.target.value })}
+                  placeholder="예: github, naver_cookies, slack (소문자)"
+                  style={{
+                    width: '100%',
+                    background: 'rgba(255,255,255,0.05)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: '8px',
+                    padding: '8px 12px',
+                    color: '#fff',
+                    fontSize: '12px',
+                    outline: 'none',
+                    transition: 'border-color 0.2s'
+                  }}
+                  onFocus={(e) => e.target.style.borderColor = 'var(--accent-primary)'}
+                  onBlur={(e) => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
+                />
+              </div>
+
+              {credForm.site_name.toLowerCase() === 'naver_cookies' && (
+                <div style={{
+                  padding: '8px 12px',
+                  background: 'rgba(56, 189, 248, 0.1)',
+                  border: '1px solid rgba(56, 189, 248, 0.2)',
+                  borderRadius: '8px',
+                  fontSize: '11px',
+                  color: '#38bdf8',
+                  lineHeight: '1.4'
+                }}>
+                  💡 <strong>네이버 쿠키 세션 주입 안내:</strong><br />
+                  네이버 보안 로그인(CAPTCHA) 우회를 위해 사용자 브라우저의 로그인 쿠키인 <code>NID_AUT</code>와 <code>NID_SES</code> 값을 아래 JSON 형태로 입력해 주세요:<br />
+                  <code style={{ background: 'rgba(0,0,0,0.3)', padding: '2px 4px', borderRadius: '4px', display: 'inline-block', marginTop: '4px' }}>
+                    {"{ \"NID_AUT\": \"...\", \"NID_SES\": \"...\" }"}
+                  </code>
+                </div>
+              )}
+
+              <div>
+                <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: '4px' }}>접속 도메인 / 호스트 (Domain / Host - 선택사항)</span>
+                <input
+                  type="text"
+                  value={credForm.domain}
+                  onChange={(e) => setCredForm({ ...credForm, domain: e.target.value })}
+                  placeholder="예: github.com, imap.naver.com:993 (선택사항)"
+                  style={{
+                    width: '100%',
+                    background: 'rgba(255,255,255,0.05)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: '8px',
+                    padding: '8px 12px',
+                    color: '#fff',
+                    fontSize: '12px',
+                    outline: 'none',
+                    transition: 'border-color 0.2s'
+                  }}
+                  onFocus={(e) => e.target.style.borderColor = 'var(--accent-primary)'}
+                  onBlur={(e) => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
+                />
+              </div>
+
+              <div>
+                <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: '4px' }}>사용자 ID / 이메일</span>
+                <input
+                  type="text"
+                  value={credForm.username}
+                  onChange={(e) => setCredForm({ ...credForm, username: e.target.value })}
+                  placeholder="사용자 아이디 또는 이메일"
+                  style={{
+                    width: '100%',
+                    background: 'rgba(255,255,255,0.05)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: '8px',
+                    padding: '8px 12px',
+                    color: '#fff',
+                    fontSize: '12px',
+                    outline: 'none',
+                    transition: 'border-color 0.2s'
+                  }}
+                  onFocus={(e) => e.target.style.borderColor = 'var(--accent-primary)'}
+                  onBlur={(e) => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
+                />
+              </div>
+
+              <div>
+                <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: '4px' }}>인증 비밀번호 / 토큰 / API 키 *</span>
+                <input
+                  type="password"
+                  required={!selectedCredId}
+                  value={credForm.secret_key}
+                  onChange={(e) => setCredForm({ ...credForm, secret_key: e.target.value })}
+                  placeholder={selectedCredId ? "수정하지 않으려면 ******** 상태를 유지하세요" : (credForm.site_name.toLowerCase() === 'naver_cookies' ? 'JSON: {"NID_AUT": "...", "NID_SES": "..."}' : "비밀번호 또는 API 토큰 입력")}
+                  style={{
+                    width: '100%',
+                    background: 'rgba(255,255,255,0.05)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: '8px',
+                    padding: '8px 12px',
+                    color: '#fff',
+                    fontSize: '12px',
+                    outline: 'none',
+                    transition: 'border-color 0.2s'
+                  }}
+                  onFocus={(e) => e.target.style.borderColor = 'var(--accent-primary)'}
+                  onBlur={(e) => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
+                />
+              </div>
+
+              <div>
+                <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: '4px' }}>간단한 설명 (Description)</span>
+                <textarea
+                  value={credForm.description}
+                  onChange={(e) => setCredForm({ ...credForm, description: e.target.value })}
+                  placeholder={credForm.site_name.toLowerCase() === 'naver_cookies' ? "네이버 로그인 세션 쿠키 정보 (NID_AUT, NID_SES)" : "예: 에이전트의 블로그 자동 업로드를 위한 GitHub Access Token"}
+                  style={{
+                    width: '100%',
+                    height: '60px',
+                    background: 'rgba(255,255,255,0.05)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: '8px',
+                    padding: '8px 12px',
+                    color: '#fff',
+                    fontSize: '12px',
+                    outline: 'none',
+                    resize: 'none',
+                    transition: 'border-color 0.2s'
+                  }}
+                  onFocus={(e) => e.target.style.borderColor = 'var(--accent-primary)'}
+                  onBlur={(e) => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                <button
+                  type="submit"
+                  disabled={isSavingCred}
+                  style={{
+                    flex: 1,
+                    background: 'var(--accent-gradient)',
+                    border: 'none',
+                    color: '#fff',
+                    padding: '10px 16px',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontSize: '13px',
+                    fontWeight: '600',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    opacity: isSavingCred ? 0.6 : 1,
+                    transition: 'transform 0.1s'
+                  }}
+                >
+                  <Save size={14} /> {isSavingCred ? '저장 중...' : '저장하기'}
+                </button>
+
+                {selectedCredId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedCredId(null);
+                      setCredForm({ site_name: '', domain: '', username: '', secret_key: '', description: '' });
+                    }}
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.08)',
+                      border: 'none',
+                      color: '#fff',
+                      padding: '10px 16px',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      fontSize: '13px',
+                      fontWeight: '600',
+                      transition: 'background 0.2s'
+                    }}
+                  >
+                    취소
+                  </button>
+                )}
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : activeTab === 'archives' ? (
+        /* Tab 4: Item & Enchant Archives Panel */
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '16px',
+          background: 'rgba(0, 0, 0, 0.2)',
+          borderRadius: '16px',
+          padding: '20px',
+          border: '1px solid rgba(255, 255, 255, 0.05)',
+          width: '100%'
+        }}>
+          {/* Sub Tab Switcher: 아이템 아카이브 vs 인챈트 아카이브 */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', paddingBottom: '12px', flexWrap: 'wrap', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ display: 'flex', background: 'rgba(255, 255, 255, 0.05)', padding: '4px', borderRadius: '10px', gap: '4px' }}>
+                <button
+                  onClick={() => { setArchiveSubTab('items'); fetchItemArchives(1); }}
+                  style={{
+                    background: archiveSubTab === 'items' ? 'var(--accent-gradient)' : 'transparent',
+                    border: 'none',
+                    color: '#fff',
+                    padding: '6px 14px',
+                    borderRadius: '8px',
+                    fontSize: '13px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <Package size={16} /> 아이템 아카이브
+                </button>
+                <button
+                  onClick={() => { setArchiveSubTab('enchants'); fetchEnchantArchives(); }}
+                  style={{
+                    background: archiveSubTab === 'enchants' ? 'var(--accent-gradient)' : 'transparent',
+                    border: 'none',
+                    color: '#fff',
+                    padding: '6px 14px',
+                    borderRadius: '8px',
+                    fontSize: '13px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <Database size={16} /> 인챈트 아카이브
+                </button>
+              </div>
+
+              {archiveSubTab === 'items' ? (
+                <span style={{ fontSize: '12px', background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', border: '1px solid rgba(56, 189, 248, 0.3)', padding: '2px 10px', borderRadius: '12px', fontWeight: '600' }}>
+                  총 {archiveTotalCount.toLocaleString()}개 항목
+                </span>
+              ) : (
+                <span style={{ fontSize: '12px', background: 'rgba(167, 139, 250, 0.15)', color: '#c4b5fd', border: '1px solid rgba(167, 139, 250, 0.3)', padding: '2px 10px', borderRadius: '12px', fontWeight: '600' }}>
+                  총 {enchantArchives.length.toLocaleString()}개 인챈트
+                </span>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                onClick={() => setIsApiKeyModalOpen(true)}
+                style={{
+                  background: hasNexonApiKey ? 'rgba(34, 197, 94, 0.15)' : 'rgba(245, 158, 11, 0.2)',
+                  border: `1px solid ${hasNexonApiKey ? 'rgba(34, 197, 94, 0.3)' : 'rgba(245, 158, 11, 0.4)'}`,
+                  color: hasNexonApiKey ? '#4ade80' : '#fbbf24',
+                  padding: '6px 12px',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  fontWeight: '700',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  transition: 'all 0.2s'
+                }}
+                title="넥슨 Open API Key 설정"
+              >
+                <Key size={14} /> API Key 설정
+              </button>
+              <button
+                onClick={() => archiveSubTab === 'items' ? fetchItemArchives(archivePage) : fetchEnchantArchives()}
+                disabled={isArchiveLoading}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  border: 'none',
+                  color: '#fff',
+                  padding: '6px 12px',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  fontWeight: '600',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+                title="새로고침"
+              >
+                <RefreshCw size={14} className={isArchiveLoading ? 'animate-spin' : ''} /> 새로고침
+              </button>
+              <button
+                onClick={archiveSubTab === 'items' ? handleResetAllItemArchives : handleResetAllEnchantArchives}
+                style={{
+                  background: 'rgba(239, 68, 68, 0.15)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  color: '#f87171',
+                  padding: '6px 12px',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  fontWeight: '600',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+                title="전체 데이터 초기화"
+              >
+                <Trash2 size={14} /> 전체 초기화
+              </button>
+            </div>
+          </div>
+
+          {archiveSubTab === 'items' ? (
+            /* --- Item Archives Section --- */
+            <>
+              {/* Search & Filter Bar */}
+              <form onSubmit={handleSearchArchive} style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+                <div style={{ position: 'relative', flex: '1 1 240px' }}>
+                  <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'rgba(255, 255, 255, 0.4)' }} />
+                  <input
+                    type="text"
+                    value={archiveQuery}
+                    onChange={(e) => setArchiveQuery(e.target.value)}
+                    placeholder="아이템명, 태그, 설명, 서브카테고리 검색..."
+                    style={{
+                      width: '100%',
+                      background: 'rgba(255, 255, 255, 0.05)',
+                      border: '1px solid rgba(255, 255, 255, 0.12)',
+                      borderRadius: '10px',
+                      padding: '9px 12px 9px 36px',
+                      color: '#fff',
+                      fontSize: '13px',
+                      outline: 'none'
+                    }}
+                  />
+                </div>
+
+                <select
+                  value={selectedArchiveCategory}
+                  onChange={(e) => handleCategoryChange(e.target.value)}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.08)',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    color: '#fff',
+                    padding: '9px 14px',
+                    borderRadius: '10px',
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    outline: 'none'
+                  }}
+                >
+                  <option value="" style={{ color: '#000' }}>전체 카테고리</option>
+                  {archiveCategories.map(cat => (
+                    <option key={cat} value={cat} style={{ color: '#000' }}>{cat}</option>
+                  ))}
+                </select>
+
+                <select
+                  value={archivePageSize}
+                  onChange={(e) => handlePageSizeChange(e.target.value)}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.08)',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    color: '#fff',
+                    padding: '9px 14px',
+                    borderRadius: '10px',
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    outline: 'none'
+                  }}
+                >
+                  <option value={10} style={{ color: '#000' }}>10개씩 보기</option>
+                  <option value={20} style={{ color: '#000' }}>20개씩 보기</option>
+                  <option value={50} style={{ color: '#000' }}>50개씩 보기</option>
+                </select>
+
+                <button
+                  type="submit"
+                  style={{
+                    background: 'var(--accent-gradient)',
+                    border: 'none',
+                    color: '#fff',
+                    padding: '9px 18px',
+                    borderRadius: '10px',
+                    fontWeight: '600',
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  <Search size={14} /> 검색
+                </button>
+
+                {(archiveQuery || selectedArchiveCategory) && (
+                  <button
+                    type="button"
+                    onClick={handleResetSearch}
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.08)',
+                      border: 'none',
+                      color: '#94a3b8',
+                      padding: '9px 14px',
+                      borderRadius: '10px',
+                      fontSize: '13px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    초기화
+                  </button>
+                )}
+              </form>
+
+              {/* Pagination Bar (Top) */}
+              {archiveTotalPages > 1 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: 'rgba(255, 255, 255, 0.03)', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.05)', fontSize: '13px' }}>
+                  <span style={{ color: 'rgba(255, 255, 255, 0.6)' }}>
+                    {((archivePage - 1) * archivePageSize) + 1} - {Math.min(archivePage * archivePageSize, archiveTotalCount)} 항목 (총 {archiveTotalCount}개)
+                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <button
+                      onClick={() => handlePageChange(archivePage - 1)}
+                      disabled={archivePage <= 1}
+                      style={{
+                        background: archivePage <= 1 ? 'rgba(255,255,255,0.03)' : 'rgba(255, 255, 255, 0.1)',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        color: archivePage <= 1 ? 'rgba(255,255,255,0.3)' : '#fff',
+                        padding: '4px 10px',
+                        borderRadius: '6px',
+                        cursor: archivePage <= 1 ? 'not-allowed' : 'pointer',
+                        fontSize: '12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}
+                    >
+                      <ChevronLeft size={14} /> 이전
+                    </button>
+
+                    <span style={{ fontWeight: '700', color: '#38bdf8', padding: '0 8px' }}>
+                      {archivePage} / {archiveTotalPages} 페이지
+                    </span>
+
+                    <button
+                      onClick={() => handlePageChange(archivePage + 1)}
+                      disabled={archivePage >= archiveTotalPages}
+                      style={{
+                        background: archivePage >= archiveTotalPages ? 'rgba(255,255,255,0.03)' : 'rgba(255, 255, 255, 0.1)',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        color: archivePage >= archiveTotalPages ? 'rgba(255,255,255,0.3)' : '#fff',
+                        padding: '4px 10px',
+                        borderRadius: '6px',
+                        cursor: archivePage >= archiveTotalPages ? 'not-allowed' : 'pointer',
+                        fontSize: '12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}
+                    >
+                      다음 <ChevronRight size={14} />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Scrollable Item Archives List */}
+              <div style={{
+                maxHeight: '560px',
+                overflowY: 'auto',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px',
+                paddingRight: '6px'
+              }}>
+                {isArchiveLoading ? (
+                  <div style={{ textAlign: 'center', padding: '60px', color: 'rgba(255, 255, 255, 0.5)' }}>
+                    아이템 아카이브 불러오는 중...
+                  </div>
+                ) : itemArchives.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '60px', color: 'rgba(255, 255, 255, 0.4)', fontStyle: 'italic' }}>
+                    저장된 아이템 아카이브 항목이 없습니다.
+                  </div>
+                ) : (
+                  itemArchives.map(item => {
+                    const isExpanded = expandedItemId === item.id;
+                    let groupedOpts = null;
+                    try {
+                      if (item.grouped_options_json) {
+                        groupedOpts = typeof item.grouped_options_json === 'string' ? JSON.parse(item.grouped_options_json) : item.grouped_options_json;
+                      }
+                    } catch (e) {}
+
+                    return (
+                      <div
+                        key={item.id}
+                        style={{
+                          background: 'rgba(255, 255, 255, 0.03)',
+                          border: '1px solid rgba(255, 255, 255, 0.08)',
+                          borderRadius: '12px',
+                          padding: '16px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '10px',
+                          transition: 'all 0.2s ease'
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px' }}>
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                              <h4 style={{ fontSize: '16px', fontWeight: '700', color: '#fff', margin: 0 }}>
+                                {item.item_display_name || item.item_name}
+                              </h4>
+                              {item.category && (
+                                <span style={{ background: 'rgba(167, 139, 250, 0.2)', color: '#c4b5fd', border: '1px solid rgba(167, 139, 250, 0.3)', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '600' }}>
+                                  {item.category}
+                                </span>
+                              )}
+                              {item.subcategory && (
+                                <span style={{ background: 'rgba(56, 189, 248, 0.15)', color: '#7dd3fc', border: '1px solid rgba(56, 189, 248, 0.25)', padding: '2px 8px', borderRadius: '6px', fontSize: '11px' }}>
+                                  {item.subcategory}
+                                </span>
+                              )}
+                            </div>
+                            {item.description && (
+                              <div style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.5)', marginTop: '4px' }}>
+                                {item.description}
+                              </div>
+                            )}
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            {item.avg_price ? (
+                              <span style={{ color: '#38bdf8', fontWeight: '700', fontSize: '13px' }}>
+                                💰 평균 {formatPrice(item.avg_price)}
+                              </span>
+                            ) : item.price_estimate ? (
+                              <span style={{ color: '#f59e0b', fontWeight: '700', fontSize: '13px' }}>
+                                💰 {typeof item.price_estimate === 'number' ? item.price_estimate.toLocaleString() : item.price_estimate}
+                              </span>
+                            ) : null}
+                            <button
+                              onClick={() => setExpandedItemId(isExpanded ? null : item.id)}
+                              style={{
+                                background: 'rgba(255, 255, 255, 0.08)',
+                                border: 'none',
+                                color: '#fff',
+                                padding: '4px 10px',
+                                borderRadius: '6px',
+                                fontSize: '12px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}
+                            >
+                              {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />} {isExpanded ? '상세 접기' : '상세 보기'}
+                            </button>
+                            <button
+                              onClick={() => handleDeleteItemArchive(item.id, item.item_display_name || item.item_name)}
+                              style={{
+                                background: 'rgba(239, 68, 68, 0.15)',
+                                border: 'none',
+                                color: '#f87171',
+                                padding: '4px 8px',
+                                borderRadius: '6px',
+                                fontSize: '11px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}
+                              title="삭제"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Tags */}
+                        {item.tags && (
+                          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                            {item.tags.split(',').map((t, idx) => (
+                              <span key={idx} style={{ fontSize: '10px', color: '#94a3b8', background: 'rgba(255, 255, 255, 0.04)', padding: '2px 6px', borderRadius: '4px' }}>
+                                #{t.trim()}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Expanded Option Details */}
+                        {isExpanded && (
+                          <div style={{
+                            marginTop: '6px',
+                            padding: '12px',
+                            background: 'rgba(0, 0, 0, 0.3)',
+                            borderRadius: '8px',
+                            border: '1px solid rgba(255, 255, 255, 0.08)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '8px',
+                            fontSize: '12px'
+                          }}>
+                            {groupedOpts ? (
+                              Object.entries(groupedOpts).map(([catKey, catVal]) => {
+                                if (!catVal || Object.keys(catVal).length === 0) return null;
+                                const catNames = {
+                                  base_stats: '기본 능력치 옵션 범위',
+                                  reforge: '세공 옵션 범위',
+                                  modification: '개조/강화 옵션 범위',
+                                  erg: '에르그 옵션 범위',
+                                  set_effects: '세트 효과 범위'
+                                };
+                                return (
+                                  <div key={catKey}>
+                                    <div style={{ color: '#38bdf8', fontWeight: '700', marginBottom: '4px' }}>
+                                      • {catNames[catKey] || catKey}:
+                                    </div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '6px', paddingLeft: '10px' }}>
+                                      {Object.entries(catVal).map(([optName, optData]) => (
+                                        <div key={optName} style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '4px 8px', borderRadius: '4px', borderLeft: '2px solid #38bdf8' }}>
+                                          <span style={{ color: '#e2e8f0' }}>{optName}: </span>
+                                          <span style={{ color: '#34d399', fontWeight: '600' }}>
+                                            {optData.min !== undefined && optData.max !== undefined ? (
+                                              optData.min === optData.max ? `${optData.min}${optData.unit || ''}` : `${optData.min} ~ ${optData.max}${optData.unit || ''}`
+                                            ) : optData.raw_val || JSON.stringify(optData)}
+                                          </span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                );
+                              })
+                            ) : (
+                              <pre style={{ margin: 0, fontFamily: 'monospace', fontSize: '11px', color: '#94a3b8', whiteSpace: 'pre-wrap' }}>
+                                {item.options_json || '상세 옵션 정보가 없습니다.'}
+                              </pre>
+                            )}
+                          </div>
+                        )}
+
+                        {/* 아이템 하단: 평균 거래가, 최근 거래가 & 최신 수집 일자 표시 */}
+                        <div style={{
+                          display: 'flex',
+                          justify: 'space-between',
+                          alignItems: 'center',
+                          marginTop: '8px',
+                          paddingTop: '8px',
+                          borderTop: '1px solid rgba(255, 255, 255, 0.06)',
+                          fontSize: '12px',
+                          flexWrap: 'wrap',
+                          gap: '10px'
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <span style={{ color: '#94a3b8' }}>평균 거래가:</span>
+                              <span style={{ color: '#38bdf8', fontWeight: '700' }}>
+                                {formatPrice(item.avg_price)}
+                              </span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <span style={{ color: '#94a3b8' }}>최근 거래가:</span>
+                              <span style={{ color: '#f59e0b', fontWeight: '700' }}>
+                                {formatPrice(item.recent_price)}
+                              </span>
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ color: '#94a3b8' }}>최신 수집 일자:</span>
+                            <span style={{ color: '#cbd5e1', fontWeight: '500' }}>
+                              {formatDate(item.updated_at || item.created_at)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </>
+          ) : (
+            /* --- Enchant Archives Section --- */
+            <>
+              {/* Enchant Search & Filter Bar */}
+              <form onSubmit={(e) => { e.preventDefault(); fetchEnchantArchives(); }} style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+                <div style={{ position: 'relative', flex: '1 1 240px' }}>
+                  <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'rgba(255, 255, 255, 0.4)' }} />
+                  <input
+                    type="text"
+                    value={archiveQuery}
+                    onChange={(e) => setArchiveQuery(e.target.value)}
+                    placeholder="인챈트명, 효과 요약, 적용 대상 검색..."
+                    style={{
+                      width: '100%',
+                      background: 'rgba(255, 255, 255, 0.05)',
+                      border: '1px solid rgba(255, 255, 255, 0.12)',
+                      borderRadius: '10px',
+                      padding: '9px 12px 9px 36px',
+                      color: '#fff',
+                      fontSize: '13px',
+                      outline: 'none'
+                    }}
+                  />
+                </div>
+
+                <select
+                  value={selectedEnchantType}
+                  onChange={(e) => { setSelectedEnchantType(e.target.value); fetchEnchantArchives(archiveQuery, e.target.value); }}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.08)',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    color: '#fff',
+                    padding: '9px 14px',
+                    borderRadius: '10px',
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    outline: 'none'
+                  }}
+                >
+                  <option value="" style={{ color: '#000' }}>전체 인챈트 종류</option>
+                  <option value="접두" style={{ color: '#000' }}>접두 인챈트</option>
+                  <option value="접미" style={{ color: '#000' }}>접미 인챈트</option>
+                </select>
+
+                <button
+                  type="submit"
+                  style={{
+                    background: 'var(--accent-gradient)',
+                    border: 'none',
+                    color: '#fff',
+                    padding: '9px 18px',
+                    borderRadius: '10px',
+                    fontWeight: '600',
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  <Search size={14} /> 검색
+                </button>
+
+                {(archiveQuery || selectedEnchantType) && (
+                  <button
+                    type="button"
+                    onClick={() => { setArchiveQuery(''); setSelectedEnchantType(''); fetchEnchantArchives('', ''); }}
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.08)',
+                      border: 'none',
+                      color: '#94a3b8',
+                      padding: '9px 14px',
+                      borderRadius: '10px',
+                      fontSize: '13px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    초기화
+                  </button>
+                )}
+              </form>
+
+              {/* Scrollable Enchant Archives List */}
+              <div style={{
+                maxHeight: '560px',
+                overflowY: 'auto',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px',
+                paddingRight: '6px'
+              }}>
+                {isArchiveLoading ? (
+                  <div style={{ textAlign: 'center', padding: '60px', color: 'rgba(255, 255, 255, 0.5)' }}>
+                    인챈트 아카이브 불러오는 중...
+                  </div>
+                ) : enchantArchives.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '60px', color: 'rgba(255, 255, 255, 0.4)', fontStyle: 'italic' }}>
+                    저장된 인챈트 아카이브 항목이 없습니다.
+                  </div>
+                ) : (
+                  enchantArchives.map(enc => (
+                    <div
+                      key={enc.id}
+                      style={{
+                        background: 'rgba(255, 255, 255, 0.03)',
+                        border: '1px solid rgba(255, 255, 255, 0.08)',
+                        borderRadius: '12px',
+                        padding: '16px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '10px',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px' }}>
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                            <h4 style={{ fontSize: '16px', fontWeight: '700', color: '#fff', margin: 0 }}>
+                              {enc.enchant_name}
+                            </h4>
+                            {enc.enchant_type && (
+                              <span style={{ background: enc.enchant_type === '접두' ? 'rgba(56, 189, 248, 0.2)' : 'rgba(244, 63, 94, 0.2)', color: enc.enchant_type === '접두' ? '#38bdf8' : '#fb7185', border: `1px solid ${enc.enchant_type === '접두' ? 'rgba(56, 189, 248, 0.3)' : 'rgba(244, 63, 94, 0.3)'}`, padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '600' }}>
+                                {enc.enchant_type}
+                              </span>
+                            )}
+                            {enc.rank && (
+                              <span style={{ background: 'rgba(167, 139, 250, 0.2)', color: '#c4b5fd', border: '1px solid rgba(167, 139, 250, 0.3)', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '600' }}>
+                                {enc.rank}
+                              </span>
+                            )}
+                            {enc.target_equip && (
+                              <span style={{ background: 'rgba(255, 255, 255, 0.06)', color: '#94a3b8', border: '1px solid rgba(255, 255, 255, 0.1)', padding: '2px 8px', borderRadius: '6px', fontSize: '11px' }}>
+                                {enc.target_equip}
+                              </span>
+                            )}
+                          </div>
+                          {enc.effect_summary && (
+                            <div style={{ fontSize: '13px', color: '#e2e8f0', marginTop: '6px', lineHeight: '1.5', background: 'rgba(0, 0, 0, 0.2)', padding: '8px 12px', borderRadius: '6px', borderLeft: '3px solid #a78bfa' }}>
+                              {enc.effect_summary}
+                            </div>
+                          )}
+                          {(() => {
+                            if (!enc.stats_min_max_json) return null;
+                            try {
+                              const statsObj = typeof enc.stats_min_max_json === 'string' ? JSON.parse(enc.stats_min_max_json) : enc.stats_min_max_json;
+                              if (!statsObj || Object.keys(statsObj).length === 0) return null;
+                              return (
+                                <div style={{ marginTop: '8px', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                                  {Object.entries(statsObj).map(([statKey, statVal]) => (
+                                    <span key={statKey} style={{ background: 'rgba(56, 189, 248, 0.08)', border: '1px solid rgba(56, 189, 248, 0.2)', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', color: '#e2e8f0' }}>
+                                      <span style={{ color: '#7dd3fc' }}>{statKey}: </span>
+                                      <span style={{ color: '#34d399', fontWeight: '600' }}>
+                                        {statVal.min !== undefined && statVal.max !== undefined ? (
+                                          statVal.min === statVal.max ? `${statVal.min}${statVal.unit || ''}` : `${statVal.min} ~ ${statVal.max}${statVal.unit || ''}`
+                                        ) : JSON.stringify(statVal)}
+                                      </span>
+                                    </span>
+                                  ))}
+                                </div>
+                              );
+                            } catch (e) {
+                              return null;
+                            }
+                          })()}
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          {enc.avg_price ? (
+                            <span style={{ color: '#38bdf8', fontWeight: '700', fontSize: '13px' }}>
+                              💰 평균 {formatPrice(enc.avg_price)}
+                            </span>
+                          ) : null}
+                          <button
+                            onClick={() => handleDeleteEnchantArchive(enc.id, enc.enchant_name)}
+                            style={{
+                              background: 'rgba(239, 68, 68, 0.15)',
+                              border: 'none',
+                              color: '#f87171',
+                              padding: '4px 8px',
+                              borderRadius: '6px',
+                              fontSize: '11px',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}
+                            title="삭제"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* 인챈트 하단: 평균 거래가, 최근 거래가 & 최신 수집 일자 표시 */}
+                      <div style={{
+                        display: 'flex',
+                        justify: 'space-between',
+                        alignItems: 'center',
+                        marginTop: '8px',
+                        paddingTop: '8px',
+                        borderTop: '1px solid rgba(255, 255, 255, 0.06)',
+                        fontSize: '12px',
+                        flexWrap: 'wrap',
+                        gap: '10px'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <span style={{ color: '#94a3b8' }}>평균 거래가:</span>
+                            <span style={{ color: '#38bdf8', fontWeight: '700' }}>
+                              {formatPrice(enc.avg_price)}
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <span style={{ color: '#94a3b8' }}>최근 거래가:</span>
+                            <span style={{ color: '#f59e0b', fontWeight: '700' }}>
+                              {formatPrice(enc.recent_price)}
+                            </span>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ color: '#94a3b8' }}>최신 수집 일자:</span>
+                          <span style={{ color: '#cbd5e1', fontWeight: '500' }}>
+                            {formatDate(enc.updated_at || enc.created_at)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </>
+          )}
+        </div>
       ) : null}
+
+      {/* Import Skill Modal */}
+      {isImportModalOpen && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0, 0, 0, 0.75)',
+          backdropFilter: 'blur(8px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 2000,
+          padding: '20px'
+        }}>
+          <div style={{
+            background: '#18182c',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            borderRadius: '16px',
+            padding: '24px',
+            width: '100%',
+            maxWidth: '500px',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.4)',
+            color: '#fff',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '16px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', paddingBottom: '12px' }}>
+              <h3 style={{ fontSize: '18px', fontWeight: '700', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                📥 외부 스킬 가져오기 (Import Skill)
+              </h3>
+              <button
+                onClick={() => setIsImportModalOpen(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'rgba(255,255,255,0.6)',
+                  cursor: 'pointer',
+                  padding: '4px'
+                }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleImportSkill} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div>
+                <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: '4px' }}>스킬 식별명 (snake_case) *</span>
+                <input
+                  type="text"
+                  required
+                  value={importSkillForm.name}
+                  onChange={(e) => setImportSkillForm({ ...importSkillForm, name: e.target.value })}
+                  placeholder="e.g. fetch_news_api"
+                  style={{
+                    width: '100%',
+                    background: 'rgba(255,255,255,0.05)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: '8px',
+                    padding: '8px 12px',
+                    color: '#fff',
+                    fontSize: '12px',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+
+              <div>
+                <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: '4px' }}>로컬 파일 업로드 (.py)</span>
+                <input
+                  type="file"
+                  accept=".py"
+                  onChange={handleFileChange}
+                  style={{
+                    width: '100%',
+                    background: 'rgba(255,255,255,0.03)',
+                    border: '1px dashed rgba(255,255,255,0.15)',
+                    borderRadius: '8px',
+                    padding: '10px',
+                    color: '#fff',
+                    fontSize: '12px',
+                    cursor: 'pointer'
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.1)' }}></div>
+                <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase' }}>또는</span>
+                <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.1)' }}></div>
+              </div>
+
+              <div>
+                <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: '4px' }}>GitHub Raw 파일 주소 (URL)</span>
+                <input
+                  type="url"
+                  value={importSkillForm.url}
+                  onChange={(e) => setImportSkillForm({ ...importSkillForm, url: e.target.value })}
+                  placeholder="https://raw.githubusercontent.com/.../skill.py"
+                  style={{
+                    width: '100%',
+                    background: 'rgba(255,255,255,0.05)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: '8px',
+                    padding: '8px 12px',
+                    color: '#fff',
+                    fontSize: '12px',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+
+              <div>
+                <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: '4px' }}>설명 (Docstring 대체)</span>
+                <input
+                  type="text"
+                  value={importSkillForm.description}
+                  onChange={(e) => setImportSkillForm({ ...importSkillForm, description: e.target.value })}
+                  placeholder="스킬의 기능에 대한 짤막한 요약 설명"
+                  style={{
+                    width: '100%',
+                    background: 'rgba(255,255,255,0.05)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: '8px',
+                    padding: '8px 12px',
+                    color: '#fff',
+                    fontSize: '12px',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+
+              {importSkillForm.code && (
+                <div>
+                  <span style={{ fontSize: '11px', color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    ✅ {importSkillForm.code.split('\n').length}줄의 소스 코드가 준비되었습니다.
+                  </span>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                <button
+                  type="submit"
+                  disabled={isImportingSkill || (!importSkillForm.url && !importSkillForm.code)}
+                  style={{
+                    flex: 1,
+                    background: 'var(--accent-gradient)',
+                    border: 'none',
+                    color: '#fff',
+                    padding: '10px 16px',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontSize: '13px',
+                    fontWeight: '600',
+                    opacity: (isImportingSkill || (!importSkillForm.url && !importSkillForm.code)) ? 0.5 : 1
+                  }}
+                >
+                  {isImportingSkill ? '가져오는 중...' : '📥 가져오기 및 검증'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsImportModalOpen(false)}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.08)',
+                    border: 'none',
+                    color: '#fff',
+                    padding: '10px 16px',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontSize: '13px',
+                    fontWeight: '600'
+                  }}
+                >
+                  취소
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
       </div>
 
       {/* Embedded Animations CSS */}
@@ -1836,6 +3985,138 @@ export default function VoiceAssistant() {
           }
         }
       `}</style>
+
+      {/* Nexon Open API Key Modal */}
+      {isApiKeyModalOpen && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.75)',
+          backdropFilter: 'blur(6px)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 9999,
+          padding: '20px'
+        }}>
+          <div style={{
+            background: '#1e1e2e',
+            border: '1px solid rgba(255, 255, 255, 0.15)',
+            borderRadius: '16px',
+            width: '100%',
+            maxWidth: '480px',
+            padding: '24px',
+            boxShadow: '0 20px 40px rgba(0, 0, 0, 0.5)',
+            color: '#fff'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Key size={20} style={{ color: '#38bdf8' }} />
+                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '700' }}>API Key 설정</h3>
+              </div>
+              <button
+                onClick={() => setIsApiKeyModalOpen(false)}
+                style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '4px' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div style={{ marginBottom: '16px', fontSize: '13px', color: '#cbd5e1', lineHeight: '1.5' }}>
+              <p style={{ margin: '0 0 10px 0' }}>
+                넥슨 마비노기 공식 Open API 키를 설정합니다. API Key가 등록되면 실시간 경매장 조회 및 아카이브 수집이 수행됩니다.
+              </p>
+              <div style={{
+                background: hasNexonApiKey ? 'rgba(34, 197, 94, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                border: `1px solid ${hasNexonApiKey ? 'rgba(34, 197, 94, 0.3)' : 'rgba(245, 158, 11, 0.3)'}`,
+                color: hasNexonApiKey ? '#4ade80' : '#fbbf24',
+                padding: '8px 12px',
+                borderRadius: '8px',
+                fontSize: '12px',
+                fontWeight: '600',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}>
+                <span>현재 상태:</span>
+                <span>{hasNexonApiKey ? '✅ API Key 등록됨 (활성화)' : '⚠️ 미등록 (등록 필요)'}</span>
+              </div>
+            </div>
+
+            <form onSubmit={handleSaveNexonApiKey} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>
+                  넥슨 Open API Key (x-nxopen-api-key) *
+                </label>
+                <input
+                  type="password"
+                  required
+                  value={nexonApiKeyInput}
+                  onChange={(e) => setNexonApiKeyInput(e.target.value)}
+                  placeholder={hasNexonApiKey ? '새 키를 입력하거나 기존 키를 변경하세요' : 'live_... 형태의 API Key 입력'}
+                  style={{
+                    width: '100%',
+                    background: 'rgba(255, 255, 255, 0.06)',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    borderRadius: '8px',
+                    padding: '10px 14px',
+                    color: '#fff',
+                    fontSize: '13px',
+                    outline: 'none',
+                    boxSizing: 'border-box'
+                  }}
+                />
+                <a
+                  href="https://openapi.nexon.com"
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ fontSize: '11px', color: '#38bdf8', marginTop: '6px', display: 'inline-block', textDecoration: 'none' }}
+                >
+                  🔗 넥슨 Open API 센터에서 키 발급받기 →
+                </a>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsApiKeyModalOpen(false)}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.1)',
+                    border: 'none',
+                    color: '#ccc',
+                    padding: '8px 16px',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontSize: '13px',
+                    fontWeight: '600'
+                  }}
+                >
+                  취소
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingApiKey}
+                  style={{
+                    background: 'var(--accent-gradient, linear-gradient(135deg, #6366f1, #a855f7))',
+                    border: 'none',
+                    color: '#fff',
+                    padding: '8px 20px',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontSize: '13px',
+                    fontWeight: '700'
+                  }}
+                >
+                  {isSavingApiKey ? '저장 중...' : '저장'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
