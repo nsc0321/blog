@@ -1,7 +1,12 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { ZoomIn, ZoomOut, RotateCcw, Calendar, BarChart2, TrendingUp, Info } from 'lucide-react';
 
-export default function MabiAuctionChart({ itemName, historyData = [], selectedBucket = null, onSelectBucket = null }) {
+export default function MabiAuctionChart({ itemName, historyData = [], selectedBucket = null, onSelectBucket = null, formatGold = null }) {
+  const displayGold = (val) => {
+    if (typeof formatGold === 'function') return formatGold(val);
+    return `${Number(val).toLocaleString()} 골드`;
+  };
+
   // Time unit scale: 'hour', 'day', 'month', 'year' (Default: 'month')
   const [timeScale, setTimeScale] = useState('month');
 
@@ -377,11 +382,11 @@ export default function MabiAuctionChart({ itemName, historyData = [], selectedB
           <div className="tooltip-metrics">
             <div className="m-item">
               <span className="lbl">평균 거래가</span>
-              <span className="val purple">{hoverData.avgPrice.toLocaleString()} 골드</span>
+              <span className="val purple">{displayGold(hoverData.avgPrice)}</span>
             </div>
             <div className="m-item">
               <span className="lbl">최저 / 최고가</span>
-              <span className="val">{hoverData.minPrice.toLocaleString()} ~ {hoverData.maxPrice.toLocaleString()}</span>
+              <span className="val">{displayGold(hoverData.minPrice)} ~ {displayGold(hoverData.maxPrice)}</span>
             </div>
             <div className="m-item">
               <span className="lbl">총 거래량</span>

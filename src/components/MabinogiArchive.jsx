@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Database, Key, Plus, Trash2, Tag, ShieldAlert, Sparkles, Filter, RefreshCw, ChevronRight, ChevronLeft, ExternalLink, Award, User, ShoppingBag, BookOpen, Check, Layers, AlertCircle, FileText, Pin, TrendingUp, X, ArrowRight, ArrowLeft, Info, Zap } from 'lucide-react';
+import { Search, Database, Key, Plus, Trash2, Tag, ShieldAlert, Sparkles, Filter, RefreshCw, ChevronRight, ChevronLeft, ExternalLink, Award, User, ShoppingBag, BookOpen, Check, Layers, AlertCircle, FileText, Pin, TrendingUp, X, ArrowRight, ArrowLeft, Info, Zap, Coins } from 'lucide-react';
 import MabiAuctionChart from './MabiAuctionChart';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
@@ -20,6 +20,40 @@ const MABI_CATEGORIES = [
 
 export default function MabinogiArchive() {
   const [activeTab, setActiveTab] = useState('live_search'); // 'live_search', 'items', 'characters', 'notes'
+
+  // Gold unit display mode state (Korean 만 unit toggle)
+  const [isKoreanGoldUnit, setIsKoreanGoldUnit] = useState(() => {
+    return localStorage.getItem('mabi_gold_format') === 'korean';
+  });
+
+  const toggleGoldFormat = () => {
+    const nextVal = !isKoreanGoldUnit;
+    setIsKoreanGoldUnit(nextVal);
+    localStorage.setItem('mabi_gold_format', nextVal ? 'korean' : 'normal');
+  };
+
+  const formatGold = (amount) => {
+    if (amount === null || amount === undefined || isNaN(amount)) return '시세 정보 없음';
+    const num = Math.floor(Number(amount));
+    if (num <= 0) return '0 골드';
+
+    if (!isKoreanGoldUnit) {
+      return `${num.toLocaleString()} 골드`;
+    }
+
+    if (num < 10000) {
+      return `${num.toLocaleString()} 골드`;
+    }
+
+    const totalMan = Math.floor(num / 10000);
+    const eok = Math.floor(totalMan / 10000);
+    const man = totalMan % 10000;
+
+    if (eok > 0) {
+      return man > 0 ? `${eok.toLocaleString()}억 ${man.toLocaleString()}만 골드` : `${eok.toLocaleString()}억 골드`;
+    }
+    return `${totalMan.toLocaleString()}만 골드`;
+  };
 
   // Nexon Open API Key State
   const [apiKey, setApiKey] = useState(() => {
@@ -946,7 +980,7 @@ export default function MabinogiArchive() {
                     <h3>{selectedItemHistory.item_name}</h3>
                     <div className="detail-price-hero">
                       <span className="lbl">현재 등록 / 단가:</span>
-                      <span className="val">{getItemPrice(selectedItemHistory).toLocaleString()} 골드</span>
+                      <span className="val">{formatGold(getItemPrice(selectedItemHistory))}</span>
                     </div>
                   </div>
                   <button
@@ -962,27 +996,29 @@ export default function MabinogiArchive() {
                   <div className="metric-card">
                     <span className="k">평균 거래가 (동일 명칭)</span>
                     <span className="v purple">
-                      {Math.round(
+                      {formatGold(
                         historyData.reduce((a, b) => a + getItemPrice(b), 0) / (historyData.length || 1)
-                      ).toLocaleString()} 골드
+                      )}
                     </span>
                   </div>
                   <div className="metric-card">
                     <span className="k">최저 거래가</span>
                     <span className="v blue">
-                      {(historyData.length > 0
-                        ? Math.min(...historyData.map(getItemPrice))
-                        : getItemPrice(selectedItemHistory)
-                      ).toLocaleString()} 골드
+                      {formatGold(
+                        historyData.length > 0
+                          ? Math.min(...historyData.map(getItemPrice))
+                          : getItemPrice(selectedItemHistory)
+                      )}
                     </span>
                   </div>
                   <div className="metric-card">
                     <span className="k">최고 거래가</span>
                     <span className="v green">
-                      {(historyData.length > 0
-                        ? Math.max(...historyData.map(getItemPrice))
-                        : getItemPrice(selectedItemHistory)
-                      ).toLocaleString()} 골드
+                      {formatGold(
+                        historyData.length > 0
+                          ? Math.max(...historyData.map(getItemPrice))
+                          : getItemPrice(selectedItemHistory)
+                      )}
                     </span>
                   </div>
                   <div className="metric-card">
@@ -1036,6 +1072,7 @@ export default function MabinogiArchive() {
                   historyData={historyData}
                   selectedBucket={selectedTimeBucket}
                   onSelectBucket={setSelectedTimeBucket}
+                  formatGold={formatGold}
                 />
               </div>
 
@@ -1074,7 +1111,7 @@ export default function MabinogiArchive() {
                         filteredHistoryData.map((h, idx) => (
                           <tr key={idx}>
                             <td className="date-cell">{h.date_auction_buy || h.recorded_at}</td>
-                            <td className="price-text font-bold">{getItemPrice(h).toLocaleString()} 골드</td>
+                            <td className="price-text font-bold">{formatGold(getItemPrice(h))}</td>
                             <td>{h.item_count || 1}개</td>
                             <td>{h.seller || '익명'}</td>
                             <td className="option-text">
@@ -1125,7 +1162,30 @@ export default function MabinogiArchive() {
           </div>
         </div>
 
-        <div className="mabi-api-status-bar">
+        <div className="mabi-api-status-bar" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          <button 
+            className={`gold-unit-toggle-btn ${isKoreanGoldUnit ? 'active' : ''}`}
+            onClick={toggleGoldFormat}
+            title="골드 표기 단위 전환 (전체 골드 ↔ 만 단위 표기)"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '6px 12px',
+              borderRadius: '8px',
+              border: isKoreanGoldUnit ? '1px solid #f59e0b' : '1px solid rgba(255, 255, 255, 0.15)',
+              background: isKoreanGoldUnit ? 'rgba(245, 158, 11, 0.15)' : 'rgba(15, 23, 42, 0.6)',
+              color: isKoreanGoldUnit ? '#fbbf24' : '#e2e8f0',
+              fontSize: '13px',
+              fontWeight: '500',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            <Coins size={14} />
+            <span>{isKoreanGoldUnit ? '만 단위 표기 (1만)' : '전체 골드 표기 (10,000)'}</span>
+          </button>
+
           <div className={`api-mode-badge ${apiKey ? 'live' : 'mock'}`}>
             <Sparkles size={14} />
             <span>{apiKey ? 'API Key 연동 중 (Live)' : '샘플 데이터 모드 (Mock)'}</span>
@@ -1294,7 +1354,7 @@ export default function MabinogiArchive() {
                             <span className="item-title">{item.item_display_name || item.item_name}</span>
                           </td>
                           <td><span className="category-badge">{item.category || selectedCategory}</span></td>
-                          <td className="price-text">{getItemPrice(item).toLocaleString()} 골드</td>
+                          <td className="price-text">{formatGold(getItemPrice(item))}</td>
                           <td>{item.item_count || 1}개</td>
                           <td className="option-text">
                             {getItemOptionsList(item).length > 0 ? (
@@ -1783,13 +1843,16 @@ export default function MabinogiArchive() {
                             </div>
                           )}
 
-                          {formattedDate && (
-                            <div className="card-footer" style={{ marginTop: '12px', paddingTop: '8px', borderTop: '1px solid rgba(255, 255, 255, 0.05)', display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
+                          <div className="card-footer" style={{ marginTop: '12px', paddingTop: '8px', borderTop: '1px solid rgba(255, 255, 255, 0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
+                            <span className="price-lbl" style={{ fontSize: '12px', color: '#fbbf24', fontWeight: '600' }}>
+                              💰 평균: {item.avg_price ? formatGold(item.avg_price) : (item.price_estimate || '평균 가격 미상')}
+                            </span>
+                            {formattedDate && (
                               <span className="collected-date-badge" style={{ fontSize: '11px', color: '#9ca3af', backgroundColor: 'rgba(255, 255, 255, 0.05)', padding: '2px 6px', borderRadius: '4px' }}>
                                 📅 {formattedDate}
                               </span>
-                            </div>
-                          )}
+                            )}
+                          </div>
                         </div>
                       );
                     })}
@@ -2007,7 +2070,9 @@ export default function MabinogiArchive() {
                       </div>
 
                       <div className="card-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
-                        <span className="sample-lbl">실시간 수집 데이터: {enc.sample_count || 1}건</span>
+                        <span className="price-lbl" style={{ fontSize: '12px', color: '#fbbf24', fontWeight: '600' }}>
+                          💰 평균: {enc.avg_price ? formatGold(enc.avg_price) : '평균 가격 미상'}
+                        </span>
                         {formattedDate && (
                           <span className="collected-date-badge" style={{ fontSize: '11px', color: '#9ca3af', backgroundColor: 'rgba(255, 255, 255, 0.05)', padding: '2px 6px', borderRadius: '4px' }}>
                             📅 {formattedDate}
