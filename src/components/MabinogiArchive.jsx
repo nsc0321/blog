@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Database, Key, Plus, Trash2, Tag, ShieldAlert, Sparkles, Filter, RefreshCw, ChevronRight, ChevronLeft, ExternalLink, Award, User, ShoppingBag, BookOpen, Check, Layers, AlertCircle, FileText, Pin, TrendingUp, X, ArrowRight, ArrowLeft, Info, Zap, Coins } from 'lucide-react';
+import { Search, Database, Key, Plus, Trash2, Tag, ShieldAlert, Sparkles, Filter, RefreshCw, ChevronRight, ChevronLeft, ExternalLink, Award, User, ShoppingBag, BookOpen, Check, Layers, AlertCircle, FileText, Pin, TrendingUp, X, ArrowRight, ArrowLeft, Info, Zap, Coins, Lock, LogOut } from 'lucide-react';
 import MabiAuctionChart from './MabiAuctionChart';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
@@ -53,6 +53,60 @@ export default function MabinogiArchive() {
       return man > 0 ? `${eok.toLocaleString()}억 ${man.toLocaleString()}만 골드` : `${eok.toLocaleString()}억 골드`;
     }
     return `${totalMan.toLocaleString()}만 골드`;
+  };
+
+  // User Authentication & Admin Check States
+  const [userToken, setUserToken] = useState(() => localStorage.getItem('mabi_user_token') || '');
+  const [userLoginName, setUserLoginName] = useState(() => localStorage.getItem('mabi_user_name') || '');
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [loginForm, setLoginForm] = useState({ username: '', password: '' });
+  const [loginError, setLoginError] = useState('');
+  const [loginLoading, setLoginLoading] = useState(false);
+
+  const handleLoginSubmit = async (e) => {
+    if (e) e.preventDefault();
+    setLoginError('');
+    setLoginLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/login`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true'
+        },
+        body: JSON.stringify({
+          username: loginForm.username ? loginForm.username.trim() : '',
+          password: loginForm.password
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.token) {
+        const uName = data.username || loginForm.username;
+        setUserToken(data.token);
+        setUserLoginName(uName);
+        localStorage.setItem('mabi_user_token', data.token);
+        localStorage.setItem('mabi_user_name', uName);
+        setShowLoginModal(false);
+        setLoginForm({ username: '', password: '' });
+      } else {
+        setLoginError(data.detail || '로그인에 실패했습니다. 아이디/비밀번호를 확인하세요.');
+      }
+    } catch (err) {
+      setLoginError('서버 연결 중 오류가 발생했습니다.');
+    } finally {
+      setLoginLoading(false);
+    }
+  };
+
+  const handleLogout = () => {
+    setUserToken('');
+    setUserLoginName('');
+    localStorage.removeItem('mabi_user_token');
+    localStorage.removeItem('mabi_user_name');
+  };
+
+  const isAdminLoggedIn = () => {
+    return Boolean(userToken) && (userLoginName === 'admin' || userLoginName.toLowerCase().includes('admin'));
   };
 
   // Nexon Open API Key State
@@ -1194,6 +1248,22 @@ export default function MabinogiArchive() {
             <Key size={14} />
             <span>API Key 설정</span>
           </button>
+
+          {userToken ? (
+            <div className="user-login-status-badge" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '8px', background: 'rgba(59, 130, 246, 0.15)', border: '1px solid rgba(59, 130, 246, 0.3)', color: '#60a5fa', fontSize: '13px' }}>
+              <User size={14} />
+              <span><strong>{userLoginName}</strong> {isAdminLoggedIn() ? '🔑 (어드민)' : '(일반)'}</span>
+              <button className="logout-mini-btn" onClick={handleLogout} style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', fontSize: '12px', marginLeft: '4px', textDecoration: 'underline', display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
+                <LogOut size={12} />
+                로그아웃
+              </button>
+            </div>
+          ) : (
+            <button className="login-btn" onClick={() => setShowLoginModal(true)} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(59, 130, 246, 0.3)', background: 'rgba(37, 99, 235, 0.2)', color: '#93c5fd', fontSize: '13px', cursor: 'pointer' }}>
+              <User size={14} />
+              <span>로그인</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -1761,13 +1831,6 @@ export default function MabinogiArchive() {
                     )}
                   </div>
                 </div>
-
-                <div className="toolbar-right-group" style={{ display: 'flex', gap: '8px' }}>
-                  <button className="reset-archive-btn" onClick={openItemResetModal}>
-                    <Trash2 size={16} />
-                    <span>아이템 초기화</span>
-                  </button>
-                </div>
               </div>
 
               {itemLoading ? (
@@ -1991,13 +2054,6 @@ export default function MabinogiArchive() {
                 )}
               </div>
             </div>
-
-            <div className="toolbar-right-group" style={{ display: 'flex', gap: '8px' }}>
-              <button className="reset-archive-btn" onClick={openEnchantResetModal}>
-                <Trash2 size={16} />
-                <span>인챈트 초기화</span>
-              </button>
-            </div>
           </div>
 
           {/* Enchant Master Cards Grid */}
@@ -2169,187 +2225,294 @@ export default function MabinogiArchive() {
       {/* TAB 4: 수집 관리 (Batch Scheduler & Collection Monitor) */}
       {activeTab === 'management' && (
         <div className="tab-content management-tab">
-          <div className="archive-section-header">
-            <div>
-              <h3>⚙️ 백그라운드 자동 수집 & 수집 관리</h3>
-              <p className="sub">매시간 백그라운드 경매장 데이터 전체 조회 배치 제어 및 신규/업데이트 수집 이력 모니터링</p>
-            </div>
-            <div className="header-actions">
-              <button 
-                className="trigger-batch-btn" 
-                onClick={handleTriggerBatch} 
-                disabled={batchTriggering || batchConfig?.is_running}
-              >
-                <RefreshCw size={16} className={batchTriggering || batchConfig?.is_running ? "spin-icon" : ""} />
-                <span>{batchTriggering || batchConfig?.is_running ? '백그라운드 수집 실행 중...' : '즉시 수집 실행'}</span>
-              </button>
-              <button className="refresh-logs-btn" onClick={() => { fetchBatchConfig(); fetchBatchLogs(batchLogsPage); }}>
-                <RefreshCw size={16} />
-                <span>새로고침</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Config Controls & Status Box */}
-          <div className="batch-status-panel">
-            <div className="status-card-main">
-              <div className="status-badge-row">
-                <span className={`batch-status-pill ${batchConfig?.is_enabled ? 'enabled' : 'disabled'}`}>
-                  {batchConfig?.is_enabled ? '● 자동 수집 활성화' : '○ 수집 일시 정지'}
-                </span>
-                {batchConfig?.is_running && (
-                  <span className="batch-status-pill running">
-                    ⚡ 수집 작업 실행 중...
-                  </span>
-                )}
+          {!isAdminLoggedIn() ? (
+            /* Admin Protection Lock Panel */
+            <div className="admin-lock-panel" style={{ textAlign: 'center', padding: '60px 20px', background: 'rgba(15, 23, 42, 0.6)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '16px', maxWidth: '480px', margin: '40px auto' }}>
+              <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px auto', color: '#f87171' }}>
+                <Lock size={28} />
               </div>
-              <div className="schedule-info-group">
-                <div className="info-item">
-                  <span className="lbl">수집 주기 설정</span>
-                  <select 
-                    className="mabi-select interval-select"
-                    value={batchConfig?.interval_minutes || 60}
-                    onChange={e => handleUpdateBatchConfig(batchConfig?.is_enabled ?? true, parseInt(e.target.value), batchConfig?.item_target_count || 500)}
-                  >
-                    <option value={30}>30분 마다 수집</option>
-                    <option value={60}>60분 (매시간 수집 - 기본)</option>
-                    <option value={120}>120분 (2시간 마다 수집)</option>
-                    <option value={240}>240분 (4시간 마다 수집)</option>
-                  </select>
+              <h3 style={{ color: '#ffffff', marginBottom: '8px', fontSize: '20px' }}>🔒 어드민 (Admin) 로그인 필요</h3>
+              <p style={{ color: '#9ca3af', fontSize: '14px', lineHeight: '1.5', marginBottom: '24px' }}>
+                백그라운드 수집 관리, 수집 배치 설정 및 DB 데이터 초기화 기능은 <strong>어드민 계정 로그인</strong> 후 이용 가능합니다.
+              </p>
+              <form onSubmit={handleLoginSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px', textAlign: 'left' }}>
+                <div>
+                  <label style={{ fontSize: '12px', color: '#9ca3af', display: 'block', marginBottom: '4px' }}>어드민 계정 아이디</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="admin"
+                    value={loginForm.username}
+                    onChange={e => setLoginForm({ ...loginForm, username: e.target.value })}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.15)', background: '#0f172a', color: '#ffffff', fontSize: '14px', outline: 'none' }}
+                  />
                 </div>
-                <div className="info-item">
-                  <span className="lbl">수집 분량 설정 (1page = 500건 / max 5page)</span>
-                  <select 
-                    className="mabi-select interval-select"
-                    value={batchConfig?.max_pages || Math.ceil((batchConfig?.item_target_count || 500) / 500)}
-                    onChange={e => handleUpdateBatchConfig(batchConfig?.is_enabled ?? true, batchConfig?.interval_minutes || 60, parseInt(e.target.value) * 500)}
-                  >
-                    <option value={1}>1 page (500건 수집 - 기본)</option>
-                    <option value={2}>2 page (1,000건 수집)</option>
-                    <option value={3}>3 page (1,500건 수집)</option>
-                    <option value={4}>4 page (2,000건 수집)</option>
-                    <option value={5}>5 page (2,500건 수집 - 최대)</option>
-                  </select>
+                <div>
+                  <label style={{ fontSize: '12px', color: '#9ca3af', display: 'block', marginBottom: '4px' }}>비밀번호</label>
+                  <input
+                    type="password"
+                    required
+                    placeholder="admin1234"
+                    value={loginForm.password}
+                    onChange={e => setLoginForm({ ...loginForm, password: e.target.value })}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.15)', background: '#0f172a', color: '#ffffff', fontSize: '14px', outline: 'none' }}
+                  />
                 </div>
-                <div className="info-item">
-                  <span className="lbl">자동 수집 On/Off</span>
+                {loginError && (
+                  <div style={{ color: '#ef4444', fontSize: '13px', marginTop: '4px' }}>⚠️ {loginError}</div>
+                )}
+                <button
+                  type="submit"
+                  disabled={loginLoading}
+                  style={{ width: '100%', marginTop: '8px', padding: '10px', borderRadius: '8px', background: '#2563eb', color: '#ffffff', border: 'none', fontWeight: 'bold', fontSize: '14px', cursor: 'pointer' }}
+                >
+                  {loginLoading ? '로그인 처리 중...' : '어드민 계정으로 로그인'}
+                </button>
+              </form>
+            </div>
+          ) : (
+            <>
+              <div className="archive-section-header">
+                <div>
+                  <h3>⚙️ 백그라운드 자동 수집 & 수집 관리</h3>
+                  <p className="sub">매시간 백그라운드 경매장 데이터 전체 조회 배치 제어 및 신규/업데이트 수집 이력 모니터링</p>
+                </div>
+                <div className="header-actions">
                   <button 
-                    className={`toggle-switch-btn ${batchConfig?.is_enabled ? 'active' : ''}`}
-                    onClick={() => handleUpdateBatchConfig(!batchConfig?.is_enabled, batchConfig?.interval_minutes || 60)}
+                    className="trigger-batch-btn" 
+                    onClick={handleTriggerBatch} 
+                    disabled={batchTriggering || batchConfig?.is_running}
                   >
-                    {batchConfig?.is_enabled ? '수집 중지하기' : '자동 수집 시작하기'}
+                    <RefreshCw size={16} className={batchTriggering || batchConfig?.is_running ? "spin-icon" : ""} />
+                    <span>{batchTriggering || batchConfig?.is_running ? '백그라운드 수집 실행 중...' : '즉시 수집 실행'}</span>
+                  </button>
+                  <button className="refresh-logs-btn" onClick={() => { fetchBatchConfig(); fetchBatchLogs(batchLogsPage); }}>
+                    <RefreshCw size={16} />
+                    <span>새로고침</span>
                   </button>
                 </div>
-                <div className="info-item">
-                  <span className="lbl">최근 실행 시각</span>
-                  <span className="val">{batchConfig?.last_run_at ? new Date(batchConfig.last_run_at).toLocaleString() : '실행 이력 없음'}</span>
+              </div>
+
+              {/* Config Controls & Status Box */}
+              <div className="batch-status-panel">
+                <div className="status-card-main">
+                  <div className="status-badge-row">
+                    <span className={`batch-status-pill ${batchConfig?.is_enabled ? 'enabled' : 'disabled'}`}>
+                      {batchConfig?.is_enabled ? '● 자동 수집 활성화' : '○ 수집 일시 정지'}
+                    </span>
+                    {batchConfig?.is_running && (
+                      <span className="batch-status-pill running">
+                        ⚡ 수집 작업 실행 중...
+                      </span>
+                    )}
+                  </div>
+                  <div className="schedule-info-group">
+                    <div className="info-item">
+                      <span className="lbl">수집 주기 설정</span>
+                      <select 
+                        className="mabi-select interval-select"
+                        value={batchConfig?.interval_minutes || 60}
+                        onChange={e => handleUpdateBatchConfig(batchConfig?.is_enabled ?? true, parseInt(e.target.value), batchConfig?.item_target_count || 500)}
+                      >
+                        <option value={30}>30분 마다 수집</option>
+                        <option value={60}>60분 (매시간 수집 - 기본)</option>
+                        <option value={120}>120분 (2시간 마다 수집)</option>
+                        <option value={240}>240분 (4시간 마다 수집)</option>
+                      </select>
+                    </div>
+                    <div className="info-item">
+                      <span className="lbl">수집 분량 설정 (1page = 500건 / max 5page)</span>
+                      <select 
+                        className="mabi-select interval-select"
+                        value={batchConfig?.max_pages || Math.ceil((batchConfig?.item_target_count || 500) / 500)}
+                        onChange={e => handleUpdateBatchConfig(batchConfig?.is_enabled ?? true, batchConfig?.interval_minutes || 60, parseInt(e.target.value) * 500)}
+                      >
+                        <option value={1}>1 page (500건 수집 - 기본)</option>
+                        <option value={2}>2 page (1,000건 수집)</option>
+                        <option value={3}>3 page (1,500건 수집)</option>
+                        <option value={4}>4 page (2,000건 수집)</option>
+                        <option value={5}>5 page (2,500건 수집 - 최대)</option>
+                      </select>
+                    </div>
+                    <div className="info-item">
+                      <span className="lbl">자동 수집 On/Off</span>
+                      <button 
+                        className={`toggle-switch-btn ${batchConfig?.is_enabled ? 'active' : ''}`}
+                        onClick={() => handleUpdateBatchConfig(!batchConfig?.is_enabled, batchConfig?.interval_minutes || 60)}
+                      >
+                        {batchConfig?.is_enabled ? '수집 중지하기' : '자동 수집 시작하기'}
+                      </button>
+                    </div>
+                    <div className="info-item">
+                      <span className="lbl">최근 실행 시각</span>
+                      <span className="val">{batchConfig?.last_run_at ? new Date(batchConfig.last_run_at).toLocaleString() : '실행 이력 없음'}</span>
+                    </div>
+                    <div className="info-item">
+                      <span className="lbl">다음 예정 수집 시각</span>
+                      <span className="val highlight">{batchConfig?.next_run_at ? new Date(batchConfig.next_run_at).toLocaleString() : '-'}</span>
+                    </div>
+                  </div>
                 </div>
-                <div className="info-item">
-                  <span className="lbl">다음 예정 수집 시각</span>
-                  <span className="val highlight">{batchConfig?.next_run_at ? new Date(batchConfig.next_run_at).toLocaleString() : '-'}</span>
+
+                {/* Totals Summary Cards */}
+                <div className="batch-totals-grid">
+                  <div className="total-stat-card">
+                    <span className="stat-num">{batchConfig?.totals?.total_batch_runs || 0}회</span>
+                    <span className="stat-label">총 배치 수집 실행</span>
+                  </div>
+                  <div className="total-stat-card green">
+                    <span className="stat-num">+{batchConfig?.totals?.total_new_items || 0}개</span>
+                    <span className="stat-label">신규 등록 아이템</span>
+                  </div>
+                  <div className="total-stat-card blue">
+                    <span className="stat-num">{batchConfig?.totals?.total_updated_items || 0}개</span>
+                    <span className="stat-label">옵션 업데이트 아이템</span>
+                  </div>
+                  <div className="total-stat-card purple">
+                    <span className="stat-num">+{batchConfig?.totals?.total_new_enchants || 0}개</span>
+                    <span className="stat-label">신규 등록 인챈트</span>
+                  </div>
+                  <div className="total-stat-card cyan">
+                    <span className="stat-num">{batchConfig?.totals?.total_updated_enchants || 0}개</span>
+                    <span className="stat-label">인챈트 옵션 업데이트</span>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Totals Summary Cards */}
-            <div className="batch-totals-grid">
-              <div className="total-stat-card">
-                <span className="stat-num">{batchConfig?.totals?.total_batch_runs || 0}회</span>
-                <span className="stat-label">총 배치 수집 실행</span>
-              </div>
-              <div className="total-stat-card green">
-                <span className="stat-num">+{batchConfig?.totals?.total_new_items || 0}개</span>
-                <span className="stat-label">신규 등록 아이템</span>
-              </div>
-              <div className="total-stat-card blue">
-                <span className="stat-num">{batchConfig?.totals?.total_updated_items || 0}개</span>
-                <span className="stat-label">옵션 업데이트 아이템</span>
-              </div>
-              <div className="total-stat-card purple">
-                <span className="stat-num">+{batchConfig?.totals?.total_new_enchants || 0}개</span>
-                <span className="stat-label">신규 등록 인챈트</span>
-              </div>
-              <div className="total-stat-card cyan">
-                <span className="stat-num">{batchConfig?.totals?.total_updated_enchants || 0}개</span>
-                <span className="stat-label">인챈트 옵션 업데이트</span>
-              </div>
-            </div>
-          </div>
+              {/* Batch History Table */}
+              <div className="batch-history-section">
+                <h4>📋 회차별 데이터 수집 실행 이력 ({batchLogs.length}건)</h4>
+                <div className="table-responsive">
+                  <table className="mabi-table compact">
+                    <thead>
+                      <tr>
+                        <th>ID</th>
+                        <th>실행 유형</th>
+                        <th>상태</th>
+                        <th>시작 시각</th>
+                        <th>소요 시간</th>
+                        <th>처리 개수</th>
+                        <th>신규 아이템</th>
+                        <th>업데이트 아이템</th>
+                        <th>신규 인챈트</th>
+                        <th>업데이트 인챈트</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {batchLogs.map(log => (
+                        <tr key={log.id}>
+                          <td>#{log.id}</td>
+                          <td>
+                            <span className={`job-type-badge ${log.job_type}`}>
+                              {log.job_type === 'manual_trigger' ? '수동 실행' : '자동 주기 배치'}
+                            </span>
+                          </td>
+                          <td>
+                            <span className={`log-status-pill ${log.status}`}>
+                              {log.status === 'completed' ? '성공' : (log.status === 'running' ? '진행중' : '실패')}
+                            </span>
+                          </td>
+                          <td>{log.started_at ? new Date(log.started_at).toLocaleString() : '-'}</td>
+                          <td>{log.duration_seconds ? `${log.duration_seconds.toFixed(1)}초` : '-'}</td>
+                          <td><strong>{log.total_items_processed || 0}개</strong></td>
+                          <td><span className="text-green font-bold">+{log.new_items_count || 0}개</span></td>
+                          <td><span className="text-blue">{log.updated_items_count || 0}개</span></td>
+                          <td><span className="text-purple font-bold">+{log.new_enchants_count || 0}개</span></td>
+                          <td><span className="text-cyan">{log.updated_enchants_count || 0}개</span></td>
+                        </tr>
+                      ))}
+                      {batchLogs.length === 0 && (
+                        <tr>
+                          <td colSpan="10" className="text-center py-6">
+                            {batchLoading ? '수집 이력을 불러오는 중...' : '저장된 배치 수집 이력이 없습니다.'}
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
 
-          {/* Batch History Table */}
-          <div className="batch-history-section">
-            <h4>📋 회차별 데이터 수집 실행 이력 ({batchLogs.length}건)</h4>
-            <div className="table-responsive">
-              <table className="mabi-table compact">
-                <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>실행 유형</th>
-                    <th>상태</th>
-                    <th>시작 시각</th>
-                    <th>소요 시간</th>
-                    <th>처리 개수</th>
-                    <th>신규 아이템</th>
-                    <th>업데이트 아이템</th>
-                    <th>신규 인챈트</th>
-                    <th>업데이트 인챈트</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {batchLogs.map(log => (
-                    <tr key={log.id}>
-                      <td>#{log.id}</td>
-                      <td>
-                        <span className={`job-type-badge ${log.job_type}`}>
-                          {log.job_type === 'manual_trigger' ? '수동 실행' : '자동 주기 배치'}
-                        </span>
-                      </td>
-                      <td>
-                        <span className={`log-status-pill ${log.status}`}>
-                          {log.status === 'completed' ? '성공' : (log.status === 'running' ? '진행중' : '실패')}
-                        </span>
-                      </td>
-                      <td>{log.started_at ? new Date(log.started_at).toLocaleString() : '-'}</td>
-                      <td>{log.duration_seconds ? `${log.duration_seconds.toFixed(1)}초` : '-'}</td>
-                      <td><strong>{log.total_items_processed || 0}개</strong></td>
-                      <td><span className="text-green font-bold">+{log.new_items_count || 0}개</span></td>
-                      <td><span className="text-blue">{log.updated_items_count || 0}개</span></td>
-                      <td><span className="text-purple font-bold">+{log.new_enchants_count || 0}개</span></td>
-                      <td><span className="text-cyan">{log.updated_enchants_count || 0}개</span></td>
-                    </tr>
-                  ))}
-                  {batchLogs.length === 0 && (
-                    <tr>
-                      <td colSpan="10" className="text-center py-6">
-                        {batchLoading ? '수집 이력을 불러오는 중...' : '저장된 배치 수집 이력이 없습니다.'}
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Pagination Controls */}
-            {batchLogsTotalPages > 1 && (
-              <div className="pagination-bar">
-                <button 
-                  className="page-btn" 
-                  disabled={batchLogsPage <= 1}
-                  onClick={() => fetchBatchLogs(batchLogsPage - 1)}
-                >
-                  <ArrowLeft size={14} /> 이전
-                </button>
-                <span className="page-info">{batchLogsPage} / {batchLogsTotalPages} 페이지</span>
-                <button 
-                  className="page-btn" 
-                  disabled={batchLogsPage >= batchLogsTotalPages}
-                  onClick={() => fetchBatchLogs(batchLogsPage + 1)}
-                >
-                  다음 <ArrowRight size={14} />
-                </button>
+                {/* Pagination Controls */}
+                {batchLogsTotalPages > 1 && (
+                  <div className="pagination-bar">
+                    <button 
+                      className="page-btn" 
+                      disabled={batchLogsPage <= 1}
+                      onClick={() => fetchBatchLogs(batchLogsPage - 1)}
+                    >
+                      <ArrowLeft size={14} /> 이전
+                    </button>
+                    <span className="page-info">{batchLogsPage} / {batchLogsTotalPages} 페이지</span>
+                    <button 
+                      className="page-btn" 
+                      disabled={batchLogsPage >= batchLogsTotalPages}
+                      onClick={() => fetchBatchLogs(batchLogsPage + 1)}
+                    >
+                      다음 <ArrowRight size={14} />
+                    </button>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+
+              {/* DB Data Reset Section (Moved to Management Page) */}
+              <div className="batch-status-panel" style={{ marginTop: '24px' }}>
+                <div className="archive-section-header" style={{ marginBottom: '16px' }}>
+                  <div>
+                    <h3 style={{ fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Trash2 size={18} style={{ color: '#ef4444' }} />
+                      DB 아카이브 데이터 전체 초기화 관리
+                    </h3>
+                    <p className="sub" style={{ marginTop: '4px' }}>
+                      수집된 아이템 아카이브 및 인챈트 도감 DB 데이터를 영구 삭제합니다. 관리자 비밀번호 확인 절차가 필요합니다.
+                    </p>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                  <button
+                    className="reset-archive-btn"
+                    onClick={openItemResetModal}
+                    style={{
+                      background: 'rgba(239, 68, 68, 0.15)',
+                      border: '1px solid rgba(239, 68, 68, 0.4)',
+                      color: '#f87171',
+                      padding: '10px 18px',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      fontWeight: 'bold',
+                      fontSize: '13px'
+                    }}
+                  >
+                    <Trash2 size={16} />
+                    <span>아이템 아카이브 데이터 전체 초기화</span>
+                  </button>
+
+                  <button
+                    className="reset-archive-btn"
+                    onClick={openEnchantResetModal}
+                    style={{
+                      background: 'rgba(239, 68, 68, 0.15)',
+                      border: '1px solid rgba(239, 68, 68, 0.4)',
+                      color: '#f87171',
+                      padding: '10px 18px',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      fontWeight: 'bold',
+                      fontSize: '13px'
+                    }}
+                  >
+                    <Trash2 size={16} />
+                    <span>인챈트 도감 데이터 전체 초기화</span>
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -2518,6 +2681,67 @@ export default function MabinogiArchive() {
                 <button type="button" className="cancel-btn" onClick={() => setShowResetPasswordModal(false)}>취소</button>
                 <button type="submit" className="save-btn reset-confirm-btn" style={{ background: '#dc2626', color: '#fff' }}>
                   초기화 실행
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: 로그인 모달 */}
+      {showLoginModal && (
+        <div className="modal-overlay" onClick={() => setShowLoginModal(false)}>
+          <div className="modal-container" onClick={e => e.stopPropagation()} style={{ maxWidth: '420px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <User size={20} style={{ color: '#3b82f6' }} />
+                로그인
+              </h3>
+              <button onClick={() => setShowLoginModal(false)} style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer' }}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleLoginSubmit}>
+              <div className="form-group">
+                <label>아이디 (Username)</label>
+                <input
+                  type="text"
+                  required
+                  autoFocus
+                  placeholder="어드민: admin"
+                  value={loginForm.username}
+                  onChange={e => {
+                    setLoginForm({ ...loginForm, username: e.target.value });
+                    if (loginError) setLoginError('');
+                  }}
+                />
+              </div>
+
+              <div className="form-group">
+                <label>비밀번호 (Password)</label>
+                <input
+                  type="password"
+                  required
+                  placeholder="어드민: admin1234"
+                  value={loginForm.password}
+                  onChange={e => {
+                    setLoginForm({ ...loginForm, password: e.target.value });
+                    if (loginError) setLoginError('');
+                  }}
+                />
+              </div>
+
+              {loginError && (
+                <div style={{ color: '#ef4444', fontSize: '13px', marginTop: '8px', fontWeight: '600' }}>
+                  ⚠️ {loginError}
+                </div>
+              )}
+
+              <div className="modal-actions" style={{ marginTop: '20px' }}>
+                <button type="button" className="cancel-btn" onClick={() => setShowLoginModal(false)}>취소</button>
+                <button type="submit" className="save-btn" disabled={loginLoading}>
+                  {loginLoading ? '로그인 중...' : '로그인'}
                 </button>
               </div>
             </form>
