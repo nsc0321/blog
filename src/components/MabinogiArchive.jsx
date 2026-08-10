@@ -106,7 +106,8 @@ export default function MabinogiArchive() {
   };
 
   const isAdminLoggedIn = () => {
-    return Boolean(userToken) && (userLoginName === 'admin' || userLoginName.toLowerCase().includes('admin'));
+    const uLower = (userLoginName || '').toLowerCase();
+    return Boolean(userToken) && (userLoginName === 'Yuha69' || uLower === 'yuha69' || uLower === 'admin');
   };
 
   // Nexon Open API Key State
@@ -1239,16 +1240,6 @@ export default function MabinogiArchive() {
             <Coins size={14} />
             <span>{isKoreanGoldUnit ? '만 단위 표기 (1만)' : '전체 골드 표기 (10,000)'}</span>
           </button>
-
-          <div className={`api-mode-badge ${apiKey ? 'live' : 'mock'}`}>
-            <Sparkles size={14} />
-            <span>{apiKey ? 'API Key 연동 중 (Live)' : '샘플 데이터 모드 (Mock)'}</span>
-          </div>
-          <button className="api-key-btn" onClick={() => setShowKeyInput(!showKeyInput)}>
-            <Key size={14} />
-            <span>API Key 설정</span>
-          </button>
-
           {userToken ? (
             <div className="user-login-status-badge" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '8px', background: 'rgba(59, 130, 246, 0.15)', border: '1px solid rgba(59, 130, 246, 0.3)', color: '#60a5fa', fontSize: '13px' }}>
               <User size={14} />
@@ -1266,35 +1257,6 @@ export default function MabinogiArchive() {
           )}
         </div>
       </div>
-
-      {/* API Key Modal / Form */}
-      {showKeyInput && (
-        <div className="api-key-modal-overlay" onClick={() => setShowKeyInput(false)}>
-          <div className="api-key-modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <Key size={20} />
-              <h3>Nexon Open API Key 설정</h3>
-            </div>
-            <form onSubmit={handleSaveApiKey}>
-              <p className="modal-info">
-                넥슨 개발자 센터 (NEXON Open API Center)에서 발급받은 Mabinogi API Key를 입력하세요.
-                미입력 시 샘플 데이터로 동작합니다.
-              </p>
-              <input
-                type="password"
-                className="api-key-input"
-                placeholder="test_... 또는 live_..."
-                value={apiKey}
-                onChange={e => setApiKey(e.target.value)}
-              />
-              <div className="modal-actions">
-                <button type="button" className="cancel-btn" onClick={() => setShowKeyInput(false)}>취소</button>
-                <button type="submit" className="save-btn">저장 및 연동</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* Primary Sub-Tabs */}
       <div className="mabi-tabs">
@@ -2226,7 +2188,6 @@ export default function MabinogiArchive() {
       {activeTab === 'management' && (
         <div className="tab-content management-tab">
           {!isAdminLoggedIn() ? (
-            /* Admin Protection Lock Panel */
             <div className="admin-lock-panel" style={{ textAlign: 'center', padding: '60px 20px', background: 'rgba(15, 23, 42, 0.6)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '16px', maxWidth: '480px', margin: '40px auto' }}>
               <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px auto', color: '#f87171' }}>
                 <Lock size={28} />
@@ -2241,7 +2202,7 @@ export default function MabinogiArchive() {
                   <input
                     type="text"
                     required
-                    placeholder="admin"
+                    placeholder="Yuha69"
                     value={loginForm.username}
                     onChange={e => setLoginForm({ ...loginForm, username: e.target.value })}
                     style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.15)', background: '#0f172a', color: '#ffffff', fontSize: '14px', outline: 'none' }}
@@ -2252,7 +2213,7 @@ export default function MabinogiArchive() {
                   <input
                     type="password"
                     required
-                    placeholder="admin1234"
+                    placeholder="tjdckd1!"
                     value={loginForm.password}
                     onChange={e => setLoginForm({ ...loginForm, password: e.target.value })}
                     style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.15)', background: '#0f172a', color: '#ffffff', fontSize: '14px', outline: 'none' }}
@@ -2450,6 +2411,64 @@ export default function MabinogiArchive() {
                     >
                       다음 <ArrowRight size={14} />
                     </button>
+                  </div>
+                )}
+              </div>
+
+              {/* API Key Management Section (Moved to Management Page) */}
+              <div className="batch-status-panel" style={{ marginTop: '24px' }}>
+                <div className="archive-section-header" style={{ marginBottom: '16px' }}>
+                  <div>
+                    <h3 style={{ fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Key size={18} style={{ color: '#fbbf24' }} />
+                      Nexon Open API Key 연동 관리
+                    </h3>
+                    <p className="sub" style={{ marginTop: '4px' }}>
+                      실시간 경매장 시세 조회 및 데이터 자동 수집에 사용할 넥슨 오픈 API 키(NEXON Open API Key)를 등록 및 설정합니다.
+                    </p>
+                  </div>
+                  <button
+                    className="api-key-btn"
+                    onClick={() => setShowKeyInput(!showKeyInput)}
+                    style={{
+                      background: 'rgba(245, 158, 11, 0.15)',
+                      border: '1px solid rgba(245, 158, 11, 0.4)',
+                      color: '#fbbf24',
+                      padding: '8px 16px',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      fontWeight: 'bold',
+                      fontSize: '13px'
+                    }}
+                  >
+                    <Key size={16} />
+                    <span>{showKeyInput ? '설정 닫기' : 'API Key 변경 및 설정'}</span>
+                  </button>
+                </div>
+
+                {showKeyInput && (
+                  <div className="api-key-panel" style={{ background: 'rgba(15, 23, 42, 0.6)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.1)', marginTop: '12px' }}>
+                    <p style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '12px' }}>
+                      넥슨 개발자 센터(developers.nexon.com)에서 발급받은 Mabinogi Open API Key를 입력하세요.
+                    </p>
+                    <form onSubmit={handleSaveApiKey} style={{ display: 'flex', gap: '8px' }}>
+                      <input
+                        type="password"
+                        placeholder="test_50f21448675d40d..."
+                        value={apiKey}
+                        onChange={e => setApiKey(e.target.value)}
+                        style={{ flex: 1, padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.15)', background: '#0f172a', color: '#ffffff', fontSize: '13px', outline: 'none' }}
+                      />
+                      <button
+                        type="submit"
+                        style={{ padding: '10px 20px', borderRadius: '8px', background: '#f59e0b', color: '#000000', border: 'none', fontWeight: 'bold', fontSize: '13px', cursor: 'pointer' }}
+                      >
+                        저장 및 연동
+                      </button>
+                    </form>
                   </div>
                 )}
               </div>
@@ -2709,7 +2728,7 @@ export default function MabinogiArchive() {
                   type="text"
                   required
                   autoFocus
-                  placeholder="어드민: admin"
+                  placeholder="어드민: Yuha69"
                   value={loginForm.username}
                   onChange={e => {
                     setLoginForm({ ...loginForm, username: e.target.value });
@@ -2723,7 +2742,7 @@ export default function MabinogiArchive() {
                 <input
                   type="password"
                   required
-                  placeholder="어드민: admin1234"
+                  placeholder="어드민: tjdckd1!"
                   value={loginForm.password}
                   onChange={e => {
                     setLoginForm({ ...loginForm, password: e.target.value });
