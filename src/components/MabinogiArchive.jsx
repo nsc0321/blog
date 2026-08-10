@@ -2202,7 +2202,6 @@ export default function MabinogiArchive() {
                   <input
                     type="text"
                     required
-                    placeholder="Yuha69"
                     value={loginForm.username}
                     onChange={e => setLoginForm({ ...loginForm, username: e.target.value })}
                     style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.15)', background: '#0f172a', color: '#ffffff', fontSize: '14px', outline: 'none' }}
@@ -2213,7 +2212,6 @@ export default function MabinogiArchive() {
                   <input
                     type="password"
                     required
-                    placeholder="tjdckd1!"
                     value={loginForm.password}
                     onChange={e => setLoginForm({ ...loginForm, password: e.target.value })}
                     style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.15)', background: '#0f172a', color: '#ffffff', fontSize: '14px', outline: 'none' }}
@@ -2728,7 +2726,6 @@ export default function MabinogiArchive() {
                   type="text"
                   required
                   autoFocus
-                  placeholder="어드민: Yuha69"
                   value={loginForm.username}
                   onChange={e => {
                     setLoginForm({ ...loginForm, username: e.target.value });
@@ -2742,7 +2739,6 @@ export default function MabinogiArchive() {
                 <input
                   type="password"
                   required
-                  placeholder="어드민: tjdckd1!"
                   value={loginForm.password}
                   onChange={e => {
                     setLoginForm({ ...loginForm, password: e.target.value });
