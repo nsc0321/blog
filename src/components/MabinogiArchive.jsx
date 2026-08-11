@@ -2113,7 +2113,7 @@ export default function MabinogiArchive() {
 
                       <div className="card-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
                         <span className="price-lbl" style={{ fontSize: '12px', color: '#fbbf24', fontWeight: '600' }}>
-                          💰 평균: {enc.avg_price ? formatGold(enc.avg_price) : '평균 가격 미상'}
+                          💰 평균: {enc.avg_price ? formatGold(enc.avg_price) : (enc.price_estimate || '평균 가격 미상')}
                         </span>
                         {formattedDate && (
                           <span className="collected-date-badge" style={{ fontSize: '11px', color: '#9ca3af', backgroundColor: 'rgba(255, 255, 255, 0.05)', padding: '2px 6px', borderRadius: '4px' }}>
