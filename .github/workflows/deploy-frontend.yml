@@ -24,7 +24,7 @@ jobs:
       - name: Install & Build
         run: |
           npm install
-          echo "VITE_API_URL=https://ragweed-blighted-skylight.ngrok-free.dev" > .env.production
+          echo "VITE_API_URL=https://missouri-sodium-marc-arrivals.trycloudflare.com" > .env.production
           npm run build
 
       - name: Add 404 handler for SPA routing
