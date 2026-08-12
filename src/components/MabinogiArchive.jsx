@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Search, Database, Key, Plus, Trash2, Tag, ShieldAlert, Sparkles, Filter, RefreshCw, ChevronRight, ChevronLeft, ExternalLink, Award, User, ShoppingBag, BookOpen, Check, Layers, AlertCircle, FileText, Pin, TrendingUp, X, ArrowRight, ArrowLeft, Info, Zap, Coins, Lock, LogOut } from 'lucide-react';
 import MabiAuctionChart from './MabiAuctionChart';
 
-const API_BASE = import.meta.env.VITE_API_URL || '';
+const API_BASE = import.meta.env.VITE_API_URL || 'https://missouri-sodium-marc-arrivals.trycloudflare.com';
 
 // Official Nexon Mabinogi Auction Categories (73 categories)
 const MABI_CATEGORIES = [
