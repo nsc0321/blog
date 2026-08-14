@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Search, Database, Key, Plus, Trash2, Tag, ShieldAlert, Sparkles, Filter, RefreshCw, ChevronRight, ChevronLeft, ExternalLink, Award, User, ShoppingBag, BookOpen, Check, Layers, AlertCircle, FileText, Pin, TrendingUp, X, ArrowRight, ArrowLeft, Info, Zap, Coins, Lock, LogOut } from 'lucide-react';
 import MabiAuctionChart from './MabiAuctionChart';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'https://missouri-sodium-marc-arrivals.trycloudflare.com';
+const API_BASE = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' && window.location.hostname.includes('github.io') ? 'https://ragweed-blighted-skylight.ngrok-free.dev' : '');
 
 // Official Nexon Mabinogi Auction Categories (73 categories)
 const MABI_CATEGORIES = [
@@ -324,6 +324,15 @@ export default function MabinogiArchive() {
   const [itemTotalPages, setItemTotalPages] = useState(1);
   const [itemLoading, setItemLoading] = useState(false);
 
+  // Dynamic Category Options & Filter States
+  const [categoryOptions, setCategoryOptions] = useState({ base_stats: [], reforge_options: [], set_effects: [], artisan_upgrades: [] });
+  const [categoryOptionsLoading, setCategoryOptionsLoading] = useState(false);
+  const [selectedOptionFilter, setSelectedOptionFilter] = useState('');
+  const [selectedReforgeFilter, setSelectedReforgeFilter] = useState('');
+  const [selectedSetEffectFilter, setSelectedSetEffectFilter] = useState('');
+  const [cleanOnlyFilter, setCleanOnlyFilter] = useState(false);
+  const [itemPricingModal, setItemPricingModal] = useState(null); // { item, data, loading, error }
+
   // Reset Modal & Password state
   const [showResetPasswordModal, setShowResetPasswordModal] = useState(false);
   const [resetTarget, setResetTarget] = useState(null); // 'items' | 'enchants'
@@ -625,14 +634,67 @@ export default function MabinogiArchive() {
     }
   };
 
+  // --- Fetch Category Dynamic Options ---
+  const fetchCategoryOptions = async (cat) => {
+    setCategoryOptionsLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (cat && cat !== 'ALL' && cat !== '전체') {
+        params.append('category', cat);
+      }
+      const res = await fetch(`${API_BASE}/api/mabinogi/archives/categories/options?${params.toString()}`, {
+        headers: { 'ngrok-skip-browser-warning': 'true' }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCategoryOptions(data || { base_stats: [], reforge_options: [], set_effects: [], artisan_upgrades: [] });
+      }
+    } catch (e) {
+      console.error('Failed to fetch category options:', e);
+    } finally {
+      setCategoryOptionsLoading(false);
+    }
+  };
+
+  // --- Real-time Item Option Price Breakdown Modal ---
+  const openPricingBreakdownModal = async (item) => {
+    setItemPricingModal({ item, data: null, loading: true, error: null });
+    try {
+      const res = await fetch(`${API_BASE}/api/mabinogi/archives/items/${item.id}/pricing`, {
+        headers: { 'ngrok-skip-browser-warning': 'true' }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setItemPricingModal({ item, data, loading: false, error: null });
+      } else {
+        setItemPricingModal({ item, data: null, loading: false, error: '시세 세부 정보를 불러오지 못했습니다.' });
+      }
+    } catch (e) {
+      setItemPricingModal({ item, data: null, loading: false, error: '네트워크 연결 중 오류가 발생했습니다.' });
+    }
+  };
+
   // --- Fetch DB Archives ---
-  const fetchItemArchives = async (overridePage, overrideLimit, overrideCategory, overrideQuery) => {
+  const fetchItemArchives = async (
+    overridePage,
+    overrideLimit,
+    overrideCategory,
+    overrideQuery,
+    overrideOptName,
+    overrideReforge,
+    overrideSetEffect,
+    overrideCleanOnly
+  ) => {
     setItemLoading(true);
     try {
       const pageToFetch = overridePage !== undefined ? overridePage : itemPage;
       const limitToFetch = overrideLimit !== undefined ? overrideLimit : itemLimit;
       const catToFetch = overrideCategory !== undefined ? overrideCategory : categoryFilter;
       const queryToFetch = overrideQuery !== undefined ? overrideQuery : itemSearchInput;
+      const optNameToFetch = overrideOptName !== undefined ? overrideOptName : selectedOptionFilter;
+      const reforgeToFetch = overrideReforge !== undefined ? overrideReforge : selectedReforgeFilter;
+      const setEffectToFetch = overrideSetEffect !== undefined ? overrideSetEffect : selectedSetEffectFilter;
+      const cleanOnlyToFetch = overrideCleanOnly !== undefined ? overrideCleanOnly : cleanOnlyFilter;
 
       const params = new URLSearchParams();
       params.append('page', pageToFetch);
@@ -642,6 +704,18 @@ export default function MabinogiArchive() {
       }
       if (queryToFetch && queryToFetch.trim()) {
         params.append('query', queryToFetch.trim());
+      }
+      if (optNameToFetch && optNameToFetch.trim()) {
+        params.append('option_name', optNameToFetch.trim());
+      }
+      if (reforgeToFetch && reforgeToFetch.trim()) {
+        params.append('reforge_effect', reforgeToFetch.trim());
+      }
+      if (setEffectToFetch && setEffectToFetch.trim()) {
+        params.append('set_effect', setEffectToFetch.trim());
+      }
+      if (cleanOnlyToFetch) {
+        params.append('clean_only', 'true');
       }
 
       const res = await fetch(`${API_BASE}/api/mabinogi/archives/items?${params.toString()}`, {
@@ -703,8 +777,37 @@ export default function MabinogiArchive() {
 
   const handleItemCategoryChange = (newCat) => {
     setCategoryFilter(newCat);
+    setSelectedOptionFilter('');
+    setSelectedReforgeFilter('');
+    setSelectedSetEffectFilter('');
     setItemPage(1);
-    fetchItemArchives(1, itemLimit, newCat, itemSearchInput);
+    fetchCategoryOptions(newCat);
+    fetchItemArchives(1, itemLimit, newCat, itemSearchInput, '', '', '', cleanOnlyFilter);
+  };
+
+  const handleOptionFilterChange = (val) => {
+    setSelectedOptionFilter(val);
+    setItemPage(1);
+    fetchItemArchives(1, itemLimit, categoryFilter, itemSearchInput, val, selectedReforgeFilter, selectedSetEffectFilter, cleanOnlyFilter);
+  };
+
+  const handleReforgeFilterChange = (val) => {
+    setSelectedReforgeFilter(val);
+    setItemPage(1);
+    fetchItemArchives(1, itemLimit, categoryFilter, itemSearchInput, selectedOptionFilter, val, selectedSetEffectFilter, cleanOnlyFilter);
+  };
+
+  const handleSetEffectFilterChange = (val) => {
+    setSelectedSetEffectFilter(val);
+    setItemPage(1);
+    fetchItemArchives(1, itemLimit, categoryFilter, itemSearchInput, selectedOptionFilter, selectedReforgeFilter, val, cleanOnlyFilter);
+  };
+
+  const handleCleanOnlyToggle = () => {
+    const nextVal = !cleanOnlyFilter;
+    setCleanOnlyFilter(nextVal);
+    setItemPage(1);
+    fetchItemArchives(1, itemLimit, categoryFilter, itemSearchInput, selectedOptionFilter, selectedReforgeFilter, selectedSetEffectFilter, nextVal);
   };
 
   const handleItemSearchChange = (val) => {
@@ -713,13 +816,14 @@ export default function MabinogiArchive() {
 
   useEffect(() => {
     if (activeTab === 'items') {
+      fetchCategoryOptions(categoryFilter);
       const timer = setTimeout(() => {
         setItemPage(1);
         fetchItemArchives(1, itemLimit, categoryFilter, itemSearchInput);
       }, 300);
       return () => clearTimeout(timer);
     }
-  }, [itemSearchInput]);
+  }, [itemSearchInput, activeTab]);
 
   const fetchEnchantArchives = async (overridePage, overrideLimit, overrideFilter, overrideQuery) => {
     setEnchantLoading(true);
@@ -1513,6 +1617,52 @@ export default function MabinogiArchive() {
                     )}
                   </div>
 
+                  {/* 2. 옵션별 가격 추산 및 가치 분석 박스 (추산치 명시) */}
+                  <div className="detail-card-box pricing-analysis-box" style={{ background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.7), rgba(15, 23, 42, 0.8))', border: '1px solid rgba(59, 130, 246, 0.3)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                      <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px', color: '#60a5fa' }}>
+                        <TrendingUp size={18} /> 📊 옵션별 가격 추산 및 가치 분석 <span style={{ fontSize: '12px', color: '#93c5fd', fontWeight: 'normal' }}>(통계적 추산치)</span>
+                      </h3>
+                      <button
+                        className="refresh-btn"
+                        onClick={() => openPricingBreakdownModal(selectedArchiveItem)}
+                        style={{
+                          background: 'rgba(59, 130, 246, 0.2)',
+                          border: '1px solid rgba(59, 130, 246, 0.4)',
+                          borderRadius: '6px',
+                          color: '#93c5fd',
+                          fontSize: '12px',
+                          padding: '4px 10px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}
+                      >
+                        <TrendingUp size={13} /> 실시간 상세 분석 팝업
+                      </button>
+                    </div>
+
+                    <p style={{ margin: '0 0 12px 0', fontSize: '12px', color: '#94a3b8' }}>
+                      ※ 본 가격 데이터는 노옵션 순정 매물 및 옵션 매물 통계를 분석하여 산출된 <strong>추산치(Estimated Value)</strong>입니다.
+                    </p>
+
+                    <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                      <div style={{ flex: '1', minWidth: '180px', padding: '10px 14px', background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: '8px' }}>
+                        <span style={{ fontSize: '12px', color: '#6ee7b7' }}>🏷️ 순정 기준가 (추산치 / Base Price)</span>
+                        <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#34d399', marginTop: '2px' }}>
+                          {formatGold(selectedArchiveItem.base_price)}
+                        </div>
+                      </div>
+                      <div style={{ flex: '1', minWidth: '180px', padding: '10px 14px', background: 'rgba(245, 158, 11, 0.12)', border: '1px solid rgba(245, 158, 11, 0.3)', borderRadius: '8px' }}>
+                        <span style={{ fontSize: '12px', color: '#fcd34d' }}>💰 전체 평균 거래가</span>
+                        <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#fbbf24', marginTop: '2px' }}>
+                          {formatGold(selectedArchiveItem.avg_price)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
                   {/* 3, 4, 8. 그룹별 옵션 유동 수치 범위 (기본 옵션, 개조, 에르그 등) */}
                   <div className="detail-card-box">
                     <h3><Zap size={18} /> 그룹별 옵션 유동 수치 범위 (Min~Max Range)</h3>
@@ -1777,7 +1927,7 @@ export default function MabinogiArchive() {
           ) : (
             /* ARCHIVE CARDS GRID VIEW */
             <>
-              <div className="tab-toolbar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '20px' }}>
+              <div className="tab-toolbar" style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px' }}>
                 <div className="toolbar-left-group" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
                   <div className="filter-group">
                     <Filter size={16} />
@@ -1807,7 +1957,7 @@ export default function MabinogiArchive() {
                         onClick={() => {
                           handleItemSearchChange('');
                           setItemPage(1);
-                          fetchItemArchives(1, itemLimit, categoryFilter, '');
+                          fetchItemArchives(1, itemLimit, categoryFilter, '', selectedOptionFilter, selectedReforgeFilter, selectedSetEffectFilter, cleanOnlyFilter);
                         }}
                         title="검색어 초기화"
                         style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '2px' }}
@@ -1816,7 +1966,105 @@ export default function MabinogiArchive() {
                       </button>
                     )}
                   </div>
+
+                  {/* Clean Only Toggle */}
+                  <button
+                    className={`clean-filter-btn ${cleanOnlyFilter ? 'active' : ''}`}
+                    onClick={handleCleanOnlyToggle}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '6px 12px',
+                      borderRadius: '8px',
+                      border: cleanOnlyFilter ? '1px solid #10b981' : '1px solid rgba(255, 255, 255, 0.15)',
+                      background: cleanOnlyFilter ? 'rgba(16, 185, 129, 0.2)' : 'rgba(15, 23, 42, 0.6)',
+                      color: cleanOnlyFilter ? '#34d399' : '#9ca3af',
+                      cursor: 'pointer',
+                      fontSize: '13px',
+                      fontWeight: '500'
+                    }}
+                  >
+                    🏷️ 순정 기준가 있는 아이템만
+                  </button>
                 </div>
+
+                {/* Dynamic Category Option Filters Bar */}
+                {((categoryOptions.base_stats && categoryOptions.base_stats.length > 0) ||
+                  (categoryOptions.reforge_options && categoryOptions.reforge_options.length > 0) ||
+                  (categoryOptions.set_effects && categoryOptions.set_effects.length > 0)) && (
+                  <div className="dynamic-option-filters-row" style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', padding: '10px 14px', background: 'rgba(30, 41, 59, 0.45)', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                    <span style={{ fontSize: '12px', color: '#60a5fa', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <Sparkles size={13} /> 카테고리 고유 옵션 필터:
+                    </span>
+
+                    {/* 1. Base Stat Filter */}
+                    {categoryOptions.base_stats && categoryOptions.base_stats.length > 0 && (
+                      <select
+                        className="mabi-select dynamic-opt-select"
+                        value={selectedOptionFilter}
+                        onChange={e => handleOptionFilterChange(e.target.value)}
+                        style={{ fontSize: '12px', padding: '4px 10px', minWidth: '130px' }}
+                      >
+                        <option value="">기본 스탯/옵션 (전체)</option>
+                        {categoryOptions.base_stats.map((opt, i) => (
+                          <option key={i} value={opt.name}>
+                            {opt.name} {opt.max ? `(최대 ${opt.max})` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+
+                    {/* 2. Reforge Filter */}
+                    {categoryOptions.reforge_options && categoryOptions.reforge_options.length > 0 && (
+                      <select
+                        className="mabi-select dynamic-opt-select"
+                        value={selectedReforgeFilter}
+                        onChange={e => handleReforgeFilterChange(e.target.value)}
+                        style={{ fontSize: '12px', padding: '4px 10px', minWidth: '130px' }}
+                      >
+                        <option value="">⚡ 세공 옵션 (전체)</option>
+                        {categoryOptions.reforge_options.map((rf, i) => (
+                          <option key={i} value={rf.name}>
+                            {rf.name} {rf.max ? `(최대 ${rf.max}Lv)` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+
+                    {/* 3. Set Effect Filter */}
+                    {categoryOptions.set_effects && categoryOptions.set_effects.length > 0 && (
+                      <select
+                        className="mabi-select dynamic-opt-select"
+                        value={selectedSetEffectFilter}
+                        onChange={e => handleSetEffectFilterChange(e.target.value)}
+                        style={{ fontSize: '12px', padding: '4px 10px', minWidth: '130px' }}
+                      >
+                        <option value="">✨ 세트 효과 (전체)</option>
+                        {categoryOptions.set_effects.map((se, i) => (
+                          <option key={i} value={se.name}>
+                            {se.name}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+
+                    {(selectedOptionFilter || selectedReforgeFilter || selectedSetEffectFilter) && (
+                      <button
+                        onClick={() => {
+                          setSelectedOptionFilter('');
+                          setSelectedReforgeFilter('');
+                          setSelectedSetEffectFilter('');
+                          setItemPage(1);
+                          fetchItemArchives(1, itemLimit, categoryFilter, itemSearchInput, '', '', '', cleanOnlyFilter);
+                        }}
+                        style={{ background: 'none', border: 'none', color: '#f87171', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '2px', padding: '2px 6px' }}
+                      >
+                        <X size={12} /> 필터 초기화
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
 
               {itemLoading ? (
@@ -1892,15 +2140,47 @@ export default function MabinogiArchive() {
                             </div>
                           )}
 
-                          <div className="card-footer" style={{ marginTop: '12px', paddingTop: '8px', borderTop: '1px solid rgba(255, 255, 255, 0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
-                            <span className="price-lbl" style={{ fontSize: '12px', color: '#fbbf24', fontWeight: '600' }}>
-                              💰 평균: {item.avg_price ? formatGold(item.avg_price) : (item.price_estimate || '평균 가격 미상')}
-                            </span>
-                            {formattedDate && (
-                              <span className="collected-date-badge" style={{ fontSize: '11px', color: '#9ca3af', backgroundColor: 'rgba(255, 255, 255, 0.05)', padding: '2px 6px', borderRadius: '4px' }}>
-                                📅 {formattedDate}
+                          <div className="card-footer" style={{ marginTop: '12px', paddingTop: '8px', borderTop: '1px solid rgba(255, 255, 255, 0.05)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
+                              {item.base_price ? (
+                                <span style={{ fontSize: '12px', color: '#34d399', fontWeight: '600' }} title="노옵션 매물 통계 기준 추산가">
+                                  🏷️ 순정 기준가(추산): {formatGold(item.base_price)}
+                                </span>
+                              ) : null}
+                              <span className="price-lbl" style={{ fontSize: '12px', color: '#fbbf24', fontWeight: '600' }}>
+                                💰 평균: {item.avg_price ? formatGold(item.avg_price) : (item.price_estimate || '평균 가격 미상')}
                               </span>
-                            )}
+                            </div>
+
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2px' }}>
+                              <button
+                                className="pricing-breakdown-btn"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openPricingBreakdownModal(item);
+                                }}
+                                style={{
+                                  background: 'rgba(59, 130, 246, 0.15)',
+                                  border: '1px solid rgba(59, 130, 246, 0.4)',
+                                  borderRadius: '6px',
+                                  color: '#60a5fa',
+                                  fontSize: '11px',
+                                  padding: '2px 8px',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '4px'
+                                }}
+                              >
+                                <TrendingUp size={12} /> 옵션별 가치 분석 (추산)
+                              </button>
+
+                              {formattedDate && (
+                                <span className="collected-date-badge" style={{ fontSize: '11px', color: '#9ca3af', backgroundColor: 'rgba(255, 255, 255, 0.05)', padding: '2px 6px', borderRadius: '4px' }}>
+                                  📅 {formattedDate}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       );
@@ -2784,6 +3064,114 @@ export default function MabinogiArchive() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: 옵션별 가격 가중치 및 추산가 분석 모달 */}
+      {itemPricingModal && (
+        <div className="modal-overlay" onClick={() => setItemPricingModal(null)}>
+          <div className="modal-container pricing-breakdown-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '640px', width: '90%' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', paddingBottom: '12px' }}>
+              <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.1rem', color: '#60a5fa' }}>
+                <TrendingUp size={20} />
+                옵션별 가치 분석 및 가격 추산 <span style={{ fontSize: '12px', color: '#93c5fd', fontWeight: 'normal' }}>(통계적 추산치)</span>
+              </h3>
+              <button onClick={() => setItemPricingModal(null)} style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer' }}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="item-pricing-modal-content">
+              {/* Notice Banner */}
+              <div style={{ background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.25)', borderRadius: '6px', padding: '10px 14px', marginBottom: '14px', fontSize: '12px', color: '#93c5fd', lineHeight: '1.5' }}>
+                ℹ️ <strong>추산 데이터 안내:</strong> 본 정보는 순정 매물 및 옵션별 거래 데이터를 통계적으로 분석한 <strong>'추산치(Estimated Value)'</strong>입니다. 실제 거래 가격은 시장 상황 및 옵션 조합에 따라 상이할 수 있습니다.
+              </div>
+
+              <div className="item-title-banner" style={{ background: 'rgba(15, 23, 42, 0.6)', padding: '12px 16px', borderRadius: '8px', marginBottom: '16px', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
+                <h4 style={{ margin: '0 0 6px 0', fontSize: '1rem', color: '#f8fafc' }}>
+                  {itemPricingModal.item?.item_display_name || itemPricingModal.item?.item_name}
+                </h4>
+                <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', fontSize: '13px' }}>
+                  <span style={{ color: '#34d399', fontWeight: '600' }}>
+                    🏷️ 순정 기준가 (추산): {formatGold(itemPricingModal.data?.base_price ?? itemPricingModal.item?.base_price)}
+                    {itemPricingModal.data?.clean_trade_count ? ` (${itemPricingModal.data.clean_trade_count}건 기준)` : ''}
+                  </span>
+                  <span style={{ color: '#fbbf24', fontWeight: '600' }}>
+                    💰 전체 평균가: {formatGold(itemPricingModal.data?.avg_price ?? itemPricingModal.item?.avg_price)}
+                  </span>
+                </div>
+              </div>
+
+              {itemPricingModal.loading ? (
+                <div style={{ textAlign: 'center', padding: '30px', color: '#9ca3af' }}>
+                  <RefreshCw size={24} className="spin-icon" style={{ marginBottom: '8px' }} />
+                  <p>경매장 스냅샷 기반 옵션별 가격 가중치 분석 중...</p>
+                </div>
+              ) : itemPricingModal.error ? (
+                <div style={{ color: '#f87171', padding: '20px', textAlign: 'center' }}>
+                  ⚠️ {itemPricingModal.error}
+                </div>
+              ) : (
+                <div className="option-estimates-container">
+                  <h5 style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: '#94a3b8' }}>
+                    📊 수집된 옵션별 평균 프리미엄 (추산 가중치)
+                  </h5>
+
+                  {itemPricingModal.data?.option_estimates && itemPricingModal.data.option_estimates.length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '340px', overflowY: 'auto', paddingRight: '4px' }}>
+                      {itemPricingModal.data.option_estimates.map((opt, idx) => (
+                        <div
+                          key={idx}
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            padding: '10px 14px',
+                            background: 'rgba(30, 41, 59, 0.5)',
+                            borderRadius: '8px',
+                            border: '1px solid rgba(255, 255, 255, 0.07)'
+                          }}
+                        >
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                            <span style={{ fontWeight: '600', color: opt.group === 'reforge' ? '#c084fc' : (opt.group === 'enchant' ? '#60a5fa' : '#f59e0b'), fontSize: '13px' }}>
+                              {opt.label}
+                            </span>
+                            <span style={{ fontSize: '11px', color: '#64748b' }}>
+                              표본 수: {opt.sample_count}건
+                            </span>
+                          </div>
+
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{ fontSize: '13px', fontWeight: 'bold', color: opt.estimated_premium >= 0 ? '#34d399' : '#f87171' }}>
+                              {opt.estimated_premium >= 0 ? `+${formatGold(opt.estimated_premium)} (추산)` : `-${formatGold(Math.abs(opt.estimated_premium))} (추산)`}
+                            </div>
+                            <div style={{ fontSize: '11px', color: '#94a3b8' }}>
+                              추산가: {formatGold(opt.estimated_price)}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ textAlign: 'center', padding: '24px', color: '#94a3b8', background: 'rgba(0,0,0,0.2)', borderRadius: '8px' }}>
+                      <p style={{ margin: 0, fontSize: '13px' }}>
+                        순정 매물 외 별도 옵션 거래 스냅샷이 아직 적어 옵션별 세부 가중치가 집계되지 않았습니다.
+                      </p>
+                      <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#64748b' }}>
+                        (경매장 배치 수집이 진행됨에 따라 옵션별 프리미엄이 정밀하게 자동 계산됩니다)
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="modal-actions" style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end' }}>
+                <button type="button" className="cancel-btn" onClick={() => setItemPricingModal(null)}>
+                  닫기
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
