@@ -310,9 +310,20 @@ export default function VoiceAssistant() {
   };
 
   const formatPrice = (priceVal) => {
-    if (priceVal === null || priceVal === undefined || priceVal === '' || priceVal === 0) return '-';
+    if (priceVal === null || priceVal === undefined || priceVal === '' || priceVal === 0) return '평균 가격 미상';
+    if (typeof priceVal === 'string') {
+      const cleaned = priceVal.replace(/,/g, '');
+      const match = cleaned.match(/(\d+)/);
+      if (match) {
+        const num = Number(match[1]);
+        if (!isNaN(num) && num > 0) {
+          return `${Math.round(num).toLocaleString()} Gold`;
+        }
+      }
+      return priceVal;
+    }
     const num = Number(priceVal);
-    if (isNaN(num) || num <= 0) return '-';
+    if (isNaN(num) || num <= 0) return '평균 가격 미상';
     return `${Math.round(num).toLocaleString()} Gold`;
   };
 
@@ -3378,15 +3389,9 @@ export default function VoiceAssistant() {
                           </div>
 
                           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            {item.avg_price ? (
-                              <span style={{ color: '#38bdf8', fontWeight: '700', fontSize: '13px' }}>
-                                💰 평균 {formatPrice(item.avg_price)}
-                              </span>
-                            ) : item.price_estimate ? (
-                              <span style={{ color: '#f59e0b', fontWeight: '700', fontSize: '13px' }}>
-                                💰 {typeof item.price_estimate === 'number' ? item.price_estimate.toLocaleString() : item.price_estimate}
-                              </span>
-                            ) : null}
+                            <span style={{ color: (item.avg_price || item.price_estimate) ? '#38bdf8' : '#94a3b8', fontWeight: '700', fontSize: '13px' }}>
+                              💰 평균 {formatPrice(item.avg_price || item.price_estimate)}
+                            </span>
                             <button
                               onClick={() => setExpandedItemId(isExpanded ? null : item.id)}
                               style={{
@@ -3502,8 +3507,8 @@ export default function VoiceAssistant() {
                           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                               <span style={{ color: '#94a3b8' }}>평균 거래가:</span>
-                              <span style={{ color: '#38bdf8', fontWeight: '700' }}>
-                                {formatPrice(item.avg_price)}
+                              <span style={{ color: (item.avg_price || item.price_estimate) ? '#38bdf8' : '#94a3b8', fontWeight: '700' }}>
+                                {formatPrice(item.avg_price || item.price_estimate)}
                               </span>
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -3693,11 +3698,9 @@ export default function VoiceAssistant() {
                         </div>
 
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          {enc.avg_price ? (
-                            <span style={{ color: '#38bdf8', fontWeight: '700', fontSize: '13px' }}>
-                              💰 평균 {formatPrice(enc.avg_price)}
-                            </span>
-                          ) : null}
+                          <span style={{ color: enc.avg_price ? '#38bdf8' : '#94a3b8', fontWeight: '700', fontSize: '13px' }}>
+                            💰 평균 {formatPrice(enc.avg_price)}
+                          </span>
                           <button
                             onClick={() => handleDeleteEnchantArchive(enc.id, enc.enchant_name)}
                             style={{
@@ -3734,7 +3737,7 @@ export default function VoiceAssistant() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                             <span style={{ color: '#94a3b8' }}>평균 거래가:</span>
-                            <span style={{ color: '#38bdf8', fontWeight: '700' }}>
+                            <span style={{ color: enc.avg_price ? '#38bdf8' : '#94a3b8', fontWeight: '700' }}>
                               {formatPrice(enc.avg_price)}
                             </span>
                           </div>
