@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Mic, MicOff, Send, Volume2, VolumeX, Menu, X, ChevronLeft, ChevronRight, Key, Plus, Trash2, Edit2, Save, Link2, Lock, LogOut, User, Eye, EyeOff, Search, Package, RefreshCw, ChevronDown, ChevronUp, Database } from 'lucide-react';
+import { Mic, MicOff, Send, Volume2, VolumeX, Menu, X, ChevronLeft, ChevronRight, Key, Plus, Trash2, Edit2, Save, Link2, Lock, LogOut, User, Eye, EyeOff, Search, Package, RefreshCw, ChevronDown, ChevronUp, Database, Activity, History } from 'lucide-react';
 import AvatarCanvas from './AvatarCanvas';
+import RealtimeMonitor from './RealtimeMonitor';
+import ExecutionHistory from './ExecutionHistory';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -164,7 +166,78 @@ export default function VoiceAssistant() {
     };
   }, [updateAudioDevices]);
 
-  const [activeTab, setActiveTab] = useState('agent');
+  const getInitialTab = () => {
+    if (typeof window === 'undefined') return 'agent';
+    const path = window.location.pathname.toLowerCase();
+    const hash = window.location.hash.toLowerCase();
+    const search = new URLSearchParams(window.location.search);
+    const tabParam = (search.get('tab') || '').toLowerCase();
+
+    if (path.includes('mabinogi') || path.includes('archive') || hash.includes('mabinogi') || hash.includes('archive') || tabParam === 'mabinogi' || tabParam === 'archives') {
+      return 'archives';
+    }
+    if (path.includes('monitor') || path.includes('dashboard') || hash.includes('monitor') || hash.includes('dashboard') || tabParam === 'monitor' || tabParam === 'dashboard') {
+      return 'monitor';
+    }
+    if (path.includes('workshop') || hash.includes('workshop') || tabParam === 'workshop') {
+      return 'workshop';
+    }
+    if (path.includes('credentials') || hash.includes('credentials') || tabParam === 'credentials') {
+      return 'credentials';
+    }
+    if (path.includes('history') || hash.includes('history') || tabParam === 'history') {
+      return 'history';
+    }
+    return 'agent';
+  };
+
+  const [activeTab, setActiveTab] = useState(getInitialTab);
+
+  // Monitor & History states
+  const [monitorTasks, setMonitorTasks] = useState([]);
+  const [monitorLogs, setMonitorLogs] = useState([]);
+  const [isCancellingTask, setIsCancellingTask] = useState({});
+  const monitorLogsEndRef = useRef(null);
+
+  const fetchMonitorData = useCallback(async () => {
+    try {
+      const resp = await authFetch('/api/agent/monitor');
+      if (resp.ok) {
+        const data = await resp.json();
+        setMonitorTasks(data.tasks || []);
+        setMonitorLogs(data.logs || []);
+      }
+    } catch (err) {
+      console.warn("Failed to fetch monitor data:", err);
+    }
+  }, [authFetch]);
+
+  useEffect(() => {
+    if (activeTab === 'monitor') {
+      fetchMonitorData();
+      const interval = setInterval(fetchMonitorData, 3000);
+      return () => clearInterval(interval);
+    }
+  }, [activeTab, fetchMonitorData]);
+
+  const handleCancelTask = async (taskId) => {
+    if (!confirm(`태스크 (${taskId})를 강제 중단하시겠습니까?`)) return;
+    setIsCancellingTask(prev => ({ ...prev, [taskId]: true }));
+    try {
+      const resp = await authFetch(`/api/agent/cancel/${taskId}`, { method: 'POST' });
+      if (resp.ok) {
+        fetchMonitorData();
+      } else {
+        const data = await resp.json().catch(() => ({}));
+        alert(`중단 실패: ${data.detail || '오류 발생'}`);
+      }
+    } catch (err) {
+      alert(`중단 요청 오류: ${err.message}`);
+    } finally {
+      setIsCancellingTask(prev => ({ ...prev, [taskId]: false }));
+    }
+  };
+
   const [skills, setSkills] = useState([]);
   const [selectedSkillName, setSelectedSkillName] = useState('');
   const [skillCode, setSkillCode] = useState('');
@@ -3762,6 +3835,23 @@ export default function VoiceAssistant() {
             </>
           )}
         </div>
+      ) : activeTab === 'monitor' ? (
+        <RealtimeMonitor
+          monitorTasks={monitorTasks}
+          monitorLogs={monitorLogs}
+          fetchMonitorData={fetchMonitorData}
+          handleCancelTask={handleCancelTask}
+          isCancellingTask={isCancellingTask}
+          monitorLogsEndRef={monitorLogsEndRef}
+        />
+      ) : activeTab === 'history' ? (
+        <ExecutionHistory
+          API_BASE={API_BASE}
+          authFetch={authFetch}
+          activeTab={activeTab}
+          handleCancelTask={handleCancelTask}
+          isCancellingTask={isCancellingTask}
+        />
       ) : null}
 
       {/* Import Skill Modal */}
