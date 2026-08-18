@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Bot, Database, Sparkles, Activity, ShieldCheck, Cpu, ArrowRight, Search, FileText, Layers, RefreshCw, Bookmark, Zap, Server } from 'lucide-react';
+import { Bot, Database, TrendingUp, Sparkles, Activity, ShieldCheck, Cpu, ArrowRight, Search, FileText, Layers, RefreshCw, Bookmark, Zap, Server } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -149,7 +149,37 @@ export default function MainDashboard({ onNavigate }) {
           </div>
         </div>
 
-        {/* Module Card 2: Mabinogi Archive */}
+        {/* Module Card 2: AI Auto Trading */}
+        <div className="module-card trading-card" onClick={() => onNavigate('trading')}>
+          <div className="module-card-header">
+            <div className="module-tag trading">Bithumb Quant AI</div>
+            <TrendingUp size={32} className="module-main-icon" />
+          </div>
+          <h3>AI 빗썸 자동거래</h3>
+          <p>
+            실시간 빗썸 시세와 보조지표(RSI, MACD 등)를 수집하여 LLM 시장 분석 기반으로 안전하게 주문을 집행하는 퀀트 자동거래 시스템.
+          </p>
+          <div className="module-highlights">
+            <div className="highlight-item">
+              <Zap size={14} />
+              <span>실시간 보조지표 연산 & LLM 의사결정</span>
+            </div>
+            <div className="highlight-item">
+              <ShieldCheck size={14} />
+              <span>손절/익절/서킷브레이커 리스크 가드레일</span>
+            </div>
+            <div className="highlight-item">
+              <Activity size={14} />
+              <span>모의투자(Dry-Run) 및 실시간 처리 로그</span>
+            </div>
+          </div>
+          <div className="module-footer">
+            <span>자동거래 페이지로 이동</span>
+            <ArrowRight size={16} />
+          </div>
+        </div>
+
+        {/* Module Card 3: Mabinogi Archive */}
         <div className="module-card mabi-card" onClick={() => onNavigate('mabinogi')}>
           <div className="module-card-header">
             <div className="module-tag mabi">Nexon Open API</div>

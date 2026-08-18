@@ -1,13 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, Bot, Database, Sparkles, Menu, X } from 'lucide-react';
+import { LayoutDashboard, Bot, Database, TrendingUp, Sparkles, Menu, X } from 'lucide-react';
 import MainDashboard from './components/MainDashboard';
 import VoiceAssistant from './components/VoiceAssistant';
 import MabinogiArchive from './components/MabinogiArchive';
+import AutoTradingDashboard from './components/AutoTradingDashboard';
 
 const getPageFromPath = () => {
   if (typeof window === 'undefined') return 'dashboard';
   const path = window.location.pathname.toLowerCase().replace(/\/$/, '');
   const hash = window.location.hash.toLowerCase();
+
+  // /blog/trading 또는 #trading -> 자동거래 페이지
+  if (path.endsWith('/trading') || hash === '#trading') {
+    return 'trading';
+  }
 
   // /blog/agent 또는 /blog/agnet 또는 #agent -> Agent 페이지
   if (path.endsWith('/agent') || path.endsWith('/agnet') || hash === '#agent') {
@@ -31,9 +37,11 @@ export default function App() {
     setActivePage(page);
     setMobileMenuOpen(false);
 
-    // 경로 설정 (/blog, /blog/agent, /blog/mabinogi)
+    // 경로 설정 (/blog, /blog/trading, /blog/agent, /blog/mabinogi)
     let targetPath = '/blog';
-    if (page === 'agent') {
+    if (page === 'trading') {
+      targetPath = '/blog/trading';
+    } else if (page === 'agent') {
       targetPath = '/blog/agent';
     } else if (page === 'mabinogi') {
       targetPath = '/blog/mabinogi';
@@ -88,6 +96,13 @@ export default function App() {
             <span>메인 대시보드</span>
           </button>
           <button
+            className={`nav-link ${activePage === 'trading' ? 'active' : ''}`}
+            onClick={() => handleNavigate('trading')}
+          >
+            <TrendingUp size={18} />
+            <span>AI 자동거래</span>
+          </button>
+          <button
             className={`nav-link ${activePage === 'agent' ? 'active' : ''}`}
             onClick={() => handleNavigate('agent')}
           >
@@ -113,6 +128,7 @@ export default function App() {
       {/* Page Content View */}
       <main className="main-content-view">
         {activePage === 'dashboard' && <MainDashboard onNavigate={(page) => handleNavigate(page)} />}
+        {activePage === 'trading' && <AutoTradingDashboard />}
         {activePage === 'agent' && <VoiceAssistant />}
         {activePage === 'mabinogi' && <MabinogiArchive />}
       </main>
