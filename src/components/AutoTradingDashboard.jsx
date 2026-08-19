@@ -117,6 +117,33 @@ export default function AutoTradingDashboard() {
     }
   };
 
+const FALLBACK_BITHUMB_MARKETS = [
+  { market: 'KRW-BTC', symbol: 'BTC', korean_name: '비트코인', english_name: 'Bitcoin' },
+  { market: 'KRW-ETH', symbol: 'ETH', korean_name: '이더리움', english_name: 'Ethereum' },
+  { market: 'KRW-XRP', symbol: 'XRP', korean_name: '리플', english_name: 'Ripple' },
+  { market: 'KRW-SOL', symbol: 'SOL', korean_name: '솔라나', english_name: 'Solana' },
+  { market: 'KRW-DOGE', symbol: 'DOGE', korean_name: '도지코인', english_name: 'Dogecoin' },
+  { market: 'KRW-ADA', symbol: 'ADA', korean_name: '에이다', english_name: 'Cardano' },
+  { market: 'KRW-AVAX', symbol: 'AVAX', korean_name: '아발란체', english_name: 'Avalanche' },
+  { market: 'KRW-DOT', symbol: 'DOT', korean_name: '폴카닷', english_name: 'Polkadot' },
+  { market: 'KRW-LINK', symbol: 'LINK', korean_name: '체인링크', english_name: 'Chainlink' },
+  { market: 'KRW-SUI', symbol: 'SUI', korean_name: '수이', english_name: 'Sui' },
+  { market: 'KRW-APT', symbol: 'APT', korean_name: '앱토스', english_name: 'Aptos' },
+  { market: 'KRW-SHIB', symbol: 'SHIB', korean_name: '시바이누', english_name: 'Shiba Inu' },
+  { market: 'KRW-PEPE', symbol: 'PEPE', korean_name: '페페', english_name: 'Pepe' },
+  { market: 'KRW-NEAR', symbol: 'NEAR', korean_name: '니어프로토콜', english_name: 'NEAR Protocol' },
+  { market: 'KRW-ETC', symbol: 'ETC', korean_name: '이더리움클래식', english_name: 'Ethereum Classic' },
+  { market: 'KRW-BCH', symbol: 'BCH', korean_name: '비트코인캐시', english_name: 'Bitcoin Cash' },
+  { market: 'KRW-XLM', symbol: 'XLM', korean_name: '스텔라루멘', english_name: 'Stellar Lumens' },
+  { market: 'KRW-TRX', symbol: 'TRX', korean_name: '트론', english_name: 'TRON' },
+  { market: 'KRW-SAND', symbol: 'SAND', korean_name: '샌드박스', english_name: 'The Sandbox' },
+  { market: 'KRW-MANA', symbol: 'MANA', korean_name: '디센트럴랜드', english_name: 'Decentraland' },
+  { market: 'KRW-WLD', symbol: 'WLD', korean_name: '월드코인', english_name: 'Worldcoin' },
+  { market: 'KRW-STX', symbol: 'STX', korean_name: '스택스', english_name: 'Stacks' },
+  { market: 'KRW-ARB', symbol: 'ARB', korean_name: '아비트럼', english_name: 'Arbitrum' },
+  { market: 'KRW-OP', symbol: 'OP', korean_name: '옵티미즘', english_name: 'Optimism' }
+];
+
   // Fetch Available Markets
   const fetchAvailableMarkets = async (query = '') => {
     setLoadingMarkets(true);
@@ -127,10 +154,51 @@ export default function AutoTradingDashboard() {
       });
       if (res.ok) {
         const data = await res.json();
-        setAvailableMarkets(data.markets || []);
+        if (data.markets && data.markets.length > 0) {
+          setAvailableMarkets(data.markets);
+          return;
+        }
       }
+
+      // Fallback 1: Query Bithumb Public Market API directly
+      try {
+        const bRes = await fetch('https://api.bithumb.com/v1/market/all');
+        if (bRes.ok) {
+          const raw = await bRes.json();
+          const krwMarkets = (raw || [])
+            .filter(m => m.market?.startsWith('KRW-'))
+            .map(m => ({
+              market: m.market,
+              symbol: m.market.replace('KRW-', ''),
+              korean_name: m.korean_name || m.market,
+              english_name: m.english_name || m.market
+            }));
+          const filtered = query
+            ? krwMarkets.filter(m =>
+                m.market.toUpperCase().includes(query.toUpperCase()) ||
+                m.symbol.toUpperCase().includes(query.toUpperCase()) ||
+                m.korean_name.includes(query)
+              )
+            : krwMarkets;
+          if (filtered.length > 0) {
+            setAvailableMarkets(filtered);
+            return;
+          }
+        }
+      } catch (_) {}
+
+      // Fallback 2: Local Built-in Popular Markets List
+      const staticFiltered = query
+        ? FALLBACK_BITHUMB_MARKETS.filter(m =>
+            m.market.toUpperCase().includes(query.toUpperCase()) ||
+            m.symbol.toUpperCase().includes(query.toUpperCase()) ||
+            m.korean_name.includes(query)
+          )
+        : FALLBACK_BITHUMB_MARKETS;
+      setAvailableMarkets(staticFiltered);
     } catch (err) {
-      console.error('Failed to fetch available markets:', err);
+      console.error('Failed to fetch available markets, using fallback list:', err);
+      setAvailableMarkets(FALLBACK_BITHUMB_MARKETS);
     } finally {
       setLoadingMarkets(false);
     }
@@ -803,7 +871,14 @@ export default function AutoTradingDashboard() {
 
                 <div className="market-price-row">
                   <span className="price-label">현재가</span>
-                  <span className="price-value">{pos.current_price > 0 ? `${pos.current_price.toLocaleString()} KRW` : '-'}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="price-value">{pos.current_price > 0 ? `${pos.current_price.toLocaleString()} KRW` : '-'}</span>
+                    {pos.change_rate_24h !== undefined && pos.change_rate_24h !== null && (
+                      <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${pos.change_rate_24h >= 0 ? 'text-emerald-400 bg-emerald-950/50' : 'text-rose-400 bg-rose-950/50'}`}>
+                        {pos.change_rate_24h >= 0 ? '+' : ''}{pos.change_rate_24h.toFixed(2)}%
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 <div className="indicator-mini-grid">
