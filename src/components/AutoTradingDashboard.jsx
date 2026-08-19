@@ -39,6 +39,7 @@ export default function AutoTradingDashboard() {
   const [decisionFilter, setDecisionFilter] = useState('ALL');
   const [modeFilter, setModeFilter] = useState('ALL'); // 'ALL' | 'DRY_RUN' | 'LIVE'
   const [resettingVirtual, setResettingVirtual] = useState(false);
+  const [resettingLive, setResettingLive] = useState(false);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
@@ -177,6 +178,36 @@ export default function AutoTradingDashboard() {
       setAlertMsg({ type: 'error', text: `가상 데이터 초기화 오류: ${err.message}` });
     } finally {
       setResettingVirtual(false);
+      setTimeout(() => setAlertMsg(null), 6000);
+    }
+  };
+
+  // Reset Live Trading Data
+  const handleResetLiveData = async () => {
+    if (!window.confirm("실전 매매 분석 및 주문 실행 기록을 초기화하시겠습니까?\n\n⚠️ 주의: 빗썸 거래소의 실제 원화 잔고 및 보유 중인 코인은 안전하게 그대로 유지되며, 대시보드의 실전 매매 기록(로그)만 초기화됩니다.")) {
+      return;
+    }
+    setResettingLive(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/trading/reset-live`, {
+        method: 'POST',
+        headers: getAuthHeaders()
+      });
+      if (res.status === 401) {
+        handleUnauthorized();
+        return;
+      }
+      const data = await res.json();
+      if (res.ok) {
+        setAlertMsg({ type: 'success', text: data.message || '실전 매매 기록이 성공적으로 초기화되었습니다.' });
+        await handleRefreshAll();
+      } else {
+        setAlertMsg({ type: 'error', text: data.message || '실전 기록 초기화 실패' });
+      }
+    } catch (err) {
+      setAlertMsg({ type: 'error', text: `실전 기록 초기화 오류: ${err.message}` });
+    } finally {
+      setResettingLive(false);
       setTimeout(() => setAlertMsg(null), 6000);
     }
   };
@@ -1189,7 +1220,7 @@ const FALLBACK_BITHUMB_MARKETS = [
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-            {status?.is_dry_run && (
+            {status?.is_dry_run ? (
               <button
                 type="button"
                 className="reset-virtual-btn"
@@ -1215,6 +1246,33 @@ const FALLBACK_BITHUMB_MARKETS = [
               >
                 <RefreshCw size={13} className={resettingVirtual ? 'spin-anim' : ''} />
                 <span>{resettingVirtual ? '초기화 중...' : '가상 데이터 초기화'}</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="reset-live-btn"
+                onClick={handleResetLiveData}
+                disabled={resettingLive}
+                title="실전 매매 분석 및 체결 기록(로그)을 초기화합니다. (빗썸 거래소 실자산은 안전하게 유지됩니다)"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 12px',
+                  borderRadius: '8px',
+                  background: 'rgba(244, 63, 94, 0.15)',
+                  border: '1px solid rgba(244, 63, 94, 0.35)',
+                  color: '#fda4af',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: resettingLive ? 'not-allowed' : 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(244, 63, 94, 0.3)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(244, 63, 94, 0.15)'; }}
+              >
+                <RefreshCw size={13} className={resettingLive ? 'spin-anim' : ''} />
+                <span>{resettingLive ? '초기화 중...' : '실전 기록 초기화'}</span>
               </button>
             )}
 
