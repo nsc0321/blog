@@ -4,7 +4,8 @@ import {
   Sliders, Activity, CheckCircle, AlertTriangle, ArrowUpRight,
   ArrowDownRight, Layers, Clock, DollarSign, Cpu, Search, Filter,
   ChevronDown, ChevronUp, AlertCircle, Info, Sparkles,
-  Wallet, PieChart, Coins, Banknote, Percent, ArrowRight
+  Wallet, PieChart, Coins, Banknote, Percent, ArrowRight,
+  Key, ShieldCheck, ShieldX, Settings, X, Plus, Check, Eye, EyeOff
 } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
@@ -24,6 +25,39 @@ export default function AutoTradingDashboard() {
   const [expandedLogId, setExpandedLogId] = useState(null);
   const [alertMsg, setAlertMsg] = useState(null);
 
+  // Account Check State
+  const [accountStatus, setAccountStatus] = useState(null);
+  const [accountLoading, setAccountLoading] = useState(false);
+  const [showAccountModal, setShowAccountModal] = useState(false);
+  const [accessKeyInput, setAccessKeyInput] = useState('');
+  const [secretKeyInput, setSecretKeyInput] = useState('');
+  const [showSecretKey, setShowSecretKey] = useState(false);
+  const [savingAccount, setSavingAccount] = useState(false);
+
+  // Order Limits Modal State
+  const [showLimitsModal, setShowLimitsModal] = useState(false);
+  const [limitsForm, setLimitsForm] = useState({
+    dry_run: true,
+    min_order_krw: 5000,
+    max_order_krw_per_trade: 50000,
+    max_holding_coins: 1,
+    max_portfolio_ratio_per_coin: 0.3,
+    stop_loss_pct: 3.0,
+    take_profit_pct: 5.0,
+    daily_max_loss_pct: 5.0,
+    cooldown_minutes_after_sell: 15
+  });
+  const [savingLimits, setSavingLimits] = useState(false);
+
+  // Market / Item Management Modal State
+  const [showMarketModal, setShowMarketModal] = useState(false);
+  const [selectedMarkets, setSelectedMarkets] = useState(['KRW-BTC', 'KRW-ETH']);
+  const [candleUnit, setCandleUnit] = useState(15);
+  const [availableMarkets, setAvailableMarkets] = useState([]);
+  const [marketSearchQuery, setMarketSearchQuery] = useState('');
+  const [loadingMarkets, setLoadingMarkets] = useState(false);
+  const [savingMarkets, setSavingMarkets] = useState(false);
+
   const timerRef = useRef(null);
 
   // Fetch Status
@@ -35,9 +69,70 @@ export default function AutoTradingDashboard() {
       if (res.ok) {
         const data = await res.json();
         setStatus(data);
+        // Sync limits form
+        setLimitsForm(prev => ({
+          ...prev,
+          dry_run: data.is_dry_run ?? true,
+          min_order_krw: data.min_order_krw ?? 5000,
+          max_order_krw_per_trade: data.max_order_krw ?? 50000,
+          max_holding_coins: data.max_holding_coins ?? 1,
+          max_portfolio_ratio_per_coin: data.max_portfolio_ratio_per_coin ?? 0.3,
+          stop_loss_pct: data.stop_loss_pct ?? 3.0,
+          take_profit_pct: data.take_profit_pct ?? 5.0,
+          daily_max_loss_pct: data.daily_max_loss_pct ?? 5.0,
+          cooldown_minutes_after_sell: data.cooldown_minutes_after_sell ?? 15
+        }));
+        if (data.target_markets) {
+          setSelectedMarkets(data.target_markets);
+        }
+        if (data.candle_unit_minutes) {
+          setCandleUnit(data.candle_unit_minutes);
+        }
       }
     } catch (err) {
       console.error('Failed to fetch trading status:', err);
+    }
+  };
+
+  // Fetch Account Check
+  const fetchAccountStatus = async () => {
+    setAccountLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/trading/account/check`, {
+        headers: { 'ngrok-skip-browser-warning': 'true' }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAccountStatus(data);
+      }
+    } catch (err) {
+      console.error('Failed to check account status:', err);
+      setAccountStatus({
+        status: 'NETWORK_ERROR',
+        is_connected: false,
+        message: '서버와 통신할 수 없습니다.'
+      });
+    } finally {
+      setAccountLoading(false);
+    }
+  };
+
+  // Fetch Available Markets
+  const fetchAvailableMarkets = async (query = '') => {
+    setLoadingMarkets(true);
+    try {
+      const q = query ? `?query=${encodeURIComponent(query)}` : '';
+      const res = await fetch(`${API_BASE}/api/trading/markets/available${q}`, {
+        headers: { 'ngrok-skip-browser-warning': 'true' }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAvailableMarkets(data.markets || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch available markets:', err);
+    } finally {
+      setLoadingMarkets(false);
     }
   };
 
@@ -69,7 +164,7 @@ export default function AutoTradingDashboard() {
   };
 
   const handleRefreshAll = async () => {
-    await Promise.all([fetchStatus(), fetchLogs(page)]);
+    await Promise.all([fetchStatus(), fetchAccountStatus(), fetchLogs(page)]);
   };
 
   // Trigger Manual Trading Loop
@@ -98,9 +193,127 @@ export default function AutoTradingDashboard() {
     }
   };
 
+  // Save Account Credentials
+  const handleSaveAccount = async (e) => {
+    e.preventDefault();
+    setSavingAccount(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/trading/account/update`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true'
+        },
+        body: JSON.stringify({
+          access_key: accessKeyInput.trim() || undefined,
+          secret_key: secretKeyInput.trim() || undefined
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setAlertMsg({ type: 'success', text: data.message || 'API 키가 성공적으로 저장되었습니다.' });
+        setShowAccountModal(false);
+        setAccessKeyInput('');
+        setSecretKeyInput('');
+        await fetchAccountStatus();
+        await fetchStatus();
+      } else {
+        setAlertMsg({ type: 'error', text: data.message || '저장 실패' });
+      }
+    } catch (err) {
+      setAlertMsg({ type: 'error', text: `API 키 저장 오류: ${err.message}` });
+    } finally {
+      setSavingAccount(false);
+      setTimeout(() => setAlertMsg(null), 6000);
+    }
+  };
+
+  // Save Order Limits Configuration
+  const handleSaveLimits = async (e) => {
+    e.preventDefault();
+    setSavingLimits(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/trading/config`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true'
+        },
+        body: JSON.stringify(limitsForm)
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setAlertMsg({ type: 'success', text: '1회 거래 한도 및 1품목 제한 설정이 저장되었습니다.' });
+        setShowLimitsModal(false);
+        await fetchStatus();
+      } else {
+        setAlertMsg({ type: 'error', text: data.message || '설정 저장 실패' });
+      }
+    } catch (err) {
+      setAlertMsg({ type: 'error', text: `설정 저장 실패: ${err.message}` });
+    } finally {
+      setSavingLimits(false);
+      setTimeout(() => setAlertMsg(null), 6000);
+    }
+  };
+
+  // Save Target Markets and Candle Unit
+  const handleSaveMarkets = async () => {
+    if (selectedMarkets.length === 0) {
+      alert('최소 1개 이상의 거래 품목(마켓)을 선택해야 합니다.');
+      return;
+    }
+    setSavingMarkets(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/trading/config`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true'
+        },
+        body: JSON.stringify({
+          target_markets: selectedMarkets,
+          candle_unit_minutes: candleUnit
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setAlertMsg({ type: 'success', text: `거래 품목(${selectedMarkets.length}개) 및 캔들 주기(${candleUnit}분)가 저장되었습니다.` });
+        setShowMarketModal(false);
+        await fetchStatus();
+      } else {
+        setAlertMsg({ type: 'error', text: data.message || '품목 저장 실패' });
+      }
+    } catch (err) {
+      setAlertMsg({ type: 'error', text: `품목 저장 실패: ${err.message}` });
+    } finally {
+      setSavingMarkets(false);
+      setTimeout(() => setAlertMsg(null), 6000);
+    }
+  };
+
+  // Toggle Market Selection
+  const toggleMarketSelection = (marketCode) => {
+    if (selectedMarkets.includes(marketCode)) {
+      if (selectedMarkets.length <= 1) {
+        alert('최소 1개 이상의 거래 품목이 필요합니다.');
+        return;
+      }
+      setSelectedMarkets(selectedMarkets.filter(m => m !== marketCode));
+    } else {
+      setSelectedMarkets([...selectedMarkets, marketCode]);
+    }
+  };
+
+  // Apply Presets
+  const applyPreset = (presetList) => {
+    setSelectedMarkets(presetList);
+  };
+
   // Auto-refresh interval effect
   useEffect(() => {
     handleRefreshAll();
+    fetchAvailableMarkets();
 
     if (autoRefresh) {
       timerRef.current = setInterval(() => {
@@ -169,8 +382,29 @@ export default function AutoTradingDashboard() {
           </div>
         </div>
 
-        {/* Action Controls */}
+        {/* Action Controls & Modal Buttons */}
         <div className="header-controls">
+          <button
+            className="trading-btn btn-settings"
+            onClick={() => setShowLimitsModal(true)}
+            title="1회 거래 제한 및 1품목 제한 설정"
+          >
+            <Sliders size={16} />
+            <span>주문한도·품목제한 설정</span>
+          </button>
+
+          <button
+            className="trading-btn btn-settings"
+            onClick={() => {
+              setShowMarketModal(true);
+              fetchAvailableMarkets();
+            }}
+            title="거래 대상 코인 및 캔들 주기 관리"
+          >
+            <Layers size={16} />
+            <span>품목 관리 ({selectedMarkets.length})</span>
+          </button>
+
           <button
             className="trading-btn btn-trigger"
             onClick={handleTriggerRun}
@@ -183,9 +417,9 @@ export default function AutoTradingDashboard() {
           <button
             className="trading-btn btn-refresh"
             onClick={handleRefreshAll}
-            disabled={loading}
+            disabled={loading || accountLoading}
           >
-            <RefreshCw size={16} className={loading ? 'spin-anim' : ''} />
+            <RefreshCw size={16} className={(loading || accountLoading) ? 'spin-anim' : ''} />
             <span>새로고침</span>
           </button>
 
@@ -199,6 +433,68 @@ export default function AutoTradingDashboard() {
               <span>자동 갱신 ({refreshInterval}s)</span>
             </label>
           </div>
+        </div>
+      </div>
+
+      {/* Account Verification Check Banner */}
+      <div className="account-check-card">
+        <div className="account-check-left">
+          <div className={`account-status-icon-box ${
+            accountStatus?.status === 'CONNECTED' ? 'bg-emerald-glow' :
+            accountStatus?.status === 'IP_RESTRICTED' ? 'bg-amber-glow' :
+            accountStatus?.status === 'INVALID_KEY' ? 'bg-rose-glow' : 'bg-blue-glow'
+          }`}>
+            {accountStatus?.status === 'CONNECTED' ? (
+              <ShieldCheck size={22} className="text-emerald-400" />
+            ) : accountStatus?.status === 'IP_RESTRICTED' ? (
+              <ShieldAlert size={22} className="text-amber-400" />
+            ) : accountStatus?.status === 'INVALID_KEY' ? (
+              <ShieldX size={22} className="text-rose-400" />
+            ) : (
+              <Key size={22} className="text-blue-400" />
+            )}
+          </div>
+          <div className="account-check-info">
+            <div className="account-title-row">
+              <span className="account-check-title">빗썸 거래소 API 계정 상태</span>
+              <span className={`account-status-badge status-${accountStatus?.status?.toLowerCase() || 'checking'}`}>
+                {accountLoading ? '상태 확인 중...' :
+                 accountStatus?.status === 'CONNECTED' ? '🟢 API 연동 완료 (실계좌)' :
+                 accountStatus?.status === 'IP_RESTRICTED' ? '🟡 허용 IP 제한 (모의투자 권장)' :
+                 accountStatus?.status === 'INVALID_KEY' ? '🔴 API 인증 오류' :
+                 accountStatus?.status === 'CONFIG_MISSING' ? '⚪ API Key 미설정' :
+                 '검증 완료'}
+              </span>
+              {accountStatus?.masked_key && (
+                <span className="account-key-pill">
+                  <Key size={12} /> Key: {accountStatus.masked_key}
+                </span>
+              )}
+            </div>
+            <p className="account-check-desc">
+              {accountLoading ? 'Bithumb API 연결 및 계정 권한을 검증하고 있습니다...' :
+               accountStatus?.message || '거래소 API 접근 권한 상태를 확인했습니다.'}
+            </p>
+          </div>
+        </div>
+
+        <div className="account-check-actions">
+          <button
+            className="account-btn btn-recheck"
+            onClick={fetchAccountStatus}
+            disabled={accountLoading}
+            title="계정 접근 권한 즉시 재확인"
+          >
+            <RefreshCw size={14} className={accountLoading ? 'spin-anim' : ''} />
+            <span>상태 재검사</span>
+          </button>
+          <button
+            className="account-btn btn-edit-keys"
+            onClick={() => setShowAccountModal(true)}
+          >
+            <Key size={14} />
+            <span>API 키 관리</span>
+          </button>
         </div>
       </div>
 
@@ -230,9 +526,13 @@ export default function AutoTradingDashboard() {
             <DollarSign size={20} className="text-emerald-400" />
           </div>
           <div className="kpi-content">
-            <span className="kpi-label">1회 최대 주문 한도</span>
-            <span className="kpi-value">{status?.max_order_krw?.toLocaleString() || '50,000'} KRW</span>
-            <span className="kpi-sub">캔들 주기: {status?.candle_unit_minutes || 15}분봉</span>
+            <span className="kpi-label">1회 거래 제한 & 보유 제한</span>
+            <span className="kpi-value">
+              ₩ {(status?.max_order_krw || 50000).toLocaleString()} (1회)
+            </span>
+            <span className="kpi-sub font-semibold text-emerald-400">
+              최대 {status?.max_holding_coins || 1}품목 보유 제한 적용
+            </span>
           </div>
         </div>
 
@@ -242,8 +542,10 @@ export default function AutoTradingDashboard() {
           </div>
           <div className="kpi-content">
             <span className="kpi-label">리스크 가드레일</span>
-            <span className="kpi-value text-amber-300">손절 -{status?.stop_loss_pct || 3.0}% / 익절 +{status?.take_profit_pct || 5.0}%</span>
-            <span className="kpi-sub">하드 리스크 컷 자동 감시</span>
+            <span className="kpi-value text-amber-300">
+              손절 -{status?.stop_loss_pct || 3.0}% / 익절 +{status?.take_profit_pct || 5.0}%
+            </span>
+            <span className="kpi-sub">일일 손실 한도: {status?.daily_max_loss_pct || 5.0}%</span>
           </div>
         </div>
 
@@ -252,9 +554,11 @@ export default function AutoTradingDashboard() {
             <Layers size={20} className="text-purple-400" />
           </div>
           <div className="kpi-content">
-            <span className="kpi-label">대상 마켓</span>
-            <span className="kpi-value text-purple-300">{status?.target_markets?.join(', ') || 'KRW-BTC, KRW-ETH'}</span>
-            <span className="kpi-sub">빗썸 원화(KRW) 마켓</span>
+            <span className="kpi-label">대상 마켓 & 캔들 주기</span>
+            <span className="kpi-value text-purple-300">
+              {status?.target_markets?.join(', ') || 'KRW-BTC'}
+            </span>
+            <span className="kpi-sub">{status?.candle_unit_minutes || 15}분봉 기준 분석</span>
           </div>
         </div>
       </div>
@@ -552,8 +856,9 @@ export default function AutoTradingDashboard() {
                 onChange={(e) => { setMarketFilter(e.target.value); setPage(1); }}
               >
                 <option value="ALL">전체 마켓</option>
-                <option value="KRW-BTC">KRW-BTC</option>
-                <option value="KRW-ETH">KRW-ETH</option>
+                {selectedMarkets.map(m => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
               </select>
             </div>
 
@@ -693,6 +998,508 @@ export default function AutoTradingDashboard() {
           </div>
         )}
       </div>
+
+      {/* ====================================================
+          MODAL 1: Account Settings Modal
+          ==================================================== */}
+      {showAccountModal && (
+        <div className="trading-modal-overlay" onClick={() => setShowAccountModal(false)}>
+          <div className="trading-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="modal-title-row">
+                <Key size={20} className="text-blue-400" />
+                <h2>Bithumb 거래소 API 연동 설정</h2>
+              </div>
+              <button className="modal-close-btn" onClick={() => setShowAccountModal(false)}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveAccount}>
+              <div className="modal-body">
+                <div className="modal-info-box">
+                  <Info size={16} className="text-blue-400 flex-shrink-0" />
+                  <div className="text-xs text-gray-300 leading-relaxed">
+                    빗썸(Bithumb) API Key는 <strong>자산조회, 주문조회, 주문하기</strong> 권한이 활성화되어 있어야 합니다.
+                    보안을 위해 허용 IP를 OCI 서버 IP로 등록해 주세요.
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">
+                    <span>Bithumb Access Key (Connect Key)</span>
+                    {accountStatus?.masked_key && (
+                      <span className="text-xs text-gray-400">현재 등록: {accountStatus.masked_key}</span>
+                    )}
+                  </label>
+                  <input
+                    type="text"
+                    className="trading-input"
+                    placeholder="새 Access Key 입력 (변경 시에만 입력)"
+                    value={accessKeyInput}
+                    onChange={(e) => setAccessKeyInput(e.target.value)}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">
+                    <span>Bithumb Secret Key</span>
+                  </label>
+                  <div className="password-input-wrapper">
+                    <input
+                      type={showSecretKey ? 'text' : 'password'}
+                      className="trading-input"
+                      placeholder="새 Secret Key 입력 (변경 시에만 입력)"
+                      value={secretKeyInput}
+                      onChange={(e) => setSecretKeyInput(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      className="pwd-toggle-btn"
+                      onClick={() => setShowSecretKey(!showSecretKey)}
+                    >
+                      {showSecretKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="account-current-detail-card">
+                  <div className="detail-row">
+                    <span className="text-gray-400">연결 상태:</span>
+                    <strong className={accountStatus?.is_connected ? 'text-emerald-400' : 'text-amber-400'}>
+                      {accountStatus?.status || 'UNKNOWN'}
+                    </strong>
+                  </div>
+                  <div className="detail-row">
+                    <span className="text-gray-400">상태 상세:</span>
+                    <span className="text-xs text-gray-300">{accountStatus?.message || '-'}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="modal-btn btn-cancel"
+                  onClick={() => setShowAccountModal(false)}
+                >
+                  닫기
+                </button>
+                <button
+                  type="submit"
+                  className="modal-btn btn-save"
+                  disabled={savingAccount}
+                >
+                  {savingAccount ? '저장 및 검증 중...' : 'API 키 저장 및 검증'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ====================================================
+          MODAL 2: Order Limits & Risk Guardrails Modal (1회 거래 제한, 1품목 제한)
+          ==================================================== */}
+      {showLimitsModal && (
+        <div className="trading-modal-overlay" onClick={() => setShowLimitsModal(false)}>
+          <div className="trading-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="modal-title-row">
+                <Sliders size={20} className="text-emerald-400" />
+                <h2>1회 거래 제한 & 1품목 제한 리스크 관리</h2>
+              </div>
+              <button className="modal-close-btn" onClick={() => setShowLimitsModal(false)}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveLimits}>
+              <div className="modal-body">
+                {/* Trading Mode Switch */}
+                <div className="mode-toggle-card">
+                  <div>
+                    <span className="font-bold text-sm text-gray-200">투자 모드 선택</span>
+                    <p className="text-xs text-gray-400 mt-1">
+                      {limitsForm.dry_run
+                        ? '🟢 모의투자 (Dry-Run): 가상 잔고 100만원으로 안전하게 시뮬레이션 매매를 수행합니다.'
+                        : '🔴 실전매매 (Live): 빗썸 실제 계좌의 원화 잔고로 실제 코인을 매수/매도합니다.'}
+                    </p>
+                  </div>
+                  <label className="switch-label">
+                    <input
+                      type="checkbox"
+                      checked={!limitsForm.dry_run}
+                      onChange={(e) => setLimitsForm({ ...limitsForm, dry_run: !e.target.checked })}
+                    />
+                    <span className="switch-slider"></span>
+                  </label>
+                </div>
+
+                {/* 1회 거래 제한 & 1품목 제한 Highlights */}
+                <div className="form-grid-2">
+                  <div className="form-group">
+                    <label className="form-label">
+                      <span className="text-emerald-400 font-bold">1회 최대 거래(주문) 한도 (KRW)</span>
+                    </label>
+                    <input
+                      type="number"
+                      className="trading-input font-mono font-bold"
+                      min="5000"
+                      step="10000"
+                      value={limitsForm.max_order_krw_per_trade}
+                      onChange={(e) => setLimitsForm({ ...limitsForm, max_order_krw_per_trade: parseFloat(e.target.value) || 0 })}
+                    />
+                    <div className="quick-amount-chips">
+                      {[30000, 50000, 100000, 300000, 500000].map(amt => (
+                        <button
+                          key={amt}
+                          type="button"
+                          className="amt-chip"
+                          onClick={() => setLimitsForm({ ...limitsForm, max_order_krw_per_trade: amt })}
+                        >
+                          {(amt / 10000)}만원
+                        </button>
+                      ))}
+                    </div>
+                    <span className="input-hint">1회 매수 실행 시 투입되는 최대 주문 금액 제한</span>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">
+                      <span className="text-purple-400 font-bold">동시 보유 품목 수 제한 (개)</span>
+                    </label>
+                    <select
+                      className="trading-input font-bold"
+                      value={limitsForm.max_holding_coins}
+                      onChange={(e) => setLimitsForm({ ...limitsForm, max_holding_coins: parseInt(e.target.value) || 1 })}
+                    >
+                      <option value="1">🔒 1개 품목 제한 (단일 종목 집중 매매)</option>
+                      <option value="2">2개 품목 분산</option>
+                      <option value="3">3개 품목 분산</option>
+                      <option value="5">5개 품목 분산</option>
+                    </select>
+                    <span className="input-hint">1개 품목 제한 시, 보유 코인이 있을 경우 다른 코인은 자동 매수하지 않습니다.</span>
+                  </div>
+                </div>
+
+                <div className="form-grid-2 mt-2">
+                  <div className="form-group">
+                    <label className="form-label">
+                      <span>1회 최소 주문 금액 (KRW)</span>
+                    </label>
+                    <input
+                      type="number"
+                      className="trading-input font-mono"
+                      min="1000"
+                      step="1000"
+                      value={limitsForm.min_order_krw}
+                      onChange={(e) => setLimitsForm({ ...limitsForm, min_order_krw: parseFloat(e.target.value) || 0 })}
+                    />
+                    <span className="input-hint">빗썸 최소 주문액 기준 5,000원 이상 권장</span>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">
+                      <span>코인별 포트폴리오 최대 비중: <strong>{((limitsForm.max_portfolio_ratio_per_coin || 0.3) * 100).toFixed(0)}%</strong></span>
+                    </label>
+                    <input
+                      type="range"
+                      min="0.1"
+                      max="1.0"
+                      step="0.05"
+                      className="trading-range"
+                      value={limitsForm.max_portfolio_ratio_per_coin}
+                      onChange={(e) => setLimitsForm({ ...limitsForm, max_portfolio_ratio_per_coin: parseFloat(e.target.value) })}
+                    />
+                    <span className="input-hint">단일 코인이 전체 자산에서 차지할 수 있는 상한선</span>
+                  </div>
+                </div>
+
+                <div className="form-grid-2 mt-2">
+                  <div className="form-group">
+                    <label className="form-label">
+                      <span className="text-rose-400 font-bold">손절 기준 (Stop Loss %)</span>
+                    </label>
+                    <div className="input-with-suffix">
+                      <input
+                        type="number"
+                        className="trading-input font-mono text-rose-400"
+                        min="0.5"
+                        max="30"
+                        step="0.5"
+                        value={limitsForm.stop_loss_pct}
+                        onChange={(e) => setLimitsForm({ ...limitsForm, stop_loss_pct: parseFloat(e.target.value) || 0 })}
+                      />
+                      <span className="suffix">%</span>
+                    </div>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">
+                      <span className="text-emerald-400 font-bold">익절 기준 (Take Profit %)</span>
+                    </label>
+                    <div className="input-with-suffix">
+                      <input
+                        type="number"
+                        className="trading-input font-mono text-emerald-400"
+                        min="1"
+                        max="100"
+                        step="0.5"
+                        value={limitsForm.take_profit_pct}
+                        onChange={(e) => setLimitsForm({ ...limitsForm, take_profit_pct: parseFloat(e.target.value) || 0 })}
+                      />
+                      <span className="suffix">%</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="form-grid-2 mt-2">
+                  <div className="form-group">
+                    <label className="form-label">
+                      <span>일일 최대 손실 서킷브레이커 (%)</span>
+                    </label>
+                    <div className="input-with-suffix">
+                      <input
+                        type="number"
+                        className="trading-input font-mono text-amber-400"
+                        min="1"
+                        max="30"
+                        step="0.5"
+                        value={limitsForm.daily_max_loss_pct}
+                        onChange={(e) => setLimitsForm({ ...limitsForm, daily_max_loss_pct: parseFloat(e.target.value) || 0 })}
+                      />
+                      <span className="suffix">%</span>
+                    </div>
+                    <span className="input-hint">당일 누적 손실 도달 시 거래 즉시 중단</span>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">
+                      <span>매도 후 재진입 쿨다운 (분)</span>
+                    </label>
+                    <div className="input-with-suffix">
+                      <input
+                        type="number"
+                        className="trading-input font-mono"
+                        min="1"
+                        max="180"
+                        step="1"
+                        value={limitsForm.cooldown_minutes_after_sell}
+                        onChange={(e) => setLimitsForm({ ...limitsForm, cooldown_minutes_after_sell: parseInt(e.target.value) || 1 })}
+                      />
+                      <span className="suffix">분</span>
+                    </div>
+                    <span className="input-hint">포지션 청산 후 성급한 재진입 방지</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="modal-btn btn-cancel"
+                  onClick={() => setShowLimitsModal(false)}
+                >
+                  취소
+                </button>
+                <button
+                  type="submit"
+                  className="modal-btn btn-save"
+                  disabled={savingLimits}
+                >
+                  {savingLimits ? '저장 중...' : '1회 거래 & 1품목 제한 설정 저장'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ====================================================
+          MODAL 3: Market / Item Management Modal
+          ==================================================== */}
+      {showMarketModal && (
+        <div className="trading-modal-overlay" onClick={() => setShowMarketModal(false)}>
+          <div className="trading-modal-content market-modal-wide" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="modal-title-row">
+                <Layers size={20} className="text-purple-400" />
+                <h2>거래 품목(마켓) 및 캔들 주기 관리</h2>
+              </div>
+              <button className="modal-close-btn" onClick={() => setShowMarketModal(false)}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="modal-body">
+              {/* Currently Selected Markets */}
+              <div className="selected-markets-box">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="font-bold text-sm text-gray-200">
+                    현재 자동거래 대상 품목 ({selectedMarkets.length}개)
+                  </span>
+                  <span className="text-xs text-gray-400">클릭하여 제외 가능</span>
+                </div>
+                <div className="selected-tags-container">
+                  {selectedMarkets.map(mkt => (
+                    <span key={mkt} className="market-pill-tag">
+                      <strong>{mkt}</strong>
+                      <button
+                        type="button"
+                        className="pill-remove-btn"
+                        onClick={() => toggleMarketSelection(mkt)}
+                        title="제거"
+                      >
+                        <X size={12} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Candle Unit Selection */}
+              <div className="candle-unit-section mt-3">
+                <span className="font-bold text-sm text-gray-200 block mb-2">
+                  분석 캔들 주기 선택
+                </span>
+                <div className="candle-buttons-grid">
+                  {[1, 3, 5, 15, 30, 60, 240].map(unit => (
+                    <button
+                      key={unit}
+                      type="button"
+                      className={`candle-btn ${candleUnit === unit ? 'active' : ''}`}
+                      onClick={() => setCandleUnit(unit)}
+                    >
+                      {unit >= 60 ? `${unit / 60}시간봉` : `${unit}분봉`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Presets */}
+              <div className="presets-box mt-3">
+                <span className="text-xs text-gray-400 font-bold block mb-1">빠른 추천 프리셋:</span>
+                <div className="preset-buttons-row">
+                  <button
+                    type="button"
+                    className="preset-btn"
+                    onClick={() => applyPreset(['KRW-BTC'])}
+                  >
+                    🔒 단일 1종 (BTC 전용)
+                  </button>
+                  <button
+                    type="button"
+                    className="preset-btn"
+                    onClick={() => applyPreset(['KRW-BTC', 'KRW-ETH'])}
+                  >
+                    💎 메이저 2종 (BTC + ETH)
+                  </button>
+                  <button
+                    type="button"
+                    className="preset-btn"
+                    onClick={() => applyPreset(['KRW-BTC', 'KRW-ETH', 'KRW-XRP', 'KRW-SOL'])}
+                  >
+                    🚀 메이저 4종 (+XRP, SOL)
+                  </button>
+                  <button
+                    type="button"
+                    className="preset-btn"
+                    onClick={() => applyPreset(['KRW-BTC', 'KRW-ETH', 'KRW-XRP', 'KRW-DOGE', 'KRW-SOL'])}
+                  >
+                    ⚡ 인기 5종 (+DOGE)
+                  </button>
+                </div>
+              </div>
+
+              {/* Market Search and Add */}
+              <div className="market-search-section mt-4">
+                <span className="font-bold text-sm text-gray-200 block mb-2">
+                  빗썸 원화 마켓 검색 및 추가 (400+ 종목)
+                </span>
+                <div className="search-input-wrapper">
+                  <Search size={16} className="search-icon" />
+                  <input
+                    type="text"
+                    className="trading-input pl-9"
+                    placeholder="코인명 (예: 리플, 솔라나, 도지) 또는 심볼 (XRP, SOL, DOGE) 검색..."
+                    value={marketSearchQuery}
+                    onChange={(e) => {
+                      setMarketSearchQuery(e.target.value);
+                      fetchAvailableMarkets(e.target.value);
+                    }}
+                  />
+                </div>
+
+                <div className="available-markets-list">
+                  {loadingMarkets ? (
+                    <div className="text-center py-6 text-gray-400 text-xs">
+                      마켓 목록을 검색하는 중...
+                    </div>
+                  ) : availableMarkets.length === 0 ? (
+                    <div className="text-center py-6 text-gray-400 text-xs">
+                      일치하는 빗썸 원화 마켓이 없습니다.
+                    </div>
+                  ) : (
+                    availableMarkets.slice(0, 30).map(m => {
+                      const isSelected = selectedMarkets.includes(m.market);
+                      return (
+                        <div
+                          key={m.market}
+                          className={`available-market-item ${isSelected ? 'selected' : ''}`}
+                          onClick={() => toggleMarketSelection(m.market)}
+                        >
+                          <div className="market-item-left">
+                            <span className="coin-symbol">{m.symbol}</span>
+                            <div className="coin-names">
+                              <strong>{m.korean_name}</strong>
+                              <span className="text-xs text-gray-400">{m.market}</span>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            className={`market-action-btn ${isSelected ? 'btn-remove' : 'btn-add'}`}
+                          >
+                            {isSelected ? (
+                              <>
+                                <Check size={12} />
+                                <span>선택됨</span>
+                              </>
+                            ) : (
+                              <>
+                                <Plus size={12} />
+                                <span>추가</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              <button
+                type="button"
+                className="modal-btn btn-cancel"
+                onClick={() => setShowMarketModal(false)}
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                className="modal-btn btn-save"
+                onClick={handleSaveMarkets}
+                disabled={savingMarkets}
+              >
+                {savingMarkets ? '저장 중...' : `설정 저장 (${selectedMarkets.length}개 마켓)`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
