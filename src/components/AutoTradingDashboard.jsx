@@ -69,29 +69,40 @@ export default function AutoTradingDashboard() {
       if (res.ok) {
         const data = await res.json();
         setStatus(data);
-        // Sync limits form
-        setLimitsForm(prev => ({
-          ...prev,
-          dry_run: data.is_dry_run ?? true,
-          min_order_krw: data.min_order_krw ?? 5000,
-          max_order_krw_per_trade: data.max_order_krw ?? 50000,
-          max_holding_coins: data.max_holding_coins ?? 1,
-          max_portfolio_ratio_per_coin: data.max_portfolio_ratio_per_coin ?? 0.3,
-          stop_loss_pct: data.stop_loss_pct ?? 3.0,
-          take_profit_pct: data.take_profit_pct ?? 5.0,
-          daily_max_loss_pct: data.daily_max_loss_pct ?? 5.0,
-          cooldown_minutes_after_sell: data.cooldown_minutes_after_sell ?? 15
-        }));
-        if (data.target_markets) {
-          setSelectedMarkets(data.target_markets);
-        }
-        if (data.candle_unit_minutes) {
-          setCandleUnit(data.candle_unit_minutes);
-        }
       }
     } catch (err) {
       console.error('Failed to fetch trading status:', err);
     }
+  };
+
+  // Open Limits Modal with latest synced status values
+  const openLimitsModal = () => {
+    if (status) {
+      setLimitsForm({
+        dry_run: status.is_dry_run ?? true,
+        min_order_krw: status.min_order_krw ?? 5000,
+        max_order_krw_per_trade: status.max_order_krw ?? 50000,
+        max_holding_coins: status.max_holding_coins ?? 1,
+        max_portfolio_ratio_per_coin: status.max_portfolio_ratio_per_coin ?? 0.3,
+        stop_loss_pct: status.stop_loss_pct ?? 3.0,
+        take_profit_pct: status.take_profit_pct ?? 5.0,
+        daily_max_loss_pct: status.daily_max_loss_pct ?? 5.0,
+        cooldown_minutes_after_sell: status.cooldown_minutes_after_sell ?? 15
+      });
+    }
+    setShowLimitsModal(true);
+  };
+
+  // Open Market Modal with latest synced status values
+  const openMarketModal = () => {
+    if (status?.target_markets && status.target_markets.length > 0) {
+      setSelectedMarkets(status.target_markets);
+    }
+    if (status?.candle_unit_minutes) {
+      setCandleUnit(status.candle_unit_minutes);
+    }
+    setShowMarketModal(true);
+    fetchAvailableMarkets();
   };
 
   // Fetch Account Check
@@ -300,6 +311,19 @@ const FALLBACK_BITHUMB_MARKETS = [
   const handleSaveLimits = async (e) => {
     e.preventDefault();
     setSavingLimits(true);
+    const parsedHoldingCoins = Math.max(1, parseInt(limitsForm.max_holding_coins, 10) || 1);
+    const payload = {
+      dry_run: Boolean(limitsForm.dry_run),
+      min_order_krw: Number(limitsForm.min_order_krw) || 5000,
+      max_order_krw_per_trade: Number(limitsForm.max_order_krw_per_trade) || 50000,
+      max_holding_coins: parsedHoldingCoins,
+      max_portfolio_ratio_per_coin: Number(limitsForm.max_portfolio_ratio_per_coin) || 0.3,
+      stop_loss_pct: Number(limitsForm.stop_loss_pct) || 3.0,
+      take_profit_pct: Number(limitsForm.take_profit_pct) || 5.0,
+      daily_max_loss_pct: Number(limitsForm.daily_max_loss_pct) || 5.0,
+      cooldown_minutes_after_sell: parseInt(limitsForm.cooldown_minutes_after_sell, 10) || 15
+    };
+
     try {
       const res = await fetch(`${API_BASE}/api/trading/config`, {
         method: 'POST',
@@ -307,11 +331,11 @@ const FALLBACK_BITHUMB_MARKETS = [
           'Content-Type': 'application/json',
           'ngrok-skip-browser-warning': 'true'
         },
-        body: JSON.stringify(limitsForm)
+        body: JSON.stringify(payload)
       });
       const data = await res.json();
       if (res.ok) {
-        setAlertMsg({ type: 'success', text: '1회 거래 한도 및 1품목 제한 설정이 저장되었습니다.' });
+        setAlertMsg({ type: 'success', text: `거래 한도 및 최대 ${parsedHoldingCoins}품목 보유 제한 설정이 저장되었습니다.` });
         setShowLimitsModal(false);
         await fetchStatus();
       } else {
@@ -454,8 +478,8 @@ const FALLBACK_BITHUMB_MARKETS = [
         <div className="header-controls">
           <button
             className="trading-btn btn-settings"
-            onClick={() => setShowLimitsModal(true)}
-            title="1회 거래 제한 및 1품목 제한 설정"
+            onClick={openLimitsModal}
+            title="1회 거래 제한 및 보유 품목 제한 설정"
           >
             <Sliders size={16} />
             <span>주문한도·품목제한 설정</span>
@@ -463,10 +487,7 @@ const FALLBACK_BITHUMB_MARKETS = [
 
           <button
             className="trading-btn btn-settings"
-            onClick={() => {
-              setShowMarketModal(true);
-              fetchAvailableMarkets();
-            }}
+            onClick={openMarketModal}
             title="거래 대상 코인 및 캔들 주기 관리"
           >
             <Layers size={16} />
