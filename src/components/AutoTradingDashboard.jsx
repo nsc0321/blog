@@ -3,7 +3,8 @@ import {
   TrendingUp, TrendingDown, RefreshCw, Play, ShieldAlert,
   Sliders, Activity, CheckCircle, AlertTriangle, ArrowUpRight,
   ArrowDownRight, Layers, Clock, DollarSign, Cpu, Search, Filter,
-  ChevronDown, ChevronUp, AlertCircle, Info, Sparkles
+  ChevronDown, ChevronUp, AlertCircle, Info, Sparkles,
+  Wallet, PieChart, Coins, Banknote, Percent, ArrowRight
 } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
@@ -255,6 +256,226 @@ export default function AutoTradingDashboard() {
             <span className="kpi-value text-purple-300">{status?.target_markets?.join(', ') || 'KRW-BTC, KRW-ETH'}</span>
             <span className="kpi-sub">빗썸 원화(KRW) 마켓</span>
           </div>
+        </div>
+      </div>
+
+      {/* Current Asset & Portfolio Summary Section */}
+      <div className="trading-asset-section">
+        <div className="asset-section-header">
+          <div className="asset-title-group">
+            <h2 className="section-title">
+              <Wallet size={20} className="text-emerald-400" />
+              <span>현재 보유 자산 및 포트폴리오 현황</span>
+            </h2>
+            <span className="asset-subtitle">
+              {status?.is_dry_run ? '모의투자 가상 잔고 기준 (초기 자본: ₩ 1,000,000)' : '빗썸 실제 계좌 실시간 연동'}
+            </span>
+          </div>
+          {status?.assets?.total_return_pct !== undefined && status?.assets?.total_return_pct !== null && (
+            <div className={`total-return-badge ${(status.assets.total_return_pct || 0) >= 0 ? 'badge-profit' : 'badge-loss'}`}>
+              <span>총 누적 수익률:</span>
+              <strong>{(status.assets.total_return_pct || 0) >= 0 ? '+' : ''}{(status.assets.total_return_pct || 0).toFixed(2)}%</strong>
+            </div>
+          )}
+        </div>
+
+        {/* 4 Hero Asset Metrics */}
+        <div className="asset-hero-grid">
+          {/* Card 1: Total Net Worth */}
+          <div className="asset-hero-card card-total">
+            <div className="asset-card-top">
+              <span className="asset-card-label">총 추정 자산</span>
+              <div className="asset-icon-pill bg-emerald-glow">
+                <Coins size={18} className="text-emerald-400" />
+              </div>
+            </div>
+            <div className="asset-card-main-val">
+              ₩ {(status?.assets?.total_net_assets || 1000000).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+            </div>
+            <div className="asset-card-sub-info">
+              <span>원화 잔고 + 보유 코인 평가액 합산</span>
+            </div>
+          </div>
+
+          {/* Card 2: KRW Balance */}
+          <div className="asset-hero-card card-krw">
+            <div className="asset-card-top">
+              <span className="asset-card-label">보유 원화 잔고</span>
+              <div className="asset-icon-pill bg-blue-glow">
+                <Banknote size={18} className="text-blue-400" />
+              </div>
+            </div>
+            <div className="asset-card-main-val">
+              ₩ {(status?.assets?.krw_balance || 1000000).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+            </div>
+            <div className="asset-card-sub-info">
+              <span className="text-blue-300">주문 가능 자금 (비중 {(status?.assets?.krw_weight_pct || 100).toFixed(1)}%)</span>
+            </div>
+          </div>
+
+          {/* Card 3: Crypto Evaluation */}
+          <div className="asset-hero-card card-crypto">
+            <div className="asset-card-top">
+              <span className="asset-card-label">코인 평가 금액</span>
+              <div className="asset-icon-pill bg-purple-glow">
+                <PieChart size={18} className="text-purple-400" />
+              </div>
+            </div>
+            <div className="asset-card-main-val">
+              ₩ {(status?.assets?.crypto_eval_total || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+            </div>
+            <div className="asset-card-sub-info">
+              <span>총 매수 원금: ₩ {(status?.assets?.crypto_buy_total || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+            </div>
+          </div>
+
+          {/* Card 4: Total PnL */}
+          <div className="asset-hero-card card-pnl">
+            <div className="asset-card-top">
+              <span className="asset-card-label">총 평가 손익</span>
+              <div className="asset-icon-pill bg-amber-glow">
+                {(status?.assets?.total_pnl_krw || 0) >= 0 ? (
+                  <TrendingUp size={18} className="text-emerald-400" />
+                ) : (
+                  <TrendingDown size={18} className="text-rose-400" />
+                )}
+              </div>
+            </div>
+            <div className={`asset-card-main-val ${(status?.assets?.total_pnl_krw || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+              {(status?.assets?.total_pnl_krw || 0) >= 0 ? '+' : ''}₩ {(status?.assets?.total_pnl_krw || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+            </div>
+            <div className="asset-card-sub-info">
+              <span className={(status?.assets?.total_pnl_pct || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                수익률: {(status?.assets?.total_pnl_pct || 0) >= 0 ? '+' : ''}{(status?.assets?.total_pnl_pct || 0).toFixed(2)}%
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Visual Asset Allocation Bar */}
+        <div className="asset-allocation-box">
+          <div className="allocation-header">
+            <div className="alloc-title">
+              <Percent size={15} />
+              <span>자산 포트폴리오 비중 구성</span>
+            </div>
+            <div className="alloc-legend">
+              <div className="legend-item">
+                <span className="legend-dot dot-krw"></span>
+                <span>원화(KRW) {(status?.assets?.krw_weight_pct || 100).toFixed(1)}%</span>
+              </div>
+              {status?.assets?.holdings?.map((h) => (
+                <div key={h.market} className="legend-item">
+                  <span className={`legend-dot dot-${h.symbol.toLowerCase()}`}></span>
+                  <span>{h.symbol} {(h.weight_pct || 0).toFixed(1)}%</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="allocation-progress-bar">
+            <div
+              className="bar-segment bar-krw"
+              style={{ width: `${Math.max(status?.assets?.krw_weight_pct ?? 100, (status?.assets?.holdings?.some(h => h.weight_pct > 0) ? 0 : 100))}%` }}
+              title={`KRW: ${(status?.assets?.krw_weight_pct || 100).toFixed(1)}%`}
+            />
+            {status?.assets?.holdings?.map((h) => (
+              (h.weight_pct || 0) > 0 ? (
+                <div
+                  key={h.market}
+                  className={`bar-segment bar-${h.symbol.toLowerCase()}`}
+                  style={{ width: `${h.weight_pct}%` }}
+                  title={`${h.symbol}: ${h.weight_pct.toFixed(1)}%`}
+                />
+              ) : null
+            ))}
+          </div>
+        </div>
+
+        {/* Holdings Breakdown Table */}
+        <div className="holdings-table-wrapper">
+          <table className="holdings-table">
+            <thead>
+              <tr>
+                <th>자산 종목</th>
+                <th>보유 수량</th>
+                <th>매수 평균가</th>
+                <th>현재가</th>
+                <th>매수 금액</th>
+                <th>평가 금액</th>
+                <th>평가 손익 (수익률)</th>
+                <th>포트폴리오 비중</th>
+              </tr>
+            </thead>
+            <tbody>
+              {/* KRW Row */}
+              <tr className="krw-row">
+                <td>
+                  <div className="asset-name-cell">
+                    <span className="asset-circle circle-krw">₩</span>
+                    <div>
+                      <strong>대한민국 원화</strong>
+                      <span className="asset-symbol">KRW</span>
+                    </div>
+                  </div>
+                </td>
+                <td>{(status?.assets?.krw_balance || 1000000).toLocaleString()} KRW</td>
+                <td>-</td>
+                <td>1 KRW</td>
+                <td>₩ {(status?.assets?.krw_balance || 1000000).toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                <td>₩ {(status?.assets?.krw_balance || 1000000).toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                <td><span className="text-gray-400">-</span></td>
+                <td>
+                  <div className="weight-cell">
+                    <span>{(status?.assets?.krw_weight_pct || 100).toFixed(1)}%</span>
+                    <div className="mini-weight-bar">
+                      <div className="mini-bar-fill bg-blue-500" style={{ width: `${status?.assets?.krw_weight_pct || 100}%` }}></div>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+
+              {/* Crypto Holdings Rows */}
+              {status?.assets?.holdings?.map((h) => (
+                <tr key={h.market}>
+                  <td>
+                    <div className="asset-name-cell">
+                      <span className={`asset-circle circle-${h.symbol.toLowerCase()}`}>{h.symbol.slice(0, 1)}</span>
+                      <div>
+                        <strong>{h.symbol === 'BTC' ? '비트코인' : h.symbol === 'ETH' ? '이더리움' : h.symbol}</strong>
+                        <span className="asset-symbol">{h.market}</span>
+                      </div>
+                    </div>
+                  </td>
+                  <td>{h.volume > 0 ? h.volume.toFixed(6) : '0.000000'} {h.symbol}</td>
+                  <td>{h.avg_price > 0 ? `₩ ${h.avg_price.toLocaleString()}` : '-'}</td>
+                  <td>{h.current_price > 0 ? `₩ ${h.current_price.toLocaleString()}` : '-'}</td>
+                  <td>₩ {h.buy_krw.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                  <td><strong>₩ {h.eval_krw.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong></td>
+                  <td>
+                    {h.volume > 0 ? (
+                      <span className={`pnl-tag ${(h.pnl_krw || 0) >= 0 ? 'tag-profit' : 'tag-loss'}`}>
+                        {(h.pnl_krw || 0) >= 0 ? '+' : ''}₩ {(h.pnl_krw || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        {' '}({(h.pnl_pct || 0) >= 0 ? '+' : ''}{(h.pnl_pct || 0).toFixed(2)}%)
+                      </span>
+                    ) : (
+                      <span className="text-gray-400">-</span>
+                    )}
+                  </td>
+                  <td>
+                    <div className="weight-cell">
+                      <span>{(h.weight_pct || 0).toFixed(1)}%</span>
+                      <div className="mini-weight-bar">
+                        <div
+                          className={`mini-bar-fill bg-${h.symbol.toLowerCase()}`}
+                          style={{ width: `${h.weight_pct || 0}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
 

@@ -3435,6 +3435,318 @@ h1, h2, h3, h4, h5, h6 {
   color: #64748b;
 }
 
+/* ====================================================
+   Current Asset & Portfolio Summary Styles
+   ==================================================== */
+.trading-asset-section {
+  background: rgba(15, 23, 42, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 24px;
+  backdrop-filter: blur(12px);
+  margin-bottom: 24px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+}
+
+.asset-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.asset-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.asset-subtitle {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.total-return-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.total-return-badge.badge-profit {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: #34d399;
+}
+
+.total-return-badge.badge-loss {
+  background: rgba(244, 63, 94, 0.15);
+  border: 1px solid rgba(244, 63, 94, 0.3);
+  color: #fb7185;
+}
+
+.asset-hero-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.asset-hero-card {
+  background: rgba(30, 41, 59, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.asset-hero-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.asset-hero-card.card-total {
+  border-left: 4px solid #10b981;
+}
+
+.asset-hero-card.card-krw {
+  border-left: 4px solid #3b82f6;
+}
+
+.asset-hero-card.card-crypto {
+  border-left: 4px solid #a855f7;
+}
+
+.asset-hero-card.card-pnl {
+  border-left: 4px solid #f59e0b;
+}
+
+.asset-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.asset-card-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+.asset-icon-pill {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.asset-card-main-val {
+  font-size: 22px;
+  font-weight: 800;
+  color: #f8fafc;
+  letter-spacing: -0.5px;
+}
+
+.asset-card-sub-info {
+  font-size: 11px;
+  color: #64748b;
+}
+
+/* Allocation Bar */
+.asset-allocation-box {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  padding: 14px 18px;
+  margin-bottom: 20px;
+}
+
+.allocation-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.alloc-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #cbd5e1;
+}
+
+.alloc-legend {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.legend-dot.dot-krw { background: #3b82f6; }
+.legend-dot.dot-btc { background: #f59e0b; }
+.legend-dot.dot-eth { background: #a855f7; }
+
+.allocation-progress-bar {
+  display: flex;
+  height: 10px;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.bar-segment {
+  height: 100%;
+  transition: width 0.4s ease;
+}
+
+.bar-segment.bar-krw { background: #3b82f6; }
+.bar-segment.bar-btc { background: #f59e0b; }
+.bar-segment.bar-eth { background: #a855f7; }
+
+/* Holdings Table */
+.holdings-table-wrapper {
+  overflow-x: auto;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.holdings-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  text-align: left;
+}
+
+.holdings-table th {
+  background: rgba(30, 41, 59, 0.8);
+  padding: 12px 14px;
+  color: #94a3b8;
+  font-weight: 600;
+  font-size: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.holdings-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  color: #e2e8f0;
+}
+
+.holdings-table tr:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.asset-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.asset-circle {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.circle-krw {
+  background: rgba(59, 130, 246, 0.2);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.4);
+}
+
+.circle-btc {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+.circle-eth {
+  background: rgba(168, 85, 247, 0.2);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.4);
+}
+
+.asset-symbol {
+  display: block;
+  font-size: 11px;
+  color: #64748b;
+}
+
+.pnl-tag {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.pnl-tag.tag-profit {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+}
+
+.pnl-tag.tag-loss {
+  background: rgba(244, 63, 94, 0.15);
+  color: #fb7185;
+}
+
+.weight-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mini-weight-bar {
+  width: 60px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.mini-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+}
+
+.bg-btc { background: #f59e0b; }
+.bg-eth { background: #a855f7; }
+
+
 
 
 
