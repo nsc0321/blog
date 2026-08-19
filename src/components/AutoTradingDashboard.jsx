@@ -37,6 +37,8 @@ export default function AutoTradingDashboard() {
   const [refreshInterval, setRefreshInterval] = useState(15); // seconds
   const [marketFilter, setMarketFilter] = useState('ALL');
   const [decisionFilter, setDecisionFilter] = useState('ALL');
+  const [modeFilter, setModeFilter] = useState('ALL'); // 'ALL' | 'DRY_RUN' | 'LIVE'
+  const [resettingVirtual, setResettingVirtual] = useState(false);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
@@ -146,6 +148,36 @@ export default function AutoTradingDashboard() {
       setStatus(null);
       setAccountStatus(null);
       setLogs([]);
+    }
+  };
+
+  // Reset Virtual / Paper Trading Data
+  const handleResetVirtualData = async () => {
+    if (!window.confirm("가상 매매(모의투자) 기록과 포지션을 모두 초기화하고 가상 잔고를 1,000,000 KRW로 리셋하시겠습니까?\n(실제 빗썸 계좌 자산에는 전혀 영향을 주지 않습니다.)")) {
+      return;
+    }
+    setResettingVirtual(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/trading/reset-virtual`, {
+        method: 'POST',
+        headers: getAuthHeaders()
+      });
+      if (res.status === 401) {
+        handleUnauthorized();
+        return;
+      }
+      const data = await res.json();
+      if (res.ok) {
+        setAlertMsg({ type: 'success', text: data.message || '가상 매매 데이터가 성공적으로 초기화되었습니다.' });
+        await handleRefreshAll();
+      } else {
+        setAlertMsg({ type: 'error', text: data.message || '가상 데이터 초기화 실패' });
+      }
+    } catch (err) {
+      setAlertMsg({ type: 'error', text: `가상 데이터 초기화 오류: ${err.message}` });
+    } finally {
+      setResettingVirtual(false);
+      setTimeout(() => setAlertMsg(null), 6000);
     }
   };
 
@@ -318,7 +350,7 @@ const FALLBACK_BITHUMB_MARKETS = [
   };
 
   // Fetch Logs
-  const fetchLogs = async (currentPage = page) => {
+  const fetchLogs = async (currentPage = page, currentMode = modeFilter) => {
     setLoading(true);
     try {
       const params = new URLSearchParams({
@@ -327,6 +359,7 @@ const FALLBACK_BITHUMB_MARKETS = [
       });
       if (marketFilter !== 'ALL') params.append('market', marketFilter);
       if (decisionFilter !== 'ALL') params.append('decision', decisionFilter);
+      if (currentMode !== 'ALL') params.append('mode', currentMode);
 
       const res = await fetch(`${API_BASE}/api/trading/logs?${params.toString()}`, {
         headers: getAuthHeaders()
@@ -350,7 +383,7 @@ const FALLBACK_BITHUMB_MARKETS = [
 
   const handleRefreshAll = async () => {
     if (!token) return;
-    await Promise.all([fetchStatus(), fetchAccountStatus(), fetchLogs(page)]);
+    await Promise.all([fetchStatus(), fetchAccountStatus(), fetchLogs(page, modeFilter)]);
   };
 
   // Trigger Manual Trading Loop
@@ -605,7 +638,7 @@ const FALLBACK_BITHUMB_MARKETS = [
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [token, autoRefresh, refreshInterval, marketFilter, decisionFilter, page]);
+  }, [token, autoRefresh, refreshInterval, marketFilter, decisionFilter, modeFilter, page]);
 
   const toggleExpandLog = (id) => {
     setExpandedLogId(expandedLogId === id ? null : id);
@@ -1137,20 +1170,61 @@ const FALLBACK_BITHUMB_MARKETS = [
       <div className="trading-asset-section">
         <div className="asset-section-header">
           <div className="asset-title-group">
-            <h2 className="section-title">
-              <Wallet size={20} className="text-emerald-400" />
-              <span>현재 보유 자산 및 포트폴리오 현황</span>
-            </h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <h2 className="section-title" style={{ margin: 0 }}>
+                <Wallet size={20} className="text-emerald-400" />
+                <span>현재 보유 자산 및 포트폴리오 현황</span>
+              </h2>
+              <span className={`mode-pill ${status?.is_dry_run ? 'mode-dry-run' : 'mode-live'}`} style={{ fontSize: '11px', padding: '2px 8px' }}>
+                {status?.is_dry_run ? '🟢 가상 모의투자' : '🔴 빗썸 실계좌 실시간'}
+              </span>
+            </div>
             <span className="asset-subtitle">
-              {status?.is_dry_run ? '모의투자 가상 잔고 기준 (초기 자본: ₩ 1,000,000)' : '빗썸 실제 계좌 실시간 연동'}
+              {status?.is_dry_run
+                ? '모의투자 가상 잔고 기준 (초기 자본: ₩ 1,000,000)'
+                : (status?.assets?.is_live_connected
+                    ? '빗썸 실제 거래소 실시간 계좌 잔고 및 보유 코인 연동'
+                    : '빗썸 계정 상태 확인 필요 (API 키 및 허용 IP 확인)')}
             </span>
           </div>
-          {status?.assets?.total_return_pct !== undefined && status?.assets?.total_return_pct !== null && (
-            <div className={`total-return-badge ${(status.assets.total_return_pct || 0) >= 0 ? 'badge-profit' : 'badge-loss'}`}>
-              <span>총 누적 수익률:</span>
-              <strong>{(status.assets.total_return_pct || 0) >= 0 ? '+' : ''}{(status.assets.total_return_pct || 0).toFixed(2)}%</strong>
-            </div>
-          )}
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            {status?.is_dry_run && (
+              <button
+                type="button"
+                className="reset-virtual-btn"
+                onClick={handleResetVirtualData}
+                disabled={resettingVirtual}
+                title="가상 매매 시뮬레이션 데이터를 초기화하고 100만원으로 리셋합니다"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 12px',
+                  borderRadius: '8px',
+                  background: 'rgba(239, 68, 68, 0.15)',
+                  border: '1px solid rgba(239, 68, 68, 0.35)',
+                  color: '#fca5a5',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: resettingVirtual ? 'not-allowed' : 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.3)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.15)'; }}
+              >
+                <RefreshCw size={13} className={resettingVirtual ? 'spin-anim' : ''} />
+                <span>{resettingVirtual ? '초기화 중...' : '가상 데이터 초기화'}</span>
+              </button>
+            )}
+
+            {status?.assets?.total_return_pct !== undefined && status?.assets?.total_return_pct !== null && (
+              <div className={`total-return-badge ${(status.assets.total_return_pct || 0) >= 0 ? 'badge-profit' : 'badge-loss'}`}>
+                <span>총 누적 수익률:</span>
+                <strong>{(status.assets.total_return_pct || 0) >= 0 ? '+' : ''}{(status.assets.total_return_pct || 0).toFixed(2)}%</strong>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* 4 Hero Asset Metrics */}
@@ -1164,7 +1238,7 @@ const FALLBACK_BITHUMB_MARKETS = [
               </div>
             </div>
             <div className="asset-card-main-val">
-              ₩ {(status?.assets?.total_net_assets || 1000000).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+              ₩ {(status?.assets?.total_net_assets || (status?.is_dry_run ? 1000000 : 0)).toLocaleString(undefined, { maximumFractionDigits: 0 })}
             </div>
             <div className="asset-card-sub-info">
               <span>원화 잔고 + 보유 코인 평가액 합산</span>
@@ -1180,7 +1254,7 @@ const FALLBACK_BITHUMB_MARKETS = [
               </div>
             </div>
             <div className="asset-card-main-val">
-              ₩ {(status?.assets?.krw_balance || 1000000).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+              ₩ {(status?.assets?.krw_balance || (status?.is_dry_run ? 1000000 : 0)).toLocaleString(undefined, { maximumFractionDigits: 0 })}
             </div>
             <div className="asset-card-sub-info">
               <span className="text-blue-300">주문 가능 자금 (비중 {(status?.assets?.krw_weight_pct || 100).toFixed(1)}%)</span>
@@ -1292,11 +1366,11 @@ const FALLBACK_BITHUMB_MARKETS = [
                     </div>
                   </div>
                 </td>
-                <td>{(status?.assets?.krw_balance || 1000000).toLocaleString()} KRW</td>
+                <td>{(status?.assets?.krw_balance || (status?.is_dry_run ? 1000000 : 0)).toLocaleString()} KRW</td>
                 <td>-</td>
                 <td>1 KRW</td>
-                <td>₩ {(status?.assets?.krw_balance || 1000000).toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
-                <td>₩ {(status?.assets?.krw_balance || 1000000).toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                <td>₩ {(status?.assets?.krw_balance || (status?.is_dry_run ? 1000000 : 0)).toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                <td>₩ {(status?.assets?.krw_balance || (status?.is_dry_run ? 1000000 : 0)).toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
                 <td><span className="text-gray-400">-</span></td>
                 <td>
                   <div className="weight-cell">
@@ -1426,6 +1500,21 @@ const FALLBACK_BITHUMB_MARKETS = [
           {/* Filters */}
           <div className="filter-controls">
             <div className="filter-group">
+              <select
+                className="trading-select"
+                value={modeFilter}
+                onChange={(e) => { setModeFilter(e.target.value); setPage(1); }}
+                style={{
+                  borderColor: modeFilter === 'LIVE' ? 'rgba(244, 63, 94, 0.5)' : modeFilter === 'DRY_RUN' ? 'rgba(16, 185, 129, 0.5)' : undefined
+                }}
+              >
+                <option value="ALL">전체 매매 모드</option>
+                <option value="DRY_RUN">🟢 모의투자 (가상) 로그</option>
+                <option value="LIVE">🔴 실전매매 (실계좌) 로그</option>
+              </select>
+            </div>
+
+            <div className="filter-group">
               <Filter size={14} className="text-gray-400" />
               <select
                 className="trading-select"
@@ -1460,7 +1549,7 @@ const FALLBACK_BITHUMB_MARKETS = [
             <thead>
               <tr>
                 <th>일시</th>
-                <th>마켓</th>
+                <th>마켓 / 모드</th>
                 <th>현재가</th>
                 <th>보조지표 (RSI / Trend)</th>
                 <th>LLM 판단 & 신뢰도</th>
@@ -1483,7 +1572,21 @@ const FALLBACK_BITHUMB_MARKETS = [
                       <tr className={`log-row ${isExpanded ? 'row-expanded' : ''}`} onClick={() => toggleExpandLog(log.id)}>
                         <td className="time-cell">{log.timestamp || '-'}</td>
                         <td className="market-cell">
-                          <span className="market-tag">{log.market}</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span className="market-tag">{log.market}</span>
+                            <span style={{
+                              fontSize: '10px',
+                              padding: '2px 5px',
+                              borderRadius: '4px',
+                              background: log.is_dry_run ? 'rgba(16, 185, 129, 0.15)' : 'rgba(244, 63, 94, 0.15)',
+                              color: log.is_dry_run ? '#34d399' : '#fb7185',
+                              border: `1px solid ${log.is_dry_run ? 'rgba(16, 185, 129, 0.3)' : 'rgba(244, 63, 94, 0.3)'}`,
+                              fontWeight: 600,
+                              whiteSpace: 'nowrap'
+                            }}>
+                              {log.is_dry_run ? '모의' : '실전'}
+                            </span>
+                          </div>
                         </td>
                         <td className="price-cell font-mono">
                           {log.current_price ? `${log.current_price.toLocaleString()} ₩` : '-'}
