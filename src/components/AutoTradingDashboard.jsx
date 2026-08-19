@@ -5,12 +5,30 @@ import {
   ArrowDownRight, Layers, Clock, DollarSign, Cpu, Search, Filter,
   ChevronDown, ChevronUp, AlertCircle, Info, Sparkles,
   Wallet, PieChart, Coins, Banknote, Percent, ArrowRight,
-  Key, ShieldCheck, ShieldX, Settings, X, Plus, Check, Eye, EyeOff
+  Key, ShieldCheck, ShieldX, Settings, X, Plus, Check, Eye, EyeOff,
+  Lock, LogOut, User
 } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' && (window.location.hostname.includes('github.io') || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'https://ragweed-blighted-skylight.ngrok-free.dev' : '');
 
 export default function AutoTradingDashboard() {
+  // Authentication State
+  const [token, setToken] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('agent_auth_token') || '';
+    }
+    return '';
+  });
+  const [username, setUsername] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('agent_auth_username') || '';
+    }
+    return '';
+  });
+  const [loginForm, setLoginForm] = useState({ username: '', password: '' });
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [loginError, setLoginError] = useState('');
+
   const [status, setStatus] = useState(null);
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -62,12 +80,85 @@ export default function AutoTradingDashboard() {
 
   const timerRef = useRef(null);
 
+  // Helper for auth headers
+  const getAuthHeaders = (extra = {}) => {
+    const headers = {
+      'ngrok-skip-browser-warning': 'true',
+      ...extra
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    return headers;
+  };
+
+  const handleUnauthorized = () => {
+    localStorage.removeItem('agent_auth_token');
+    localStorage.removeItem('agent_auth_username');
+    setToken('');
+    setUsername('');
+    setLoginError('로그인 세션이 만료되었습니다. 다시 로그인해 주세요.');
+  };
+
+  // Login Handler
+  const handleLogin = async (e) => {
+    if (e) e.preventDefault();
+    if (!loginForm.username || !loginForm.password) {
+      setLoginError('아이디와 비밀번호를 모두 입력해 주세요.');
+      return;
+    }
+    setIsLoggingIn(true);
+    setLoginError('');
+    try {
+      const resp = await fetch(`${API_BASE}/api/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true'
+        },
+        body: JSON.stringify(loginForm)
+      });
+      const data = await resp.json();
+      if (resp.ok && data.token) {
+        localStorage.setItem('agent_auth_token', data.token);
+        localStorage.setItem('agent_auth_username', data.username);
+        setToken(data.token);
+        setUsername(data.username);
+        setLoginForm({ username: '', password: '' });
+      } else {
+        setLoginError(data.detail || data.message || '아이디 또는 비밀번호가 올바르지 않습니다.');
+      }
+    } catch (err) {
+      console.error(err);
+      setLoginError('로그인 요청 중 서버 통신 오류가 발생했습니다.');
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
+  // Logout Handler
+  const handleLogout = () => {
+    if (window.confirm('로그아웃 하시겠습니까?')) {
+      localStorage.removeItem('agent_auth_token');
+      localStorage.removeItem('agent_auth_username');
+      setToken('');
+      setUsername('');
+      setStatus(null);
+      setAccountStatus(null);
+      setLogs([]);
+    }
+  };
+
   // Fetch Status
   const fetchStatus = async () => {
     try {
       const res = await fetch(`${API_BASE}/api/trading/status`, {
-        headers: { 'ngrok-skip-browser-warning': 'true' }
+        headers: getAuthHeaders()
       });
+      if (res.status === 401) {
+        handleUnauthorized();
+        return;
+      }
       if (res.ok) {
         const data = await res.json();
         setStatus(data);
@@ -113,8 +204,12 @@ export default function AutoTradingDashboard() {
     setAccountLoading(true);
     try {
       const res = await fetch(`${API_BASE}/api/trading/account/check`, {
-        headers: { 'ngrok-skip-browser-warning': 'true' }
+        headers: getAuthHeaders()
       });
+      if (res.status === 401) {
+        handleUnauthorized();
+        return;
+      }
       if (res.ok) {
         const data = await res.json();
         setAccountStatus(data);
@@ -164,8 +259,12 @@ const FALLBACK_BITHUMB_MARKETS = [
     try {
       const q = query ? `?query=${encodeURIComponent(query)}` : '';
       const res = await fetch(`${API_BASE}/api/trading/markets/available${q}`, {
-        headers: { 'ngrok-skip-browser-warning': 'true' }
+        headers: getAuthHeaders()
       });
+      if (res.status === 401) {
+        handleUnauthorized();
+        return;
+      }
       if (res.ok) {
         const data = await res.json();
         if (data.markets && data.markets.length > 0) {
@@ -230,8 +329,12 @@ const FALLBACK_BITHUMB_MARKETS = [
       if (decisionFilter !== 'ALL') params.append('decision', decisionFilter);
 
       const res = await fetch(`${API_BASE}/api/trading/logs?${params.toString()}`, {
-        headers: { 'ngrok-skip-browser-warning': 'true' }
+        headers: getAuthHeaders()
       });
+      if (res.status === 401) {
+        handleUnauthorized();
+        return;
+      }
       if (res.ok) {
         const data = await res.json();
         setLogs(data.logs || []);
@@ -246,6 +349,7 @@ const FALLBACK_BITHUMB_MARKETS = [
   };
 
   const handleRefreshAll = async () => {
+    if (!token) return;
     await Promise.all([fetchStatus(), fetchAccountStatus(), fetchLogs(page)]);
   };
 
@@ -256,8 +360,12 @@ const FALLBACK_BITHUMB_MARKETS = [
     try {
       const res = await fetch(`${API_BASE}/api/trading/trigger`, {
         method: 'POST',
-        headers: { 'ngrok-skip-browser-warning': 'true' }
+        headers: getAuthHeaders()
       });
+      if (res.status === 401) {
+        handleUnauthorized();
+        return;
+      }
       const data = await res.json();
       if (res.ok) {
         setAlertMsg({ type: 'success', text: data.message || '분석 사이클이 시작되었습니다.' });
@@ -282,15 +390,18 @@ const FALLBACK_BITHUMB_MARKETS = [
     try {
       const res = await fetch(`${API_BASE}/api/trading/account/update`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'ngrok-skip-browser-warning': 'true'
-        },
+        headers: getAuthHeaders({
+          'Content-Type': 'application/json'
+        }),
         body: JSON.stringify({
           access_key: accessKeyInput.trim() || undefined,
           secret_key: secretKeyInput.trim() || undefined
         })
       });
+      if (res.status === 401) {
+        handleUnauthorized();
+        return;
+      }
       const data = await res.json();
       if (res.ok) {
         setAlertMsg({ type: 'success', text: data.message || 'API 키가 성공적으로 저장되었습니다.' });
@@ -334,12 +445,15 @@ const FALLBACK_BITHUMB_MARKETS = [
     try {
       const res = await fetch(`${API_BASE}/api/trading/config`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'ngrok-skip-browser-warning': 'true'
-        },
+        headers: getAuthHeaders({
+          'Content-Type': 'application/json'
+        }),
         body: JSON.stringify(payload)
       });
+      if (res.status === 401) {
+        handleUnauthorized();
+        return;
+      }
       const data = await res.json();
       if (res.ok) {
         setAlertMsg({ type: 'success', text: `거래 한도 및 최대 ${parsedHoldingCoins}품목 보유 제한 설정이 저장되었습니다.` });
@@ -379,16 +493,19 @@ const FALLBACK_BITHUMB_MARKETS = [
     try {
       const res = await fetch(`${API_BASE}/api/trading/config`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'ngrok-skip-browser-warning': 'true'
-        },
+        headers: getAuthHeaders({
+          'Content-Type': 'application/json'
+        }),
         body: JSON.stringify({
           target_markets: selectedMarkets,
           candle_unit_minutes: candleUnit,
           max_holding_coins: parsedHolding
         })
       });
+      if (res.status === 401) {
+        handleUnauthorized();
+        return;
+      }
       const data = await res.json();
       if (res.ok) {
         setAlertMsg({
@@ -423,14 +540,17 @@ const FALLBACK_BITHUMB_MARKETS = [
     try {
       const res = await fetch(`${API_BASE}/api/trading/config`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'ngrok-skip-browser-warning': 'true'
-        },
+        headers: getAuthHeaders({
+          'Content-Type': 'application/json'
+        }),
         body: JSON.stringify({
           max_holding_coins: targetCount
         })
       });
+      if (res.status === 401) {
+        handleUnauthorized();
+        return;
+      }
       const data = await res.json();
       if (res.ok) {
         setAlertMsg({
@@ -471,6 +591,8 @@ const FALLBACK_BITHUMB_MARKETS = [
 
   // Auto-refresh interval effect
   useEffect(() => {
+    if (!token) return;
+
     handleRefreshAll();
     fetchAvailableMarkets();
 
@@ -483,7 +605,7 @@ const FALLBACK_BITHUMB_MARKETS = [
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [autoRefresh, refreshInterval, marketFilter, decisionFilter, page]);
+  }, [token, autoRefresh, refreshInterval, marketFilter, decisionFilter, page]);
 
   const toggleExpandLog = (id) => {
     setExpandedLogId(expandedLogId === id ? null : id);
@@ -520,6 +642,216 @@ const FALLBACK_BITHUMB_MARKETS = [
     return <span className="trend-badge trend-neutral">중립 ({trend || 'NEUTRAL'})</span>;
   };
 
+  // If not authenticated, display modern cyber/fintech login panel
+  if (!token) {
+    return (
+      <div className="trading-dashboard-container" style={{ minHeight: 'calc(100vh - 120px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 20px' }}>
+        <div style={{
+          background: 'var(--bg-glass)',
+          backdropFilter: 'blur(24px)',
+          WebkitBackdropFilter: 'blur(24px)',
+          border: '1px solid rgba(16, 185, 129, 0.25)',
+          borderRadius: '24px',
+          padding: '44px 32px',
+          color: '#fff',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          maxWidth: '460px',
+          width: '100%',
+          boxShadow: '0 12px 40px 0 rgba(0, 0, 0, 0.55), 0 0 25px rgba(16, 185, 129, 0.1)',
+          textAlign: 'center',
+          position: 'relative',
+          overflow: 'hidden'
+        }}>
+          {/* Top Decorative Glow */}
+          <div style={{
+            position: 'absolute',
+            top: '-60px',
+            width: '180px',
+            height: '180px',
+            background: 'radial-gradient(circle, rgba(16, 185, 129, 0.25) 0%, transparent 70%)',
+            filter: 'blur(30px)',
+            pointerEvents: 'none'
+          }} />
+
+          {/* Glowing Lock Icon */}
+          <div style={{
+            background: 'linear-gradient(135deg, #10b981 0%, #06b6d4 100%)',
+            padding: '18px',
+            borderRadius: '20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginBottom: '20px',
+            boxShadow: '0 8px 24px rgba(16, 185, 129, 0.35)'
+          }}>
+            <Lock size={32} style={{ color: '#fff' }} />
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+            <TrendingUp size={20} className="text-emerald-400" />
+            <h2 style={{
+              fontSize: '22px',
+              fontWeight: '800',
+              margin: 0,
+              background: 'linear-gradient(135deg, #34d399 0%, #38bdf8 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              letterSpacing: '-0.02em'
+            }}>
+              AI 자동거래 통제 센터
+            </h2>
+          </div>
+
+          <p style={{ fontSize: '13px', color: 'rgba(255, 255, 255, 0.65)', lineHeight: 1.5, margin: '0 0 28px 0', maxWidth: '340px' }}>
+            실시간 빗썸 시세 분석 및 자동 주문 집행 시스템입니다. 접근하려면 관리자 로그인이 필요합니다.
+          </p>
+
+          <form onSubmit={handleLogin} style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', textAlign: 'left' }}>
+              <label style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.7)', fontWeight: '600' }}>사용자 아이디 (ID)</label>
+              <input
+                type="text"
+                required
+                value={loginForm.username}
+                onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })}
+                placeholder="아이디를 입력하세요"
+                autoComplete="username"
+                style={{
+                  width: '100%',
+                  background: 'rgba(255, 255, 255, 0.04)',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  borderRadius: '12px',
+                  padding: '12px 16px',
+                  color: '#fff',
+                  fontSize: '14px',
+                  outline: 'none',
+                  transition: 'border-color 0.2s, box-shadow 0.2s'
+                }}
+                onFocus={(e) => {
+                  e.target.style.borderColor = '#10b981';
+                  e.target.style.boxShadow = '0 0 0 3px rgba(16, 185, 129, 0.15)';
+                }}
+                onBlur={(e) => {
+                  e.target.style.borderColor = 'rgba(255, 255, 255, 0.12)';
+                  e.target.style.boxShadow = 'none';
+                }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', textAlign: 'left' }}>
+              <label style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.7)', fontWeight: '600' }}>비밀번호 (Password)</label>
+              <input
+                type="password"
+                required
+                value={loginForm.password}
+                onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
+                placeholder="비밀번호를 입력하세요"
+                autoComplete="current-password"
+                style={{
+                  width: '100%',
+                  background: 'rgba(255, 255, 255, 0.04)',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  borderRadius: '12px',
+                  padding: '12px 16px',
+                  color: '#fff',
+                  fontSize: '14px',
+                  outline: 'none',
+                  transition: 'border-color 0.2s, box-shadow 0.2s'
+                }}
+                onFocus={(e) => {
+                  e.target.style.borderColor = '#10b981';
+                  e.target.style.boxShadow = '0 0 0 3px rgba(16, 185, 129, 0.15)';
+                }}
+                onBlur={(e) => {
+                  e.target.style.borderColor = 'rgba(255, 255, 255, 0.12)';
+                  e.target.style.boxShadow = 'none';
+                }}
+              />
+            </div>
+
+            {loginError && (
+              <div style={{
+                fontSize: '12px',
+                color: '#f87171',
+                background: 'rgba(239, 68, 68, 0.12)',
+                padding: '10px 14px',
+                borderRadius: '8px',
+                border: '1px solid rgba(239, 68, 68, 0.25)',
+                textAlign: 'left',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}>
+                <AlertCircle size={14} style={{ flexShrink: 0 }} />
+                <span>{loginError}</span>
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={isLoggingIn}
+              style={{
+                background: 'linear-gradient(135deg, #10b981 0%, #06b6d4 100%)',
+                border: 'none',
+                padding: '14px',
+                borderRadius: '12px',
+                color: '#fff',
+                cursor: isLoggingIn ? 'not-allowed' : 'pointer',
+                fontSize: '15px',
+                fontWeight: '700',
+                marginTop: '6px',
+                boxShadow: '0 4px 18px rgba(16, 185, 129, 0.3)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                opacity: isLoggingIn ? 0.7 : 1,
+                transition: 'transform 0.15s, box-shadow 0.15s'
+              }}
+              onMouseEnter={(e) => {
+                if (!isLoggingIn) e.currentTarget.style.transform = 'translateY(-1px)';
+              }}
+              onMouseLeave={(e) => {
+                if (!isLoggingIn) e.currentTarget.style.transform = 'none';
+              }}
+            >
+              {isLoggingIn ? (
+                <>
+                  <RefreshCw size={16} className="spin-anim" />
+                  <span>인증 확인 중...</span>
+                </>
+              ) : (
+                <>
+                  <Lock size={16} />
+                  <span>로그인 및 대시보드 진입</span>
+                </>
+              )}
+            </button>
+          </form>
+
+          <div style={{
+            marginTop: '24px',
+            paddingTop: '16px',
+            borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '6px',
+            fontSize: '11px',
+            color: 'rgba(255, 255, 255, 0.4)'
+          }}>
+            <ShieldCheck size={14} className="text-emerald-400" />
+            <span>256-bit 암호화 및 비인가 트레이딩 차단 보안 적용</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="trading-dashboard-container">
       {/* Top Header */}
@@ -543,6 +875,50 @@ const FALLBACK_BITHUMB_MARKETS = [
 
         {/* Action Controls & Modal Buttons */}
         <div className="header-controls">
+          {/* Logged in User Badge & Logout */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '6px 12px',
+            background: 'rgba(16, 185, 129, 0.1)',
+            borderRadius: '8px',
+            border: '1px solid rgba(16, 185, 129, 0.25)',
+            fontSize: '13px'
+          }}>
+            <User size={14} className="text-emerald-400" />
+            <span style={{ fontWeight: 600, color: '#34d399' }}>{username || '관리자'}</span>
+            <button
+              onClick={handleLogout}
+              title="로그아웃"
+              style={{
+                background: 'rgba(239, 68, 68, 0.15)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                color: '#fca5a5',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                padding: '3px 8px',
+                borderRadius: '6px',
+                fontSize: '11px',
+                marginLeft: '4px',
+                transition: 'background 0.2s, color 0.2s'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(239, 68, 68, 0.3)';
+                e.currentTarget.style.color = '#fff';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'rgba(239, 68, 68, 0.15)';
+                e.currentTarget.style.color = '#fca5a5';
+              }}
+            >
+              <LogOut size={12} />
+              <span>로그아웃</span>
+            </button>
+          </div>
+
           <button
             className="trading-btn btn-settings"
             onClick={openLimitsModal}
