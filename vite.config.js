@@ -5,5 +5,14 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   base: '/blog/',
+  server: {
+    proxy: {
+      '/api': {
+        target: 'https://ragweed-blighted-skylight.ngrok-free.dev',
+        changeOrigin: true,
+        secure: false,
+      }
+    }
+  }
 })
 

@@ -8,7 +8,7 @@ import {
   Key, ShieldCheck, ShieldX, Settings, X, Plus, Check, Eye, EyeOff
 } from 'lucide-react';
 
-const API_BASE = import.meta.env.VITE_API_URL || '';
+const API_BASE = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' && (window.location.hostname.includes('github.io') || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'https://ragweed-blighted-skylight.ngrok-free.dev' : '');
 
 export default function AutoTradingDashboard() {
   const [status, setStatus] = useState(null);
@@ -52,11 +52,13 @@ export default function AutoTradingDashboard() {
   // Market / Item Management Modal State
   const [showMarketModal, setShowMarketModal] = useState(false);
   const [selectedMarkets, setSelectedMarkets] = useState(['KRW-BTC', 'KRW-ETH']);
+  const [marketHoldingCoins, setMarketHoldingCoins] = useState(1);
   const [candleUnit, setCandleUnit] = useState(15);
   const [availableMarkets, setAvailableMarkets] = useState([]);
   const [marketSearchQuery, setMarketSearchQuery] = useState('');
   const [loadingMarkets, setLoadingMarkets] = useState(false);
   const [savingMarkets, setSavingMarkets] = useState(false);
+  const [quickSavingHolding, setQuickSavingHolding] = useState(false);
 
   const timerRef = useRef(null);
 
@@ -101,6 +103,7 @@ export default function AutoTradingDashboard() {
     if (status?.candle_unit_minutes) {
       setCandleUnit(status.candle_unit_minutes);
     }
+    setMarketHoldingCoins(status?.max_holding_coins ?? 1);
     setShowMarketModal(true);
     fetchAvailableMarkets();
   };
@@ -349,13 +352,14 @@ const FALLBACK_BITHUMB_MARKETS = [
     }
   };
 
-  // Save Target Markets and Candle Unit
+  // Save Target Markets and Candle Unit (includes Holding Coins Limit)
   const handleSaveMarkets = async () => {
     if (selectedMarkets.length === 0) {
       alert('최소 1개 이상의 거래 품목(마켓)을 선택해야 합니다.');
       return;
     }
     setSavingMarkets(true);
+    const parsedHolding = Math.max(1, parseInt(marketHoldingCoins, 10) || 1);
     try {
       const res = await fetch(`${API_BASE}/api/trading/config`, {
         method: 'POST',
@@ -365,12 +369,16 @@ const FALLBACK_BITHUMB_MARKETS = [
         },
         body: JSON.stringify({
           target_markets: selectedMarkets,
-          candle_unit_minutes: candleUnit
+          candle_unit_minutes: candleUnit,
+          max_holding_coins: parsedHolding
         })
       });
       const data = await res.json();
       if (res.ok) {
-        setAlertMsg({ type: 'success', text: `거래 품목(${selectedMarkets.length}개) 및 캔들 주기(${candleUnit}분)가 저장되었습니다.` });
+        setAlertMsg({
+          type: 'success',
+          text: `거래 품목(${selectedMarkets.length}개), 캔들 주기(${candleUnit}분) 및 최대 동시 보유(${parsedHolding}개) 설정이 저장되었습니다.`
+        });
         setShowMarketModal(false);
         await fetchStatus();
       } else {
@@ -381,6 +389,39 @@ const FALLBACK_BITHUMB_MARKETS = [
     } finally {
       setSavingMarkets(false);
       setTimeout(() => setAlertMsg(null), 6000);
+    }
+  };
+
+  // Quick change max holding coins immediately
+  const handleQuickChangeHoldingCoins = async (count) => {
+    const targetCount = Math.max(1, parseInt(count, 10) || 1);
+    setQuickSavingHolding(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/trading/config`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true'
+        },
+        body: JSON.stringify({
+          max_holding_coins: targetCount
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setAlertMsg({
+          type: 'success',
+          text: `⚡ 동시 보유 품목 수 제한이 최대 [${targetCount}개]로 즉시 변경되었습니다.`
+        });
+        await fetchStatus();
+      } else {
+        setAlertMsg({ type: 'error', text: data.message || '보유 제한 변경 실패' });
+      }
+    } catch (err) {
+      setAlertMsg({ type: 'error', text: `보유 제한 변경 오류: ${err.message}` });
+    } finally {
+      setQuickSavingHolding(false);
+      setTimeout(() => setAlertMsg(null), 5000);
     }
   };
 
@@ -610,27 +651,27 @@ const FALLBACK_BITHUMB_MARKETS = [
           </div>
         </div>
 
-        <div className="kpi-card">
+        <div className="kpi-card kpi-card-interactive" onClick={openLimitsModal} title="클릭하여 거래 한도 및 동시 보유 제한 변경">
           <div className="kpi-icon-box bg-emerald-glow">
             <DollarSign size={20} className="text-emerald-400" />
           </div>
           <div className="kpi-content">
-            <span className="kpi-label">1회 거래 제한 & 보유 제한</span>
+            <span className="kpi-label">1회 거래 제한 & 보유 제한 ⚙️</span>
             <span className="kpi-value">
               ₩ {(status?.max_order_krw || 50000).toLocaleString()} (1회)
             </span>
             <span className="kpi-sub font-semibold text-emerald-400">
-              최대 {status?.max_holding_coins || 1}품목 보유 제한 적용
+              최대 <span className="text-purple-300 font-extrabold underline">{status?.max_holding_coins || 1}개 품목</span> 동시 보유 제한
             </span>
           </div>
         </div>
 
-        <div className="kpi-card">
+        <div className="kpi-card kpi-card-interactive" onClick={openLimitsModal} title="클릭하여 리스크 관리 설정 변경">
           <div className="kpi-icon-box bg-amber-glow">
             <ShieldAlert size={20} className="text-amber-400" />
           </div>
           <div className="kpi-content">
-            <span className="kpi-label">리스크 가드레일</span>
+            <span className="kpi-label">리스크 가드레일 ⚙️</span>
             <span className="kpi-value text-amber-300">
               손절 -{status?.stop_loss_pct || 3.0}% / 익절 +{status?.take_profit_pct || 5.0}%
             </span>
@@ -638,17 +679,55 @@ const FALLBACK_BITHUMB_MARKETS = [
           </div>
         </div>
 
-        <div className="kpi-card">
+        <div className="kpi-card kpi-card-interactive" onClick={openMarketModal} title="클릭하여 거래 마켓 및 품목 관리">
           <div className="kpi-icon-box bg-purple-glow">
             <Layers size={20} className="text-purple-400" />
           </div>
           <div className="kpi-content">
-            <span className="kpi-label">대상 마켓 & 캔들 주기</span>
+            <span className="kpi-label">대상 마켓 & 캔들 주기 ⚙️</span>
             <span className="kpi-value text-purple-300">
               {status?.target_markets?.join(', ') || 'KRW-BTC'}
             </span>
-            <span className="kpi-sub">{status?.candle_unit_minutes || 15}분봉 기준 분석</span>
+            <span className="kpi-sub">{status?.candle_unit_minutes || 15}분봉 기준 분석 (총 {status?.target_markets?.length || 0}개 마켓)</span>
           </div>
+        </div>
+      </div>
+
+      {/* Quick Holding Limit Selector Bar */}
+      <div className="holding-quick-bar">
+        <div className="holding-quick-info">
+          <div className="holding-quick-badge">
+            <Layers size={15} className="text-purple-400" />
+            <span className="font-bold text-sm text-purple-200">동시 보유 품목 수 제한 (원클릭 즉시 변경):</span>
+          </div>
+          <span className="holding-quick-desc">
+            현재 <strong>{status?.max_holding_coins || 1}개 품목</strong>까지 동시 포지션을 보유하도록 설정되어 있습니다.
+          </span>
+        </div>
+        <div className="holding-quick-chips">
+          {[1, 2, 3, 5, 10].map((num) => {
+            const isActive = Number(status?.max_holding_coins) === num;
+            return (
+              <button
+                key={num}
+                type="button"
+                className={`holding-chip-btn ${isActive ? 'active' : ''}`}
+                onClick={() => handleQuickChangeHoldingCoins(num)}
+                disabled={quickSavingHolding}
+              >
+                {num === 1 ? '🎯 1개 (단일 집중)' : `${num}개 보유`}
+                {isActive && <span className="active-dot">● 적용중</span>}
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            className="holding-chip-btn custom-chip-btn"
+            onClick={openLimitsModal}
+            title="직접 숫자 입력 및 상세 설정"
+          >
+            ✏️ 상세 설정...
+          </button>
         </div>
       </div>
 
@@ -1283,7 +1362,7 @@ const FALLBACK_BITHUMB_MARKETS = [
                           className={`amt-chip ${Number(limitsForm.max_holding_coins) === count ? 'active font-bold text-purple-300' : ''}`}
                           onClick={() => setLimitsForm({ ...limitsForm, max_holding_coins: count })}
                         >
-                          {count === 1 ? '🔒 1개(단일)' : `${count}개`}
+                          {count === 1 ? '🎯 1개 (단일 집중)' : `${count}개`}
                         </button>
                       ))}
                     </div>
@@ -1494,7 +1573,7 @@ const FALLBACK_BITHUMB_MARKETS = [
                     className="preset-btn"
                     onClick={() => applyPreset(['KRW-BTC'])}
                   >
-                    🔒 단일 1종 (BTC 전용)
+                    🎯 단일 1종 (BTC 전용)
                   </button>
                   <button
                     type="button"
@@ -1518,6 +1597,50 @@ const FALLBACK_BITHUMB_MARKETS = [
                     ⚡ 인기 5종 (+DOGE)
                   </button>
                 </div>
+              </div>
+
+              {/* Holding Coins Limit Section */}
+              <div className="holding-limit-modal-section mt-3 p-3 bg-slate-800/60 border border-purple-500/30 rounded-xl">
+                <div className="flex justify-between items-center mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-purple-400 font-bold text-sm">동시 보유 품목 수 제한 (최대 동시 보유 포지션 수)</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      min="1"
+                      max="50"
+                      className="trading-input font-bold font-mono text-center w-20 py-1 text-purple-300"
+                      value={marketHoldingCoins}
+                      onChange={(e) => setMarketHoldingCoins(e.target.value === '' ? '' : (parseInt(e.target.value, 10) || ''))}
+                    />
+                    <span className="text-xs text-gray-300 font-bold">개</span>
+                  </div>
+                </div>
+                <div className="amt-chips flex flex-wrap gap-2 mt-1">
+                  {[1, 2, 3, 5, 10].map((count) => (
+                    <button
+                      key={count}
+                      type="button"
+                      className={`amt-chip ${Number(marketHoldingCoins) === count ? 'active font-bold text-purple-300' : ''}`}
+                      onClick={() => setMarketHoldingCoins(count)}
+                    >
+                      {count === 1 ? '🎯 1개 (단일 집중)' : `${count}개`}
+                    </button>
+                  ))}
+                  {selectedMarkets.length > 0 && (
+                    <button
+                      type="button"
+                      className={`amt-chip ${Number(marketHoldingCoins) === selectedMarkets.length ? 'active font-bold text-purple-300' : ''}`}
+                      onClick={() => setMarketHoldingCoins(selectedMarkets.length)}
+                    >
+                      ⚡ 선택 품목 전체 ({selectedMarkets.length}개)
+                    </button>
+                  )}
+                </div>
+                <p className="text-xs text-gray-400 mt-2 leading-relaxed">
+                  💡 대상 마켓이 여러 개이더라도, 실제 동시에 매수/보유할 수 있는 최대 코인 개수를 제한하여 분산 및 리스크를 관리합니다.
+                </p>
               </div>
 
               {/* Market Search and Add */}

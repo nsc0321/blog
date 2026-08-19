@@ -3025,6 +3025,103 @@ h1, h2, h3, h4, h5, h6 {
   color: #64748b;
 }
 
+.kpi-card-interactive {
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  position: relative;
+}
+
+.kpi-card-interactive:hover {
+  transform: translateY(-2px);
+  border-color: rgba(168, 85, 247, 0.4);
+  box-shadow: 0 8px 24px -6px rgba(0, 0, 0, 0.5), 0 0 16px -2px rgba(168, 85, 247, 0.25);
+  background: rgba(30, 41, 59, 0.7);
+}
+
+/* Quick Holding Limit Bar */
+.holding-quick-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: linear-gradient(135deg, rgba(30, 27, 75, 0.5), rgba(15, 23, 42, 0.8));
+  border: 1px solid rgba(168, 85, 247, 0.25);
+  border-radius: 12px;
+  padding: 12px 18px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.holding-quick-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.holding-quick-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.holding-quick-desc {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.holding-quick-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.holding-chip-btn {
+  background: rgba(51, 65, 85, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #cbd5e1;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.15s ease;
+}
+
+.holding-chip-btn:hover {
+  background: rgba(168, 85, 247, 0.2);
+  border-color: rgba(168, 85, 247, 0.5);
+  color: #f8fafc;
+}
+
+.holding-chip-btn.active {
+  background: linear-gradient(135deg, #7c3aed, #9333ea);
+  border-color: #a855f7;
+  color: #ffffff;
+  font-weight: 700;
+  box-shadow: 0 0 12px rgba(168, 85, 247, 0.4);
+}
+
+.holding-chip-btn .active-dot {
+  font-size: 10px;
+  color: #bef264;
+  margin-left: 2px;
+}
+
+.custom-chip-btn {
+  background: rgba(15, 23, 42, 0.8);
+  border-style: dashed;
+  border-color: rgba(168, 85, 247, 0.4);
+  color: #c084fc;
+}
+
+.custom-chip-btn:hover {
+  background: rgba(168, 85, 247, 0.15);
+}
+
 /* Market Cards Section */
 .market-cards-section {
   display: flex;
