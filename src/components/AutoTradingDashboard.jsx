@@ -1203,7 +1203,7 @@ const FALLBACK_BITHUMB_MARKETS = [
             <div className="modal-header">
               <div className="modal-title-row">
                 <Sliders size={20} className="text-emerald-400" />
-                <h2>1회 거래 제한 & 1품목 제한 리스크 관리</h2>
+                <h2>거래 한도 & 리스크 관리 설정</h2>
               </div>
               <button className="modal-close-btn" onClick={() => setShowLimitsModal(false)}>
                 <X size={18} />
@@ -1232,7 +1232,7 @@ const FALLBACK_BITHUMB_MARKETS = [
                   </label>
                 </div>
 
-                {/* 1회 거래 제한 & 1품목 제한 Highlights */}
+                {/* 1회 거래 제한 & 동시 보유 제한 Highlights */}
                 <div className="form-grid-2">
                   <div className="form-group">
                     <label className="form-label">
@@ -1244,7 +1244,7 @@ const FALLBACK_BITHUMB_MARKETS = [
                       min="5000"
                       step="10000"
                       value={limitsForm.max_order_krw_per_trade}
-                      onChange={(e) => setLimitsForm({ ...limitsForm, max_order_krw_per_trade: parseFloat(e.target.value) || 0 })}
+                      onChange={(e) => setLimitsForm({ ...limitsForm, max_order_krw_per_trade: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
                     />
                     <div className="quick-amount-chips">
                       {[30000, 50000, 100000, 300000, 500000].map(amt => (
@@ -1273,14 +1273,14 @@ const FALLBACK_BITHUMB_MARKETS = [
                       step="1"
                       placeholder="예: 1"
                       value={limitsForm.max_holding_coins}
-                      onChange={(e) => setLimitsForm({ ...limitsForm, max_holding_coins: Math.max(1, parseInt(e.target.value) || 1) })}
+                      onChange={(e) => setLimitsForm({ ...limitsForm, max_holding_coins: e.target.value === '' ? '' : (parseInt(e.target.value, 10) || '') })}
                     />
                     <div className="amt-chips mt-1">
                       {[1, 2, 3, 5, 10].map((count) => (
                         <button
                           key={count}
                           type="button"
-                          className={`amt-chip ${limitsForm.max_holding_coins === count ? 'active font-bold text-purple-300' : ''}`}
+                          className={`amt-chip ${Number(limitsForm.max_holding_coins) === count ? 'active font-bold text-purple-300' : ''}`}
                           onClick={() => setLimitsForm({ ...limitsForm, max_holding_coins: count })}
                         >
                           {count === 1 ? '🔒 1개(단일)' : `${count}개`}
@@ -1302,7 +1302,7 @@ const FALLBACK_BITHUMB_MARKETS = [
                       min="1000"
                       step="1000"
                       value={limitsForm.min_order_krw}
-                      onChange={(e) => setLimitsForm({ ...limitsForm, min_order_krw: parseFloat(e.target.value) || 0 })}
+                      onChange={(e) => setLimitsForm({ ...limitsForm, min_order_krw: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
                     />
                     <span className="input-hint">빗썸 최소 주문액 기준 5,000원 이상 권장</span>
                   </div>
@@ -1337,7 +1337,7 @@ const FALLBACK_BITHUMB_MARKETS = [
                         max="30"
                         step="0.5"
                         value={limitsForm.stop_loss_pct}
-                        onChange={(e) => setLimitsForm({ ...limitsForm, stop_loss_pct: parseFloat(e.target.value) || 0 })}
+                        onChange={(e) => setLimitsForm({ ...limitsForm, stop_loss_pct: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
                       />
                       <span className="suffix">%</span>
                     </div>
@@ -1355,7 +1355,7 @@ const FALLBACK_BITHUMB_MARKETS = [
                         max="100"
                         step="0.5"
                         value={limitsForm.take_profit_pct}
-                        onChange={(e) => setLimitsForm({ ...limitsForm, take_profit_pct: parseFloat(e.target.value) || 0 })}
+                        onChange={(e) => setLimitsForm({ ...limitsForm, take_profit_pct: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
                       />
                       <span className="suffix">%</span>
                     </div>
@@ -1375,7 +1375,7 @@ const FALLBACK_BITHUMB_MARKETS = [
                         max="30"
                         step="0.5"
                         value={limitsForm.daily_max_loss_pct}
-                        onChange={(e) => setLimitsForm({ ...limitsForm, daily_max_loss_pct: parseFloat(e.target.value) || 0 })}
+                        onChange={(e) => setLimitsForm({ ...limitsForm, daily_max_loss_pct: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
                       />
                       <span className="suffix">%</span>
                     </div>
@@ -1394,7 +1394,7 @@ const FALLBACK_BITHUMB_MARKETS = [
                         max="180"
                         step="1"
                         value={limitsForm.cooldown_minutes_after_sell}
-                        onChange={(e) => setLimitsForm({ ...limitsForm, cooldown_minutes_after_sell: parseInt(e.target.value) || 1 })}
+                        onChange={(e) => setLimitsForm({ ...limitsForm, cooldown_minutes_after_sell: e.target.value === '' ? '' : parseInt(e.target.value, 10) || 1 })}
                       />
                       <span className="suffix">분</span>
                     </div>
@@ -1416,7 +1416,7 @@ const FALLBACK_BITHUMB_MARKETS = [
                   className="modal-btn btn-save"
                   disabled={savingLimits}
                 >
-                  {savingLimits ? '저장 중...' : '1회 거래 & 1품목 제한 설정 저장'}
+                  {savingLimits ? '저장 중...' : '거래 한도 및 리스크 설정 저장'}
                 </button>
               </div>
             </form>
