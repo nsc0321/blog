@@ -327,6 +327,10 @@ const FALLBACK_BITHUMB_MARKETS = [
       cooldown_minutes_after_sell: parseInt(limitsForm.cooldown_minutes_after_sell, 10) || 15
     };
 
+    // Optimistic UI state sync
+    setStatus(prev => prev ? { ...prev, ...payload } : prev);
+    setMarketHoldingCoins(parsedHoldingCoins);
+
     try {
       const res = await fetch(`${API_BASE}/api/trading/config`, {
         method: 'POST',
@@ -343,9 +347,11 @@ const FALLBACK_BITHUMB_MARKETS = [
         await fetchStatus();
       } else {
         setAlertMsg({ type: 'error', text: data.message || '설정 저장 실패' });
+        await fetchStatus();
       }
     } catch (err) {
       setAlertMsg({ type: 'error', text: `설정 저장 실패: ${err.message}` });
+      await fetchStatus();
     } finally {
       setSavingLimits(false);
       setTimeout(() => setAlertMsg(null), 6000);
@@ -360,6 +366,16 @@ const FALLBACK_BITHUMB_MARKETS = [
     }
     setSavingMarkets(true);
     const parsedHolding = Math.max(1, parseInt(marketHoldingCoins, 10) || 1);
+    
+    // Optimistic UI state sync
+    setStatus(prev => prev ? {
+      ...prev,
+      target_markets: selectedMarkets,
+      candle_unit_minutes: candleUnit,
+      max_holding_coins: parsedHolding
+    } : prev);
+    setLimitsForm(prev => ({ ...prev, max_holding_coins: parsedHolding }));
+
     try {
       const res = await fetch(`${API_BASE}/api/trading/config`, {
         method: 'POST',
@@ -383,9 +399,11 @@ const FALLBACK_BITHUMB_MARKETS = [
         await fetchStatus();
       } else {
         setAlertMsg({ type: 'error', text: data.message || '품목 저장 실패' });
+        await fetchStatus();
       }
     } catch (err) {
       setAlertMsg({ type: 'error', text: `품목 저장 실패: ${err.message}` });
+      await fetchStatus();
     } finally {
       setSavingMarkets(false);
       setTimeout(() => setAlertMsg(null), 6000);
@@ -396,6 +414,12 @@ const FALLBACK_BITHUMB_MARKETS = [
   const handleQuickChangeHoldingCoins = async (count) => {
     const targetCount = Math.max(1, parseInt(count, 10) || 1);
     setQuickSavingHolding(true);
+    
+    // Optimistic immediate UI reflection
+    setStatus(prev => prev ? { ...prev, max_holding_coins: targetCount } : prev);
+    setLimitsForm(prev => ({ ...prev, max_holding_coins: targetCount }));
+    setMarketHoldingCoins(targetCount);
+
     try {
       const res = await fetch(`${API_BASE}/api/trading/config`, {
         method: 'POST',
@@ -416,9 +440,11 @@ const FALLBACK_BITHUMB_MARKETS = [
         await fetchStatus();
       } else {
         setAlertMsg({ type: 'error', text: data.message || '보유 제한 변경 실패' });
+        await fetchStatus();
       }
     } catch (err) {
       setAlertMsg({ type: 'error', text: `보유 제한 변경 오류: ${err.message}` });
+      await fetchStatus();
     } finally {
       setQuickSavingHolding(false);
       setTimeout(() => setAlertMsg(null), 5000);
