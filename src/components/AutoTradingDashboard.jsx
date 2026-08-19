@@ -489,7 +489,7 @@ const FALLBACK_BITHUMB_MARKETS = [
   const handleSaveLimits = async (e) => {
     e.preventDefault();
     setSavingLimits(true);
-    const parsedHoldingCoins = Math.max(1, parseInt(limitsForm.max_holding_coins, 10) || 1);
+    const parsedHoldingCoins = (limitsForm.max_holding_coins === '' || limitsForm.max_holding_coins === 0 || limitsForm.max_holding_coins === '0') ? 0 : Math.max(0, parseInt(limitsForm.max_holding_coins, 10) || 0);
     const payload = {
       dry_run: Boolean(limitsForm.dry_run),
       min_order_krw: Number(limitsForm.min_order_krw) || 5000,
@@ -520,7 +520,8 @@ const FALLBACK_BITHUMB_MARKETS = [
       }
       const data = await res.json();
       if (res.ok) {
-        setAlertMsg({ type: 'success', text: `거래 한도 및 최대 ${parsedHoldingCoins}품목 보유 제한 설정이 저장되었습니다.` });
+        const limitLabel = parsedHoldingCoins === 0 ? '품목 제한 없음 (무제한)' : `최대 ${parsedHoldingCoins}품목 제한`;
+        setAlertMsg({ type: 'success', text: `거래 한도 및 ${limitLabel} 설정이 저장되었습니다.` });
         setShowLimitsModal(false);
         await fetchStatus();
       } else {
@@ -543,7 +544,7 @@ const FALLBACK_BITHUMB_MARKETS = [
       return;
     }
     setSavingMarkets(true);
-    const parsedHolding = Math.max(1, parseInt(marketHoldingCoins, 10) || 1);
+    const parsedHolding = (marketHoldingCoins === '' || marketHoldingCoins === 0 || marketHoldingCoins === '0') ? 0 : Math.max(0, parseInt(marketHoldingCoins, 10) || 0);
     
     // Optimistic UI state sync
     setStatus(prev => prev ? {
@@ -572,9 +573,10 @@ const FALLBACK_BITHUMB_MARKETS = [
       }
       const data = await res.json();
       if (res.ok) {
+        const limitLabel = parsedHolding === 0 ? '제한 없음 (무제한)' : `최대 ${parsedHolding}개`;
         setAlertMsg({
           type: 'success',
-          text: `거래 품목(${selectedMarkets.length}개), 캔들 주기(${candleUnit}분) 및 최대 동시 보유(${parsedHolding}개) 설정이 저장되었습니다.`
+          text: `거래 품목(${selectedMarkets.length}개), 캔들 주기(${candleUnit}분) 및 동시 보유(${limitLabel}) 설정이 저장되었습니다.`
         });
         setShowMarketModal(false);
         await fetchStatus();
@@ -593,7 +595,7 @@ const FALLBACK_BITHUMB_MARKETS = [
 
   // Quick change max holding coins immediately
   const handleQuickChangeHoldingCoins = async (count) => {
-    const targetCount = Math.max(1, parseInt(count, 10) || 1);
+    const targetCount = count === 0 ? 0 : Math.max(0, parseInt(count, 10) || 0);
     setQuickSavingHolding(true);
     
     // Optimistic immediate UI reflection
@@ -617,9 +619,10 @@ const FALLBACK_BITHUMB_MARKETS = [
       }
       const data = await res.json();
       if (res.ok) {
+        const label = targetCount === 0 ? '[♾️ 제한 없음 (무제한)]' : `최대 [${targetCount}개]`;
         setAlertMsg({
           type: 'success',
-          text: `⚡ 동시 보유 품목 수 제한이 최대 [${targetCount}개]로 즉시 변경되었습니다.`
+          text: `⚡ 동시 보유 품목 수 제한이 ${label}으로 즉시 변경되었습니다.`
         });
         await fetchStatus();
       } else {
@@ -1127,7 +1130,11 @@ const FALLBACK_BITHUMB_MARKETS = [
               ₩ {(status?.max_order_krw || 50000).toLocaleString()} (1회)
             </span>
             <span className="kpi-sub font-semibold text-emerald-400">
-              최대 <span className="text-purple-300 font-extrabold underline">{status?.max_holding_coins || 1}개 품목</span> 동시 보유 제한
+              {status?.max_holding_coins === 0 ? (
+                <span className="text-purple-300 font-extrabold underline">♾️ 품목 제한 없음 (무제한)</span>
+              ) : (
+                <>최대 <span className="text-purple-300 font-extrabold underline">{status?.max_holding_coins || 1}개 품목</span> 동시 보유</>
+              )}
             </span>
           </div>
         </div>
@@ -1141,7 +1148,7 @@ const FALLBACK_BITHUMB_MARKETS = [
             <span className="kpi-value text-amber-300">
               손절 -{status?.stop_loss_pct || 3.0}% / 익절 +{status?.take_profit_pct || 5.0}%
             </span>
-            <span className="kpi-sub">일일 손실 한도: {status?.daily_max_loss_pct || 5.0}%</span>
+            <span className="kpi-sub">코인별 상한: {((status?.max_portfolio_ratio_per_coin || 0.3) * 100).toFixed(0)}% / 일일 손실: {status?.daily_max_loss_pct || 5.0}%</span>
           </div>
         </div>
 
@@ -1167,11 +1174,16 @@ const FALLBACK_BITHUMB_MARKETS = [
             <span className="font-bold text-sm text-purple-200">동시 보유 품목 수 제한 (원클릭 즉시 변경):</span>
           </div>
           <span className="holding-quick-desc">
-            현재 <strong>{status?.max_holding_coins || 1}개 품목</strong>까지 동시 포지션을 보유하도록 설정되어 있습니다.
+            {status?.max_holding_coins === 0 ? (
+              <strong>♾️ 품목 수 제한 없이 (무제한)</strong>
+            ) : (
+              <>현재 <strong>{status?.max_holding_coins || 1}개 품목</strong>까지</>
+            )}{' '}
+            동시 포지션을 보유하도록 설정되어 있습니다. (동일 품목 추가 매수 & 분할 매도 지원)
           </span>
         </div>
         <div className="holding-quick-chips">
-          {[1, 2, 3, 5, 10].map((num) => {
+          {[1, 2, 3, 5, 0].map((num) => {
             const isActive = Number(status?.max_holding_coins) === num;
             return (
               <button
@@ -1181,7 +1193,7 @@ const FALLBACK_BITHUMB_MARKETS = [
                 onClick={() => handleQuickChangeHoldingCoins(num)}
                 disabled={quickSavingHolding}
               >
-                {num === 1 ? '🎯 1개 (단일 집중)' : `${num}개 보유`}
+                {num === 0 ? '♾️ 제한 없음 (무제한)' : num === 1 ? '🎯 1개 (단일 집중)' : `${num}개 보유`}
                 {isActive && <span className="active-dot">● 적용중</span>}
               </button>
             );
@@ -1905,31 +1917,31 @@ const FALLBACK_BITHUMB_MARKETS = [
 
                   <div className="form-group">
                     <label className="form-label">
-                      <span className="text-purple-400 font-bold">동시 보유 품목 수 제한 (개)</span>
+                      <span className="text-purple-400 font-bold">동시 보유 품목 수 제한 (0 = 제한 없음)</span>
                     </label>
                     <input
                       type="number"
                       className="trading-input font-bold font-mono"
-                      min="1"
+                      min="0"
                       max="50"
                       step="1"
-                      placeholder="예: 1"
+                      placeholder="0 (무제한) 또는 개수 입력"
                       value={limitsForm.max_holding_coins}
-                      onChange={(e) => setLimitsForm({ ...limitsForm, max_holding_coins: e.target.value === '' ? '' : (parseInt(e.target.value, 10) || '') })}
+                      onChange={(e) => setLimitsForm({ ...limitsForm, max_holding_coins: e.target.value === '' ? '' : (parseInt(e.target.value, 10) >= 0 ? parseInt(e.target.value, 10) : 0) })}
                     />
                     <div className="amt-chips mt-1">
-                      {[1, 2, 3, 5, 10].map((count) => (
+                      {[1, 2, 3, 5, 0].map((count) => (
                         <button
                           key={count}
                           type="button"
                           className={`amt-chip ${Number(limitsForm.max_holding_coins) === count ? 'active font-bold text-purple-300' : ''}`}
                           onClick={() => setLimitsForm({ ...limitsForm, max_holding_coins: count })}
                         >
-                          {count === 1 ? '🎯 1개 (단일 집중)' : `${count}개`}
+                          {count === 0 ? '♾️ 제한 없음 (0)' : count === 1 ? '🎯 1개 (단일 집중)' : `${count}개`}
                         </button>
                       ))}
                     </div>
-                    <span className="input-hint">설정한 개수만큼만 동시에 포지션을 보유하며, 도달 시 추가 매수를 제한합니다.</span>
+                    <span className="input-hint">0 입력 시 품목 수 제한 없이 무제한 매수 허용. 동일 품목 이미 보유 중이어도 추가 매수 및 분할 매도 지원.</span>
                   </div>
                 </div>
 
@@ -1951,7 +1963,7 @@ const FALLBACK_BITHUMB_MARKETS = [
 
                   <div className="form-group">
                     <label className="form-label">
-                      <span>코인별 포트폴리오 최대 비중: <strong>{((limitsForm.max_portfolio_ratio_per_coin || 0.3) * 100).toFixed(0)}%</strong></span>
+                      <span className="text-emerald-400 font-bold">품목별 포트폴리오 상한 비중: <strong>{((limitsForm.max_portfolio_ratio_per_coin || 0.3) * 100).toFixed(0)}%</strong></span>
                     </label>
                     <input
                       type="range"
@@ -1962,7 +1974,7 @@ const FALLBACK_BITHUMB_MARKETS = [
                       value={limitsForm.max_portfolio_ratio_per_coin}
                       onChange={(e) => setLimitsForm({ ...limitsForm, max_portfolio_ratio_per_coin: parseFloat(e.target.value) })}
                     />
-                    <span className="input-hint">단일 코인이 전체 자산에서 차지할 수 있는 상한선</span>
+                    <span className="input-hint">단일 코인 평가액이 총 자산에서 차지할 수 있는 상한선. 추가 매수 시에도 이 비율을 초과하지 않도록 자동 제한됩니다.</span>
                   </div>
                 </div>
 
@@ -2166,29 +2178,30 @@ const FALLBACK_BITHUMB_MARKETS = [
               <div className="holding-limit-modal-section mt-3 p-3 bg-slate-800/60 border border-purple-500/30 rounded-xl">
                 <div className="flex justify-between items-center mb-2">
                   <div className="flex items-center gap-2">
-                    <span className="text-purple-400 font-bold text-sm">동시 보유 품목 수 제한 (최대 동시 보유 포지션 수)</span>
+                    <span className="text-purple-400 font-bold text-sm">동시 보유 품목 수 제한 (0 = 제한 없음)</span>
                   </div>
                   <div className="flex items-center gap-1">
                     <input
                       type="number"
-                      min="1"
+                      min="0"
                       max="50"
-                      className="trading-input font-bold font-mono text-center w-20 py-1 text-purple-300"
+                      className="trading-input font-bold font-mono text-center w-24 py-1 text-purple-300"
                       value={marketHoldingCoins}
-                      onChange={(e) => setMarketHoldingCoins(e.target.value === '' ? '' : (parseInt(e.target.value, 10) || ''))}
+                      placeholder="0: 제한없음"
+                      onChange={(e) => setMarketHoldingCoins(e.target.value === '' ? '' : (parseInt(e.target.value, 10) >= 0 ? parseInt(e.target.value, 10) : 0))}
                     />
-                    <span className="text-xs text-gray-300 font-bold">개</span>
+                    <span className="text-xs text-gray-300 font-bold">{Number(marketHoldingCoins) === 0 ? '(무제한)' : '개'}</span>
                   </div>
                 </div>
                 <div className="amt-chips flex flex-wrap gap-2 mt-1">
-                  {[1, 2, 3, 5, 10].map((count) => (
+                  {[1, 2, 3, 5, 0].map((count) => (
                     <button
                       key={count}
                       type="button"
                       className={`amt-chip ${Number(marketHoldingCoins) === count ? 'active font-bold text-purple-300' : ''}`}
                       onClick={() => setMarketHoldingCoins(count)}
                     >
-                      {count === 1 ? '🎯 1개 (단일 집중)' : `${count}개`}
+                      {count === 0 ? '♾️ 제한 없음 (0)' : count === 1 ? '🎯 1개 (단일 집중)' : `${count}개`}
                     </button>
                   ))}
                   {selectedMarkets.length > 0 && (
@@ -2202,7 +2215,7 @@ const FALLBACK_BITHUMB_MARKETS = [
                   )}
                 </div>
                 <p className="text-xs text-gray-400 mt-2 leading-relaxed">
-                  💡 대상 마켓이 여러 개이더라도, 실제 동시에 매수/보유할 수 있는 최대 코인 개수를 제한하여 분산 및 리스크를 관리합니다.
+                  💡 0 설정 시 품목 수 제한 없이 모든 추천 종목을 매수합니다. 동일 품목 추가 매수(물타기/불타기) 및 부분 매도(분할 익절)를 지원합니다.
                 </p>
               </div>
 
