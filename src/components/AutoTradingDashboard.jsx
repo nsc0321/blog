@@ -1244,17 +1244,29 @@ const FALLBACK_BITHUMB_MARKETS = [
                     <label className="form-label">
                       <span className="text-purple-400 font-bold">동시 보유 품목 수 제한 (개)</span>
                     </label>
-                    <select
-                      className="trading-input font-bold"
+                    <input
+                      type="number"
+                      className="trading-input font-bold font-mono"
+                      min="1"
+                      max="50"
+                      step="1"
+                      placeholder="예: 1"
                       value={limitsForm.max_holding_coins}
-                      onChange={(e) => setLimitsForm({ ...limitsForm, max_holding_coins: parseInt(e.target.value) || 1 })}
-                    >
-                      <option value="1">🔒 1개 품목 제한 (단일 종목 집중 매매)</option>
-                      <option value="2">2개 품목 분산</option>
-                      <option value="3">3개 품목 분산</option>
-                      <option value="5">5개 품목 분산</option>
-                    </select>
-                    <span className="input-hint">1개 품목 제한 시, 보유 코인이 있을 경우 다른 코인은 자동 매수하지 않습니다.</span>
+                      onChange={(e) => setLimitsForm({ ...limitsForm, max_holding_coins: Math.max(1, parseInt(e.target.value) || 1) })}
+                    />
+                    <div className="amt-chips mt-1">
+                      {[1, 2, 3, 5, 10].map((count) => (
+                        <button
+                          key={count}
+                          type="button"
+                          className={`amt-chip ${limitsForm.max_holding_coins === count ? 'active font-bold text-purple-300' : ''}`}
+                          onClick={() => setLimitsForm({ ...limitsForm, max_holding_coins: count })}
+                        >
+                          {count === 1 ? '🔒 1개(단일)' : `${count}개`}
+                        </button>
+                      ))}
+                    </div>
+                    <span className="input-hint">설정한 개수만큼만 동시에 포지션을 보유하며, 도달 시 추가 매수를 제한합니다.</span>
                   </div>
                 </div>
 
