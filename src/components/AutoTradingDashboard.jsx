@@ -1,0 +1,2312 @@
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  TrendingUp, TrendingDown, RefreshCw, Play, ShieldAlert,
+  Sliders, Activity, CheckCircle, AlertTriangle, ArrowUpRight,
+  ArrowDownRight, Layers, Clock, DollarSign, Cpu, Search, Filter,
+  ChevronDown, ChevronUp, AlertCircle, Info, Sparkles,
+  Wallet, PieChart, Coins, Banknote, Percent, ArrowRight,
+  Key, ShieldCheck, ShieldX, Settings, X, Plus, Check, Eye, EyeOff,
+  Lock, LogOut, User
+} from 'lucide-react';
+
+const API_BASE = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' && (window.location.hostname.includes('github.io') || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'https://ragweed-blighted-skylight.ngrok-free.dev' : '');
+
+export default function AutoTradingDashboard() {
+  // Authentication State
+  const [token, setToken] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('agent_auth_token') || '';
+    }
+    return '';
+  });
+  const [username, setUsername] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('agent_auth_username') || '';
+    }
+    return '';
+  });
+  const [loginForm, setLoginForm] = useState({ username: '', password: '' });
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [loginError, setLoginError] = useState('');
+
+  const [status, setStatus] = useState(null);
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [triggering, setTriggering] = useState(false);
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [refreshInterval, setRefreshInterval] = useState(15); // seconds
+  const [marketFilter, setMarketFilter] = useState('ALL');
+  const [decisionFilter, setDecisionFilter] = useState('ALL');
+  const [modeFilter, setModeFilter] = useState('ALL'); // 'ALL' | 'DRY_RUN' | 'LIVE'
+  const [resettingVirtual, setResettingVirtual] = useState(false);
+  const [resettingLive, setResettingLive] = useState(false);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [expandedLogId, setExpandedLogId] = useState(null);
+  const [alertMsg, setAlertMsg] = useState(null);
+
+  // Account Check State
+  const [accountStatus, setAccountStatus] = useState(null);
+  const [accountLoading, setAccountLoading] = useState(false);
+  const [showAccountModal, setShowAccountModal] = useState(false);
+  const [accessKeyInput, setAccessKeyInput] = useState('');
+  const [secretKeyInput, setSecretKeyInput] = useState('');
+  const [showSecretKey, setShowSecretKey] = useState(false);
+  const [savingAccount, setSavingAccount] = useState(false);
+
+  // Order Limits Modal State
+  const [showLimitsModal, setShowLimitsModal] = useState(false);
+  const [limitsForm, setLimitsForm] = useState({
+    dry_run: true,
+    min_order_krw: 5000,
+    max_order_krw_per_trade: 50000,
+    max_holding_coins: 1,
+    max_portfolio_ratio_per_coin: 0.3,
+    stop_loss_pct: 3.0,
+    take_profit_pct: 5.0,
+    daily_max_loss_pct: 5.0,
+    cooldown_minutes_after_sell: 15
+  });
+  const [savingLimits, setSavingLimits] = useState(false);
+
+  // Market / Item Management Modal State
+  const [showMarketModal, setShowMarketModal] = useState(false);
+  const [selectedMarkets, setSelectedMarkets] = useState(['KRW-BTC', 'KRW-ETH']);
+  const [marketHoldingCoins, setMarketHoldingCoins] = useState(1);
+  const [candleUnit, setCandleUnit] = useState(15);
+  const [availableMarkets, setAvailableMarkets] = useState([]);
+  const [marketSearchQuery, setMarketSearchQuery] = useState('');
+  const [loadingMarkets, setLoadingMarkets] = useState(false);
+  const [savingMarkets, setSavingMarkets] = useState(false);
+  const [quickSavingHolding, setQuickSavingHolding] = useState(false);
+
+  const timerRef = useRef(null);
+
+  // Helper for auth headers
+  const getAuthHeaders = (extra = {}) => {
+    const headers = {
+      'ngrok-skip-browser-warning': 'true',
+      ...extra
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    return headers;
+  };
+
+  const handleUnauthorized = () => {
+    localStorage.removeItem('agent_auth_token');
+    localStorage.removeItem('agent_auth_username');
+    setToken('');
+    setUsername('');
+    setLoginError('로그인 세션이 만료되었습니다. 다시 로그인해 주세요.');
+  };
+
+  // Login Handler
+  const handleLogin = async (e) => {
+    if (e) e.preventDefault();
+    if (!loginForm.username || !loginForm.password) {
+      setLoginError('아이디와 비밀번호를 모두 입력해 주세요.');
+      return;
+    }
+    setIsLoggingIn(true);
+    setLoginError('');
+    try {
+      const resp = await fetch(`${API_BASE}/api/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true'
+        },
+        body: JSON.stringify(loginForm)
+      });
+      const data = await resp.json();
+      if (resp.ok && data.token) {
+        localStorage.setItem('agent_auth_token', data.token);
+        localStorage.setItem('agent_auth_username', data.username);
+        setToken(data.token);
+        setUsername(data.username);
+        setLoginForm({ username: '', password: '' });
+      } else {
+        setLoginError(data.detail || data.message || '아이디 또는 비밀번호가 올바르지 않습니다.');
+      }
+    } catch (err) {
+      console.error(err);
+      setLoginError('로그인 요청 중 서버 통신 오류가 발생했습니다.');
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
+  // Logout Handler
+  const handleLogout = () => {
+    if (window.confirm('로그아웃 하시겠습니까?')) {
+      localStorage.removeItem('agent_auth_token');
+      localStorage.removeItem('agent_auth_username');
+      setToken('');
+      setUsername('');
+      setStatus(null);
+      setAccountStatus(null);
+      setLogs([]);
+    }
+  };
+
+  // Reset Virtual / Paper Trading Data
+  const handleResetVirtualData = async () => {
+    if (!window.confirm("가상 매매(모의투자) 기록과 포지션을 모두 초기화하고 가상 잔고를 1,000,000 KRW로 리셋하시겠습니까?\n(실제 빗썸 계좌 자산에는 전혀 영향을 주지 않습니다.)")) {
+      return;
+    }
+    setResettingVirtual(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/trading/reset-virtual`, {
+        method: 'POST',
+        headers: getAuthHeaders()
+      });
+      if (res.status === 401) {
+        handleUnauthorized();
+        return;
+      }
+      const data = await res.json();
+      if (res.ok) {
+        setAlertMsg({ type: 'success', text: data.message || '가상 매매 데이터가 성공적으로 초기화되었습니다.' });
+        await handleRefreshAll();
+      } else {
+        setAlertMsg({ type: 'error', text: data.message || '가상 데이터 초기화 실패' });
+      }
+    } catch (err) {
+      setAlertMsg({ type: 'error', text: `가상 데이터 초기화 오류: ${err.message}` });
+    } finally {
+      setResettingVirtual(false);
+      setTimeout(() => setAlertMsg(null), 6000);
+    }
+  };
+
+  // Reset Live Trading Data
+  const handleResetLiveData = async () => {
+    if (!window.confirm("실전 매매 분석 및 주문 실행 기록을 초기화하시겠습니까?\n\n⚠️ 주의: 빗썸 거래소의 실제 원화 잔고 및 보유 중인 코인은 안전하게 그대로 유지되며, 대시보드의 실전 매매 기록(로그)만 초기화됩니다.")) {
+      return;
+    }
+    setResettingLive(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/trading/reset-live`, {
+        method: 'POST',
+        headers: getAuthHeaders()
+      });
+      if (res.status === 401) {
+        handleUnauthorized();
+        return;
+      }
+      const data = await res.json();
+      if (res.ok) {
+        setAlertMsg({ type: 'success', text: data.message || '실전 매매 기록이 성공적으로 초기화되었습니다.' });
+        await handleRefreshAll();
+      } else {
+        setAlertMsg({ type: 'error', text: data.message || '실전 기록 초기화 실패' });
+      }
+    } catch (err) {
+      setAlertMsg({ type: 'error', text: `실전 기록 초기화 오류: ${err.message}` });
+    } finally {
+      setResettingLive(false);
+      setTimeout(() => setAlertMsg(null), 6000);
+    }
+  };
+
+  // Fetch Status
+  const fetchStatus = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/trading/status`, {
+        headers: getAuthHeaders()
+      });
+      if (res.status === 401) {
+        handleUnauthorized();
+        return;
+      }
+      if (res.ok) {
+        const data = await res.json();
+        setStatus(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch trading status:', err);
+    }
+  };
+
+  // Open Limits Modal with latest synced status values
+  const openLimitsModal = () => {
+    if (status) {
+      setLimitsForm({
+        dry_run: status.is_dry_run ?? true,
+        min_order_krw: status.min_order_krw ?? 5000,
+        max_order_krw_per_trade: status.max_order_krw ?? 50000,
+        max_holding_coins: status.max_holding_coins ?? 1,
+        max_portfolio_ratio_per_coin: status.max_portfolio_ratio_per_coin ?? 0.3,
+        stop_loss_pct: status.stop_loss_pct ?? 3.0,
+        take_profit_pct: status.take_profit_pct ?? 5.0,
+        daily_max_loss_pct: status.daily_max_loss_pct ?? 5.0,
+        cooldown_minutes_after_sell: status.cooldown_minutes_after_sell ?? 15
+      });
+    }
+    setShowLimitsModal(true);
+  };
+
+  // Open Market Modal with latest synced status values
+  const openMarketModal = () => {
+    if (status?.target_markets && status.target_markets.length > 0) {
+      setSelectedMarkets(status.target_markets);
+    }
+    if (status?.candle_unit_minutes) {
+      setCandleUnit(status.candle_unit_minutes);
+    }
+    setMarketHoldingCoins(status?.max_holding_coins ?? 1);
+    setShowMarketModal(true);
+    fetchAvailableMarkets();
+  };
+
+  // Fetch Account Check
+  const fetchAccountStatus = async () => {
+    setAccountLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/trading/account/check`, {
+        headers: getAuthHeaders()
+      });
+      if (res.status === 401) {
+        handleUnauthorized();
+        return;
+      }
+      if (res.ok) {
+        const data = await res.json();
+        setAccountStatus(data);
+      }
+    } catch (err) {
+      console.error('Failed to check account status:', err);
+      setAccountStatus({
+        status: 'NETWORK_ERROR',
+        is_connected: false,
+        message: '서버와 통신할 수 없습니다.'
+      });
+    } finally {
+      setAccountLoading(false);
+    }
+  };
+
+const FALLBACK_BITHUMB_MARKETS = [
+  { market: 'KRW-BTC', symbol: 'BTC', korean_name: '비트코인', english_name: 'Bitcoin' },
+  { market: 'KRW-ETH', symbol: 'ETH', korean_name: '이더리움', english_name: 'Ethereum' },
+  { market: 'KRW-XRP', symbol: 'XRP', korean_name: '리플', english_name: 'Ripple' },
+  { market: 'KRW-SOL', symbol: 'SOL', korean_name: '솔라나', english_name: 'Solana' },
+  { market: 'KRW-DOGE', symbol: 'DOGE', korean_name: '도지코인', english_name: 'Dogecoin' },
+  { market: 'KRW-ADA', symbol: 'ADA', korean_name: '에이다', english_name: 'Cardano' },
+  { market: 'KRW-AVAX', symbol: 'AVAX', korean_name: '아발란체', english_name: 'Avalanche' },
+  { market: 'KRW-DOT', symbol: 'DOT', korean_name: '폴카닷', english_name: 'Polkadot' },
+  { market: 'KRW-LINK', symbol: 'LINK', korean_name: '체인링크', english_name: 'Chainlink' },
+  { market: 'KRW-SUI', symbol: 'SUI', korean_name: '수이', english_name: 'Sui' },
+  { market: 'KRW-APT', symbol: 'APT', korean_name: '앱토스', english_name: 'Aptos' },
+  { market: 'KRW-SHIB', symbol: 'SHIB', korean_name: '시바이누', english_name: 'Shiba Inu' },
+  { market: 'KRW-PEPE', symbol: 'PEPE', korean_name: '페페', english_name: 'Pepe' },
+  { market: 'KRW-NEAR', symbol: 'NEAR', korean_name: '니어프로토콜', english_name: 'NEAR Protocol' },
+  { market: 'KRW-ETC', symbol: 'ETC', korean_name: '이더리움클래식', english_name: 'Ethereum Classic' },
+  { market: 'KRW-BCH', symbol: 'BCH', korean_name: '비트코인캐시', english_name: 'Bitcoin Cash' },
+  { market: 'KRW-XLM', symbol: 'XLM', korean_name: '스텔라루멘', english_name: 'Stellar Lumens' },
+  { market: 'KRW-TRX', symbol: 'TRX', korean_name: '트론', english_name: 'TRON' },
+  { market: 'KRW-SAND', symbol: 'SAND', korean_name: '샌드박스', english_name: 'The Sandbox' },
+  { market: 'KRW-MANA', symbol: 'MANA', korean_name: '디센트럴랜드', english_name: 'Decentraland' },
+  { market: 'KRW-WLD', symbol: 'WLD', korean_name: '월드코인', english_name: 'Worldcoin' },
+  { market: 'KRW-STX', symbol: 'STX', korean_name: '스택스', english_name: 'Stacks' },
+  { market: 'KRW-ARB', symbol: 'ARB', korean_name: '아비트럼', english_name: 'Arbitrum' },
+  { market: 'KRW-OP', symbol: 'OP', korean_name: '옵티미즘', english_name: 'Optimism' }
+];
+
+  // Fetch Available Markets
+  const fetchAvailableMarkets = async (query = '') => {
+    setLoadingMarkets(true);
+    try {
+      const q = query ? `?query=${encodeURIComponent(query)}` : '';
+      const res = await fetch(`${API_BASE}/api/trading/markets/available${q}`, {
+        headers: getAuthHeaders()
+      });
+      if (res.status === 401) {
+        handleUnauthorized();
+        return;
+      }
+      if (res.ok) {
+        const data = await res.json();
+        if (data.markets && data.markets.length > 0) {
+          setAvailableMarkets(data.markets);
+          return;
+        }
+      }
+
+      // Fallback 1: Query Bithumb Public Market API directly
+      try {
+        const bRes = await fetch('https://api.bithumb.com/v1/market/all');
+        if (bRes.ok) {
+          const raw = await bRes.json();
+          const krwMarkets = (raw || [])
+            .filter(m => m.market?.startsWith('KRW-'))
+            .map(m => ({
+              market: m.market,
+              symbol: m.market.replace('KRW-', ''),
+              korean_name: m.korean_name || m.market,
+              english_name: m.english_name || m.market
+            }));
+          const filtered = query
+            ? krwMarkets.filter(m =>
+                m.market.toUpperCase().includes(query.toUpperCase()) ||
+                m.symbol.toUpperCase().includes(query.toUpperCase()) ||
+                m.korean_name.includes(query)
+              )
+            : krwMarkets;
+          if (filtered.length > 0) {
+            setAvailableMarkets(filtered);
+            return;
+          }
+        }
+      } catch (_) {}
+
+      // Fallback 2: Local Built-in Popular Markets List
+      const staticFiltered = query
+        ? FALLBACK_BITHUMB_MARKETS.filter(m =>
+            m.market.toUpperCase().includes(query.toUpperCase()) ||
+            m.symbol.toUpperCase().includes(query.toUpperCase()) ||
+            m.korean_name.includes(query)
+          )
+        : FALLBACK_BITHUMB_MARKETS;
+      setAvailableMarkets(staticFiltered);
+    } catch (err) {
+      console.error('Failed to fetch available markets, using fallback list:', err);
+      setAvailableMarkets(FALLBACK_BITHUMB_MARKETS);
+    } finally {
+      setLoadingMarkets(false);
+    }
+  };
+
+  // Fetch Logs
+  const fetchLogs = async (currentPage = page, currentMode = modeFilter) => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({
+        page: currentPage,
+        page_size: 20
+      });
+      if (marketFilter !== 'ALL') params.append('market', marketFilter);
+      if (decisionFilter !== 'ALL') params.append('decision', decisionFilter);
+      if (currentMode !== 'ALL') params.append('mode', currentMode);
+
+      const res = await fetch(`${API_BASE}/api/trading/logs?${params.toString()}`, {
+        headers: getAuthHeaders()
+      });
+      if (res.status === 401) {
+        handleUnauthorized();
+        return;
+      }
+      if (res.ok) {
+        const data = await res.json();
+        setLogs(data.logs || []);
+        setTotalPages(data.total_pages || 1);
+        setTotalCount(data.total_count || 0);
+      }
+    } catch (err) {
+      console.error('Failed to fetch trading logs:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRefreshAll = async () => {
+    if (!token) return;
+    await Promise.all([fetchStatus(), fetchAccountStatus(), fetchLogs(page, modeFilter)]);
+  };
+
+  // Trigger Manual Trading Loop
+  const handleTriggerRun = async () => {
+    setTriggering(true);
+    setAlertMsg({ type: 'info', text: '실시간 시장 분석 및 트레이딩 루프를 실행 중입니다...' });
+    try {
+      const res = await fetch(`${API_BASE}/api/trading/trigger`, {
+        method: 'POST',
+        headers: getAuthHeaders()
+      });
+      if (res.status === 401) {
+        handleUnauthorized();
+        return;
+      }
+      const data = await res.json();
+      if (res.ok) {
+        setAlertMsg({ type: 'success', text: data.message || '분석 사이클이 시작되었습니다.' });
+        setTimeout(() => {
+          handleRefreshAll();
+        }, 3000);
+      } else {
+        setAlertMsg({ type: 'error', text: data.message || '실행 요청 실패' });
+      }
+    } catch (err) {
+      setAlertMsg({ type: 'error', text: `실행 실패: ${err.message}` });
+    } finally {
+      setTriggering(false);
+      setTimeout(() => setAlertMsg(null), 6000);
+    }
+  };
+
+  // Save Account Credentials
+  const handleSaveAccount = async (e) => {
+    e.preventDefault();
+    setSavingAccount(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/trading/account/update`, {
+        method: 'POST',
+        headers: getAuthHeaders({
+          'Content-Type': 'application/json'
+        }),
+        body: JSON.stringify({
+          access_key: accessKeyInput.trim() || undefined,
+          secret_key: secretKeyInput.trim() || undefined
+        })
+      });
+      if (res.status === 401) {
+        handleUnauthorized();
+        return;
+      }
+      const data = await res.json();
+      if (res.ok) {
+        setAlertMsg({ type: 'success', text: data.message || 'API 키가 성공적으로 저장되었습니다.' });
+        setShowAccountModal(false);
+        setAccessKeyInput('');
+        setSecretKeyInput('');
+        await fetchAccountStatus();
+        await fetchStatus();
+      } else {
+        setAlertMsg({ type: 'error', text: data.message || '저장 실패' });
+      }
+    } catch (err) {
+      setAlertMsg({ type: 'error', text: `API 키 저장 오류: ${err.message}` });
+    } finally {
+      setSavingAccount(false);
+      setTimeout(() => setAlertMsg(null), 6000);
+    }
+  };
+
+  // Save Order Limits Configuration
+  const handleSaveLimits = async (e) => {
+    e.preventDefault();
+    setSavingLimits(true);
+    const parsedHoldingCoins = (limitsForm.max_holding_coins === '' || limitsForm.max_holding_coins === 0 || limitsForm.max_holding_coins === '0') ? 0 : Math.max(0, parseInt(limitsForm.max_holding_coins, 10) || 0);
+    const payload = {
+      dry_run: Boolean(limitsForm.dry_run),
+      min_order_krw: Number(limitsForm.min_order_krw) || 5000,
+      max_order_krw_per_trade: Number(limitsForm.max_order_krw_per_trade) || 50000,
+      max_holding_coins: parsedHoldingCoins,
+      max_portfolio_ratio_per_coin: Number(limitsForm.max_portfolio_ratio_per_coin) || 0.3,
+      stop_loss_pct: Number(limitsForm.stop_loss_pct) || 3.0,
+      take_profit_pct: Number(limitsForm.take_profit_pct) || 5.0,
+      daily_max_loss_pct: Number(limitsForm.daily_max_loss_pct) || 5.0,
+      cooldown_minutes_after_sell: parseInt(limitsForm.cooldown_minutes_after_sell, 10) || 15
+    };
+
+    // Optimistic UI state sync
+    setStatus(prev => prev ? { ...prev, ...payload } : prev);
+    setMarketHoldingCoins(parsedHoldingCoins);
+
+    try {
+      const res = await fetch(`${API_BASE}/api/trading/config`, {
+        method: 'POST',
+        headers: getAuthHeaders({
+          'Content-Type': 'application/json'
+        }),
+        body: JSON.stringify(payload)
+      });
+      if (res.status === 401) {
+        handleUnauthorized();
+        return;
+      }
+      const data = await res.json();
+      if (res.ok) {
+        const limitLabel = parsedHoldingCoins === 0 ? '품목 제한 없음 (무제한)' : `최대 ${parsedHoldingCoins}품목 제한`;
+        setAlertMsg({ type: 'success', text: `거래 한도 및 ${limitLabel} 설정이 저장되었습니다.` });
+        setShowLimitsModal(false);
+        await fetchStatus();
+      } else {
+        setAlertMsg({ type: 'error', text: data.message || '설정 저장 실패' });
+        await fetchStatus();
+      }
+    } catch (err) {
+      setAlertMsg({ type: 'error', text: `설정 저장 실패: ${err.message}` });
+      await fetchStatus();
+    } finally {
+      setSavingLimits(false);
+      setTimeout(() => setAlertMsg(null), 6000);
+    }
+  };
+
+  // Save Target Markets and Candle Unit (includes Holding Coins Limit)
+  const handleSaveMarkets = async () => {
+    if (selectedMarkets.length === 0) {
+      alert('최소 1개 이상의 거래 품목(마켓)을 선택해야 합니다.');
+      return;
+    }
+    setSavingMarkets(true);
+    const parsedHolding = (marketHoldingCoins === '' || marketHoldingCoins === 0 || marketHoldingCoins === '0') ? 0 : Math.max(0, parseInt(marketHoldingCoins, 10) || 0);
+    
+    // Optimistic UI state sync
+    setStatus(prev => prev ? {
+      ...prev,
+      target_markets: selectedMarkets,
+      candle_unit_minutes: candleUnit,
+      max_holding_coins: parsedHolding
+    } : prev);
+    setLimitsForm(prev => ({ ...prev, max_holding_coins: parsedHolding }));
+
+    try {
+      const res = await fetch(`${API_BASE}/api/trading/config`, {
+        method: 'POST',
+        headers: getAuthHeaders({
+          'Content-Type': 'application/json'
+        }),
+        body: JSON.stringify({
+          target_markets: selectedMarkets,
+          candle_unit_minutes: candleUnit,
+          max_holding_coins: parsedHolding
+        })
+      });
+      if (res.status === 401) {
+        handleUnauthorized();
+        return;
+      }
+      const data = await res.json();
+      if (res.ok) {
+        const limitLabel = parsedHolding === 0 ? '제한 없음 (무제한)' : `최대 ${parsedHolding}개`;
+        setAlertMsg({
+          type: 'success',
+          text: `거래 품목(${selectedMarkets.length}개), 캔들 주기(${candleUnit}분) 및 동시 보유(${limitLabel}) 설정이 저장되었습니다.`
+        });
+        setShowMarketModal(false);
+        await fetchStatus();
+      } else {
+        setAlertMsg({ type: 'error', text: data.message || '품목 저장 실패' });
+        await fetchStatus();
+      }
+    } catch (err) {
+      setAlertMsg({ type: 'error', text: `품목 저장 실패: ${err.message}` });
+      await fetchStatus();
+    } finally {
+      setSavingMarkets(false);
+      setTimeout(() => setAlertMsg(null), 6000);
+    }
+  };
+
+  // Quick change max holding coins immediately
+  const handleQuickChangeHoldingCoins = async (count) => {
+    const targetCount = count === 0 ? 0 : Math.max(0, parseInt(count, 10) || 0);
+    setQuickSavingHolding(true);
+    
+    // Optimistic immediate UI reflection
+    setStatus(prev => prev ? { ...prev, max_holding_coins: targetCount } : prev);
+    setLimitsForm(prev => ({ ...prev, max_holding_coins: targetCount }));
+    setMarketHoldingCoins(targetCount);
+
+    try {
+      const res = await fetch(`${API_BASE}/api/trading/config`, {
+        method: 'POST',
+        headers: getAuthHeaders({
+          'Content-Type': 'application/json'
+        }),
+        body: JSON.stringify({
+          max_holding_coins: targetCount
+        })
+      });
+      if (res.status === 401) {
+        handleUnauthorized();
+        return;
+      }
+      const data = await res.json();
+      if (res.ok) {
+        const label = targetCount === 0 ? '[♾️ 제한 없음 (무제한)]' : `최대 [${targetCount}개]`;
+        setAlertMsg({
+          type: 'success',
+          text: `⚡ 동시 보유 품목 수 제한이 ${label}으로 즉시 변경되었습니다.`
+        });
+        await fetchStatus();
+      } else {
+        setAlertMsg({ type: 'error', text: data.message || '보유 제한 변경 실패' });
+        await fetchStatus();
+      }
+    } catch (err) {
+      setAlertMsg({ type: 'error', text: `보유 제한 변경 오류: ${err.message}` });
+      await fetchStatus();
+    } finally {
+      setQuickSavingHolding(false);
+      setTimeout(() => setAlertMsg(null), 5000);
+    }
+  };
+
+  // Toggle Market Selection
+  const toggleMarketSelection = (marketCode) => {
+    if (selectedMarkets.includes(marketCode)) {
+      if (selectedMarkets.length <= 1) {
+        alert('최소 1개 이상의 거래 품목이 필요합니다.');
+        return;
+      }
+      setSelectedMarkets(selectedMarkets.filter(m => m !== marketCode));
+    } else {
+      setSelectedMarkets([...selectedMarkets, marketCode]);
+    }
+  };
+
+  // Apply Presets
+  const applyPreset = (presetList) => {
+    setSelectedMarkets(presetList);
+  };
+
+  // Auto-refresh interval effect
+  useEffect(() => {
+    if (!token) return;
+
+    handleRefreshAll();
+    fetchAvailableMarkets();
+
+    if (autoRefresh) {
+      timerRef.current = setInterval(() => {
+        handleRefreshAll();
+      }, refreshInterval * 1000);
+    }
+
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [token, autoRefresh, refreshInterval, marketFilter, decisionFilter, modeFilter, page]);
+
+  const toggleExpandLog = (id) => {
+    setExpandedLogId(expandedLogId === id ? null : id);
+  };
+
+  const getDecisionBadge = (decision) => {
+    switch (decision?.toUpperCase()) {
+      case 'BUY':
+        return <span className="trade-badge badge-buy"><ArrowUpRight size={14} /> BUY</span>;
+      case 'SELL':
+        return <span className="trade-badge badge-sell"><ArrowDownRight size={14} /> SELL</span>;
+      case 'HOLD':
+      default:
+        return <span className="trade-badge badge-hold"><Activity size={14} /> HOLD</span>;
+    }
+  };
+
+  const getActionBadge = (action) => {
+    if (!action) return <span className="action-pill action-none">-</span>;
+    if (action.includes('BUY')) return <span className="action-pill action-buy">⚡ {action}</span>;
+    if (action.includes('SELL')) return <span className="action-pill action-sell">🔻 {action}</span>;
+    if (action.includes('STOP_LOSS')) return <span className="action-pill action-danger">⚠️ 손절 청산</span>;
+    if (action.includes('TAKE_PROFIT')) return <span className="action-pill action-profit">🎯 익절 청산</span>;
+    return <span className="action-pill action-hold">{action}</span>;
+  };
+
+  const getTrendBadge = (trend) => {
+    if (trend === 'STRONG_BULLISH' || trend === 'BULLISH') {
+      return <span className="trend-badge trend-bullish">상승 추세 ({trend})</span>;
+    }
+    if (trend === 'STRONG_BEARISH' || trend === 'BEARISH') {
+      return <span className="trend-badge trend-bearish">하락 추세 ({trend})</span>;
+    }
+    return <span className="trend-badge trend-neutral">중립 ({trend || 'NEUTRAL'})</span>;
+  };
+
+  // If not authenticated, display modern cyber/fintech login panel
+  if (!token) {
+    return (
+      <div className="trading-dashboard-container" style={{ minHeight: 'calc(100vh - 120px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 20px' }}>
+        <div style={{
+          background: 'var(--bg-glass)',
+          backdropFilter: 'blur(24px)',
+          WebkitBackdropFilter: 'blur(24px)',
+          border: '1px solid rgba(16, 185, 129, 0.25)',
+          borderRadius: '24px',
+          padding: '44px 32px',
+          color: '#fff',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          maxWidth: '460px',
+          width: '100%',
+          boxShadow: '0 12px 40px 0 rgba(0, 0, 0, 0.55), 0 0 25px rgba(16, 185, 129, 0.1)',
+          textAlign: 'center',
+          position: 'relative',
+          overflow: 'hidden'
+        }}>
+          {/* Top Decorative Glow */}
+          <div style={{
+            position: 'absolute',
+            top: '-60px',
+            width: '180px',
+            height: '180px',
+            background: 'radial-gradient(circle, rgba(16, 185, 129, 0.25) 0%, transparent 70%)',
+            filter: 'blur(30px)',
+            pointerEvents: 'none'
+          }} />
+
+          {/* Glowing Lock Icon */}
+          <div style={{
+            background: 'linear-gradient(135deg, #10b981 0%, #06b6d4 100%)',
+            padding: '18px',
+            borderRadius: '20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginBottom: '20px',
+            boxShadow: '0 8px 24px rgba(16, 185, 129, 0.35)'
+          }}>
+            <Lock size={32} style={{ color: '#fff' }} />
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+            <TrendingUp size={20} className="text-emerald-400" />
+            <h2 style={{
+              fontSize: '22px',
+              fontWeight: '800',
+              margin: 0,
+              background: 'linear-gradient(135deg, #34d399 0%, #38bdf8 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              letterSpacing: '-0.02em'
+            }}>
+              AI 자동거래 통제 센터
+            </h2>
+          </div>
+
+          <p style={{ fontSize: '13px', color: 'rgba(255, 255, 255, 0.65)', lineHeight: 1.5, margin: '0 0 28px 0', maxWidth: '340px' }}>
+            실시간 빗썸 시세 분석 및 자동 주문 집행 시스템입니다. 접근하려면 관리자 로그인이 필요합니다.
+          </p>
+
+          <form onSubmit={handleLogin} style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', textAlign: 'left' }}>
+              <label style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.7)', fontWeight: '600' }}>사용자 아이디 (ID)</label>
+              <input
+                type="text"
+                required
+                value={loginForm.username}
+                onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })}
+                placeholder="아이디를 입력하세요"
+                autoComplete="username"
+                style={{
+                  width: '100%',
+                  background: 'rgba(255, 255, 255, 0.04)',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  borderRadius: '12px',
+                  padding: '12px 16px',
+                  color: '#fff',
+                  fontSize: '14px',
+                  outline: 'none',
+                  transition: 'border-color 0.2s, box-shadow 0.2s'
+                }}
+                onFocus={(e) => {
+                  e.target.style.borderColor = '#10b981';
+                  e.target.style.boxShadow = '0 0 0 3px rgba(16, 185, 129, 0.15)';
+                }}
+                onBlur={(e) => {
+                  e.target.style.borderColor = 'rgba(255, 255, 255, 0.12)';
+                  e.target.style.boxShadow = 'none';
+                }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', textAlign: 'left' }}>
+              <label style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.7)', fontWeight: '600' }}>비밀번호 (Password)</label>
+              <input
+                type="password"
+                required
+                value={loginForm.password}
+                onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
+                placeholder="비밀번호를 입력하세요"
+                autoComplete="current-password"
+                style={{
+                  width: '100%',
+                  background: 'rgba(255, 255, 255, 0.04)',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  borderRadius: '12px',
+                  padding: '12px 16px',
+                  color: '#fff',
+                  fontSize: '14px',
+                  outline: 'none',
+                  transition: 'border-color 0.2s, box-shadow 0.2s'
+                }}
+                onFocus={(e) => {
+                  e.target.style.borderColor = '#10b981';
+                  e.target.style.boxShadow = '0 0 0 3px rgba(16, 185, 129, 0.15)';
+                }}
+                onBlur={(e) => {
+                  e.target.style.borderColor = 'rgba(255, 255, 255, 0.12)';
+                  e.target.style.boxShadow = 'none';
+                }}
+              />
+            </div>
+
+            {loginError && (
+              <div style={{
+                fontSize: '12px',
+                color: '#f87171',
+                background: 'rgba(239, 68, 68, 0.12)',
+                padding: '10px 14px',
+                borderRadius: '8px',
+                border: '1px solid rgba(239, 68, 68, 0.25)',
+                textAlign: 'left',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}>
+                <AlertCircle size={14} style={{ flexShrink: 0 }} />
+                <span>{loginError}</span>
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={isLoggingIn}
+              style={{
+                background: 'linear-gradient(135deg, #10b981 0%, #06b6d4 100%)',
+                border: 'none',
+                padding: '14px',
+                borderRadius: '12px',
+                color: '#fff',
+                cursor: isLoggingIn ? 'not-allowed' : 'pointer',
+                fontSize: '15px',
+                fontWeight: '700',
+                marginTop: '6px',
+                boxShadow: '0 4px 18px rgba(16, 185, 129, 0.3)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                opacity: isLoggingIn ? 0.7 : 1,
+                transition: 'transform 0.15s, box-shadow 0.15s'
+              }}
+              onMouseEnter={(e) => {
+                if (!isLoggingIn) e.currentTarget.style.transform = 'translateY(-1px)';
+              }}
+              onMouseLeave={(e) => {
+                if (!isLoggingIn) e.currentTarget.style.transform = 'none';
+              }}
+            >
+              {isLoggingIn ? (
+                <>
+                  <RefreshCw size={16} className="spin-anim" />
+                  <span>인증 확인 중...</span>
+                </>
+              ) : (
+                <>
+                  <Lock size={16} />
+                  <span>로그인 및 대시보드 진입</span>
+                </>
+              )}
+            </button>
+          </form>
+
+          <div style={{
+            marginTop: '24px',
+            paddingTop: '16px',
+            borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '6px',
+            fontSize: '11px',
+            color: 'rgba(255, 255, 255, 0.4)'
+          }}>
+            <ShieldCheck size={14} className="text-emerald-400" />
+            <span>256-bit 암호화 및 비인가 트레이딩 차단 보안 적용</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="trading-dashboard-container">
+      {/* Top Header */}
+      <div className="trading-header-card">
+        <div className="header-title-section">
+          <div className="header-icon-wrapper">
+            <TrendingUp size={28} className="text-emerald-400" />
+          </div>
+          <div>
+            <div className="title-row">
+              <h1 className="trading-title">빗썸 AI 자동거래 대시보드</h1>
+              <span className={`mode-pill ${status?.is_dry_run ? 'mode-dry-run' : 'mode-live'}`}>
+                {status?.is_dry_run ? '🟢 모의투자 (Dry-Run)' : '🔴 실전매매 (Live)'}
+              </span>
+            </div>
+            <p className="trading-subtitle">
+              실시간 빗썸 시세 수집 ➔ 보조지표 연산 ➔ LLM 시장 분석 ➔ 리스크 가드레일 주문 집행
+            </p>
+          </div>
+        </div>
+
+        {/* Action Controls & Modal Buttons */}
+        <div className="header-controls">
+          {/* Logged in User Badge & Logout */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '6px 12px',
+            background: 'rgba(16, 185, 129, 0.1)',
+            borderRadius: '8px',
+            border: '1px solid rgba(16, 185, 129, 0.25)',
+            fontSize: '13px'
+          }}>
+            <User size={14} className="text-emerald-400" />
+            <span style={{ fontWeight: 600, color: '#34d399' }}>{username || '관리자'}</span>
+            <button
+              onClick={handleLogout}
+              title="로그아웃"
+              style={{
+                background: 'rgba(239, 68, 68, 0.15)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                color: '#fca5a5',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                padding: '3px 8px',
+                borderRadius: '6px',
+                fontSize: '11px',
+                marginLeft: '4px',
+                transition: 'background 0.2s, color 0.2s'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(239, 68, 68, 0.3)';
+                e.currentTarget.style.color = '#fff';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'rgba(239, 68, 68, 0.15)';
+                e.currentTarget.style.color = '#fca5a5';
+              }}
+            >
+              <LogOut size={12} />
+              <span>로그아웃</span>
+            </button>
+          </div>
+
+          <button
+            className="trading-btn btn-settings"
+            onClick={openLimitsModal}
+            title="1회 거래 제한 및 보유 품목 제한 설정"
+          >
+            <Sliders size={16} />
+            <span>주문한도·품목제한 설정</span>
+          </button>
+
+          <button
+            className="trading-btn btn-settings"
+            onClick={openMarketModal}
+            title="거래 대상 코인 및 캔들 주기 관리"
+          >
+            <Layers size={16} />
+            <span>품목 관리 ({selectedMarkets.length})</span>
+          </button>
+
+          <button
+            className="trading-btn btn-trigger"
+            onClick={handleTriggerRun}
+            disabled={triggering}
+          >
+            <Play size={16} className={triggering ? 'spin-anim' : ''} />
+            <span>{triggering ? '분석 진행 중...' : '즉시 분석 트리거'}</span>
+          </button>
+
+          <button
+            className="trading-btn btn-refresh"
+            onClick={handleRefreshAll}
+            disabled={loading || accountLoading}
+          >
+            <RefreshCw size={16} className={(loading || accountLoading) ? 'spin-anim' : ''} />
+            <span>새로고침</span>
+          </button>
+
+          <div className="auto-refresh-box">
+            <label className="toggle-label">
+              <input
+                type="checkbox"
+                checked={autoRefresh}
+                onChange={(e) => setAutoRefresh(e.target.checked)}
+              />
+              <span>자동 갱신 ({refreshInterval}s)</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      {/* Account Verification Check Banner */}
+      <div className="account-check-card">
+        <div className="account-check-left">
+          <div className={`account-status-icon-box ${
+            accountStatus?.status === 'CONNECTED' ? 'bg-emerald-glow' :
+            accountStatus?.status === 'IP_RESTRICTED' ? 'bg-amber-glow' :
+            accountStatus?.status === 'INVALID_KEY' ? 'bg-rose-glow' : 'bg-blue-glow'
+          }`}>
+            {accountStatus?.status === 'CONNECTED' ? (
+              <ShieldCheck size={22} className="text-emerald-400" />
+            ) : accountStatus?.status === 'IP_RESTRICTED' ? (
+              <ShieldAlert size={22} className="text-amber-400" />
+            ) : accountStatus?.status === 'INVALID_KEY' ? (
+              <ShieldX size={22} className="text-rose-400" />
+            ) : (
+              <Key size={22} className="text-blue-400" />
+            )}
+          </div>
+          <div className="account-check-info">
+            <div className="account-title-row">
+              <span className="account-check-title">빗썸 거래소 API 계정 상태</span>
+              <span className={`account-status-badge status-${accountStatus?.status?.toLowerCase() || 'checking'}`}>
+                {accountLoading ? '상태 확인 중...' :
+                 accountStatus?.status === 'CONNECTED' ? '🟢 API 연동 완료 (실계좌)' :
+                 accountStatus?.status === 'IP_RESTRICTED' ? '🟡 허용 IP 제한 (모의투자 권장)' :
+                 accountStatus?.status === 'INVALID_KEY' ? '🔴 API 인증 오류' :
+                 accountStatus?.status === 'CONFIG_MISSING' ? '⚪ API Key 미설정' :
+                 '검증 완료'}
+              </span>
+              {accountStatus?.masked_key && (
+                <span className="account-key-pill">
+                  <Key size={12} /> Key: {accountStatus.masked_key}
+                </span>
+              )}
+            </div>
+            <p className="account-check-desc">
+              {accountLoading ? 'Bithumb API 연결 및 계정 권한을 검증하고 있습니다...' :
+               accountStatus?.message || '거래소 API 접근 권한 상태를 확인했습니다.'}
+            </p>
+          </div>
+        </div>
+
+        <div className="account-check-actions">
+          <button
+            className="account-btn btn-recheck"
+            onClick={fetchAccountStatus}
+            disabled={accountLoading}
+            title="계정 접근 권한 즉시 재확인"
+          >
+            <RefreshCw size={14} className={accountLoading ? 'spin-anim' : ''} />
+            <span>상태 재검사</span>
+          </button>
+          <button
+            className="account-btn btn-edit-keys"
+            onClick={() => setShowAccountModal(true)}
+          >
+            <Key size={14} />
+            <span>API 키 관리</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Alert Notice */}
+      {alertMsg && (
+        <div className={`trading-alert-banner alert-${alertMsg.type}`}>
+          {alertMsg.type === 'success' && <CheckCircle size={18} />}
+          {alertMsg.type === 'error' && <AlertCircle size={18} />}
+          {alertMsg.type === 'info' && <Info size={18} />}
+          <span>{alertMsg.text}</span>
+        </div>
+      )}
+
+      {/* KPI Cards Grid */}
+      <div className="kpi-cards-grid">
+        <div className="kpi-card">
+          <div className="kpi-icon-box bg-blue-glow">
+            <Cpu size={20} className="text-blue-400" />
+          </div>
+          <div className="kpi-content">
+            <span className="kpi-label">총 분석 사이클</span>
+            <span className="kpi-value">{status?.total_logs_count?.toLocaleString() || 0} 회</span>
+            <span className="kpi-sub">매수 {status?.total_buys || 0} / 매도 {status?.total_sells || 0}</span>
+          </div>
+        </div>
+
+        <div className="kpi-card kpi-card-interactive" onClick={openLimitsModal} title="클릭하여 거래 한도 및 동시 보유 제한 변경">
+          <div className="kpi-icon-box bg-emerald-glow">
+            <DollarSign size={20} className="text-emerald-400" />
+          </div>
+          <div className="kpi-content">
+            <span className="kpi-label">1회 거래 제한 & 보유 제한 ⚙️</span>
+            <span className="kpi-value">
+              ₩ {(status?.max_order_krw || 50000).toLocaleString()} (1회)
+            </span>
+            <span className="kpi-sub font-semibold text-emerald-400">
+              {status?.max_holding_coins === 0 ? (
+                <span className="text-purple-300 font-extrabold underline">♾️ 품목 제한 없음 (무제한)</span>
+              ) : (
+                <>최대 <span className="text-purple-300 font-extrabold underline">{status?.max_holding_coins || 1}개 품목</span> 동시 보유</>
+              )}
+            </span>
+          </div>
+        </div>
+
+        <div className="kpi-card kpi-card-interactive" onClick={openLimitsModal} title="클릭하여 리스크 관리 설정 변경">
+          <div className="kpi-icon-box bg-amber-glow">
+            <ShieldAlert size={20} className="text-amber-400" />
+          </div>
+          <div className="kpi-content">
+            <span className="kpi-label">리스크 가드레일 ⚙️</span>
+            <span className="kpi-value text-amber-300">
+              손절 -{status?.stop_loss_pct || 3.0}% / 익절 +{status?.take_profit_pct || 5.0}%
+            </span>
+            <span className="kpi-sub">코인별 상한: {((status?.max_portfolio_ratio_per_coin || 0.3) * 100).toFixed(0)}% / 일일 손실: {status?.daily_max_loss_pct || 5.0}%</span>
+          </div>
+        </div>
+
+        <div className="kpi-card kpi-card-interactive" onClick={openMarketModal} title="클릭하여 거래 마켓 및 품목 관리">
+          <div className="kpi-icon-box bg-purple-glow">
+            <Layers size={20} className="text-purple-400" />
+          </div>
+          <div className="kpi-content">
+            <span className="kpi-label">대상 마켓 & 캔들 주기 ⚙️</span>
+            <span className="kpi-value text-purple-300">
+              {status?.target_markets?.join(', ') || 'KRW-BTC'}
+            </span>
+            <span className="kpi-sub">{status?.candle_unit_minutes || 15}분봉 기준 분석 (총 {status?.target_markets?.length || 0}개 마켓)</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Quick Holding Limit Selector Bar */}
+      <div className="holding-quick-bar">
+        <div className="holding-quick-info">
+          <div className="holding-quick-badge">
+            <Layers size={15} className="text-purple-400" />
+            <span className="font-bold text-sm text-purple-200">동시 보유 품목 수 제한 (원클릭 즉시 변경):</span>
+          </div>
+          <span className="holding-quick-desc">
+            {status?.max_holding_coins === 0 ? (
+              <strong>♾️ 품목 수 제한 없이 (무제한)</strong>
+            ) : (
+              <>현재 <strong>{status?.max_holding_coins || 1}개 품목</strong>까지</>
+            )}{' '}
+            동시 포지션을 보유하도록 설정되어 있습니다. (동일 품목 추가 매수 & 분할 매도 지원)
+          </span>
+        </div>
+        <div className="holding-quick-chips">
+          {[1, 2, 3, 5, 0].map((num) => {
+            const isActive = Number(status?.max_holding_coins) === num;
+            return (
+              <button
+                key={num}
+                type="button"
+                className={`holding-chip-btn ${isActive ? 'active' : ''}`}
+                onClick={() => handleQuickChangeHoldingCoins(num)}
+                disabled={quickSavingHolding}
+              >
+                {num === 0 ? '♾️ 제한 없음 (무제한)' : num === 1 ? '🎯 1개 (단일 집중)' : `${num}개 보유`}
+                {isActive && <span className="active-dot">● 적용중</span>}
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            className="holding-chip-btn custom-chip-btn"
+            onClick={openLimitsModal}
+            title="직접 숫자 입력 및 상세 설정"
+          >
+            ✏️ 상세 설정...
+          </button>
+        </div>
+      </div>
+
+      {/* Current Asset & Portfolio Summary Section */}
+      <div className="trading-asset-section">
+        <div className="asset-section-header">
+          <div className="asset-title-group">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <h2 className="section-title" style={{ margin: 0 }}>
+                <Wallet size={20} className="text-emerald-400" />
+                <span>현재 보유 자산 및 포트폴리오 현황</span>
+              </h2>
+              <span className={`mode-pill ${status?.is_dry_run ? 'mode-dry-run' : 'mode-live'}`} style={{ fontSize: '11px', padding: '2px 8px' }}>
+                {status?.is_dry_run ? '🟢 가상 모의투자' : '🔴 빗썸 실계좌 실시간'}
+              </span>
+            </div>
+            <span className="asset-subtitle">
+              {status?.is_dry_run
+                ? '모의투자 가상 잔고 기준 (초기 자본: ₩ 1,000,000)'
+                : (status?.assets?.is_live_connected
+                    ? '빗썸 실제 거래소 실시간 계좌 잔고 및 보유 코인 연동'
+                    : '빗썸 계정 상태 확인 필요 (API 키 및 허용 IP 확인)')}
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            {status?.is_dry_run ? (
+              <button
+                type="button"
+                className="reset-virtual-btn"
+                onClick={handleResetVirtualData}
+                disabled={resettingVirtual}
+                title="가상 매매 시뮬레이션 데이터를 초기화하고 100만원으로 리셋합니다"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 12px',
+                  borderRadius: '8px',
+                  background: 'rgba(239, 68, 68, 0.15)',
+                  border: '1px solid rgba(239, 68, 68, 0.35)',
+                  color: '#fca5a5',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: resettingVirtual ? 'not-allowed' : 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.3)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.15)'; }}
+              >
+                <RefreshCw size={13} className={resettingVirtual ? 'spin-anim' : ''} />
+                <span>{resettingVirtual ? '초기화 중...' : '가상 데이터 초기화'}</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="reset-live-btn"
+                onClick={handleResetLiveData}
+                disabled={resettingLive}
+                title="실전 매매 분석 및 체결 기록(로그)을 초기화합니다. (빗썸 거래소 실자산은 안전하게 유지됩니다)"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 12px',
+                  borderRadius: '8px',
+                  background: 'rgba(244, 63, 94, 0.15)',
+                  border: '1px solid rgba(244, 63, 94, 0.35)',
+                  color: '#fda4af',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: resettingLive ? 'not-allowed' : 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(244, 63, 94, 0.3)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(244, 63, 94, 0.15)'; }}
+              >
+                <RefreshCw size={13} className={resettingLive ? 'spin-anim' : ''} />
+                <span>{resettingLive ? '초기화 중...' : '실전 기록 초기화'}</span>
+              </button>
+            )}
+
+            {status?.assets?.total_return_pct !== undefined && status?.assets?.total_return_pct !== null && (
+              <div className={`total-return-badge ${(status.assets.total_return_pct || 0) >= 0 ? 'badge-profit' : 'badge-loss'}`}>
+                <span>총 누적 수익률:</span>
+                <strong>{(status.assets.total_return_pct || 0) >= 0 ? '+' : ''}{(status.assets.total_return_pct || 0).toFixed(2)}%</strong>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* 4 Hero Asset Metrics */}
+        <div className="asset-hero-grid">
+          {/* Card 1: Total Net Worth */}
+          <div className="asset-hero-card card-total">
+            <div className="asset-card-top">
+              <span className="asset-card-label">총 추정 자산</span>
+              <div className="asset-icon-pill bg-emerald-glow">
+                <Coins size={18} className="text-emerald-400" />
+              </div>
+            </div>
+            <div className="asset-card-main-val">
+              ₩ {(status?.assets?.total_net_assets || (status?.is_dry_run ? 1000000 : 0)).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+            </div>
+            <div className="asset-card-sub-info">
+              <span>원화 잔고 + 보유 코인 평가액 합산</span>
+            </div>
+          </div>
+
+          {/* Card 2: KRW Balance */}
+          <div className="asset-hero-card card-krw">
+            <div className="asset-card-top">
+              <span className="asset-card-label">보유 원화 잔고</span>
+              <div className="asset-icon-pill bg-blue-glow">
+                <Banknote size={18} className="text-blue-400" />
+              </div>
+            </div>
+            <div className="asset-card-main-val">
+              ₩ {(status?.assets?.krw_balance || (status?.is_dry_run ? 1000000 : 0)).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+            </div>
+            <div className="asset-card-sub-info">
+              <span className="text-blue-300">주문 가능 자금 (비중 {(status?.assets?.krw_weight_pct || 100).toFixed(1)}%)</span>
+            </div>
+          </div>
+
+          {/* Card 3: Crypto Evaluation */}
+          <div className="asset-hero-card card-crypto">
+            <div className="asset-card-top">
+              <span className="asset-card-label">코인 평가 금액</span>
+              <div className="asset-icon-pill bg-purple-glow">
+                <PieChart size={18} className="text-purple-400" />
+              </div>
+            </div>
+            <div className="asset-card-main-val">
+              ₩ {(status?.assets?.crypto_eval_total || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+            </div>
+            <div className="asset-card-sub-info">
+              <span>총 매수 원금: ₩ {(status?.assets?.crypto_buy_total || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+            </div>
+          </div>
+
+          {/* Card 4: Total PnL */}
+          <div className="asset-hero-card card-pnl">
+            <div className="asset-card-top">
+              <span className="asset-card-label">총 평가 손익</span>
+              <div className="asset-icon-pill bg-amber-glow">
+                {(status?.assets?.total_pnl_krw || 0) >= 0 ? (
+                  <TrendingUp size={18} className="text-emerald-400" />
+                ) : (
+                  <TrendingDown size={18} className="text-rose-400" />
+                )}
+              </div>
+            </div>
+            <div className={`asset-card-main-val ${(status?.assets?.total_pnl_krw || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+              {(status?.assets?.total_pnl_krw || 0) >= 0 ? '+' : ''}₩ {(status?.assets?.total_pnl_krw || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+            </div>
+            <div className="asset-card-sub-info">
+              <span className={(status?.assets?.total_pnl_pct || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                수익률: {(status?.assets?.total_pnl_pct || 0) >= 0 ? '+' : ''}{(status?.assets?.total_pnl_pct || 0).toFixed(2)}%
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Visual Asset Allocation Bar */}
+        <div className="asset-allocation-box">
+          <div className="allocation-header">
+            <div className="alloc-title">
+              <Percent size={15} />
+              <span>자산 포트폴리오 비중 구성</span>
+            </div>
+            <div className="alloc-legend">
+              <div className="legend-item">
+                <span className="legend-dot dot-krw"></span>
+                <span>원화(KRW) {(status?.assets?.krw_weight_pct || 100).toFixed(1)}%</span>
+              </div>
+              {status?.assets?.holdings?.map((h) => (
+                <div key={h.market} className="legend-item">
+                  <span className={`legend-dot dot-${h.symbol.toLowerCase()}`}></span>
+                  <span>{h.symbol} {(h.weight_pct || 0).toFixed(1)}%</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="allocation-progress-bar">
+            <div
+              className="bar-segment bar-krw"
+              style={{ width: `${Math.max(status?.assets?.krw_weight_pct ?? 100, (status?.assets?.holdings?.some(h => h.weight_pct > 0) ? 0 : 100))}%` }}
+              title={`KRW: ${(status?.assets?.krw_weight_pct || 100).toFixed(1)}%`}
+            />
+            {status?.assets?.holdings?.map((h) => (
+              (h.weight_pct || 0) > 0 ? (
+                <div
+                  key={h.market}
+                  className={`bar-segment bar-${h.symbol.toLowerCase()}`}
+                  style={{ width: `${h.weight_pct}%` }}
+                  title={`${h.symbol}: ${h.weight_pct.toFixed(1)}%`}
+                />
+              ) : null
+            ))}
+          </div>
+        </div>
+
+        {/* Holdings Breakdown Table */}
+        <div className="holdings-table-wrapper">
+          <table className="holdings-table">
+            <thead>
+              <tr>
+                <th>자산 종목</th>
+                <th>보유 수량</th>
+                <th>매수 평균가</th>
+                <th>현재가</th>
+                <th>매수 금액</th>
+                <th>평가 금액</th>
+                <th>평가 손익 (수익률)</th>
+                <th>포트폴리오 비중</th>
+              </tr>
+            </thead>
+            <tbody>
+              {/* KRW Row */}
+              <tr className="krw-row">
+                <td>
+                  <div className="asset-name-cell">
+                    <span className="asset-circle circle-krw">₩</span>
+                    <div>
+                      <strong>대한민국 원화</strong>
+                      <span className="asset-symbol">KRW</span>
+                    </div>
+                  </div>
+                </td>
+                <td>{(status?.assets?.krw_balance || (status?.is_dry_run ? 1000000 : 0)).toLocaleString()} KRW</td>
+                <td>-</td>
+                <td>1 KRW</td>
+                <td>₩ {(status?.assets?.krw_balance || (status?.is_dry_run ? 1000000 : 0)).toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                <td>₩ {(status?.assets?.krw_balance || (status?.is_dry_run ? 1000000 : 0)).toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                <td><span className="text-gray-400">-</span></td>
+                <td>
+                  <div className="weight-cell">
+                    <span>{(status?.assets?.krw_weight_pct || 100).toFixed(1)}%</span>
+                    <div className="mini-weight-bar">
+                      <div className="mini-bar-fill bg-blue-500" style={{ width: `${status?.assets?.krw_weight_pct || 100}%` }}></div>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+
+              {/* Crypto Holdings Rows */}
+              {status?.assets?.holdings?.map((h) => (
+                <tr key={h.market}>
+                  <td>
+                    <div className="asset-name-cell">
+                      <span className={`asset-circle circle-${h.symbol.toLowerCase()}`}>{h.symbol.slice(0, 1)}</span>
+                      <div>
+                        <strong>{h.symbol === 'BTC' ? '비트코인' : h.symbol === 'ETH' ? '이더리움' : h.symbol}</strong>
+                        <span className="asset-symbol">{h.market}</span>
+                      </div>
+                    </div>
+                  </td>
+                  <td>{h.volume > 0 ? h.volume.toFixed(6) : '0.000000'} {h.symbol}</td>
+                  <td>{h.avg_price > 0 ? `₩ ${h.avg_price.toLocaleString()}` : '-'}</td>
+                  <td>{h.current_price > 0 ? `₩ ${h.current_price.toLocaleString()}` : '-'}</td>
+                  <td>₩ {h.buy_krw.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                  <td><strong>₩ {h.eval_krw.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong></td>
+                  <td>
+                    {h.volume > 0 ? (
+                      <span className={`pnl-tag ${(h.pnl_krw || 0) >= 0 ? 'tag-profit' : 'tag-loss'}`}>
+                        {(h.pnl_krw || 0) >= 0 ? '+' : ''}₩ {(h.pnl_krw || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        {' '}({(h.pnl_pct || 0) >= 0 ? '+' : ''}{(h.pnl_pct || 0).toFixed(2)}%)
+                      </span>
+                    ) : (
+                      <span className="text-gray-400">-</span>
+                    )}
+                  </td>
+                  <td>
+                    <div className="weight-cell">
+                      <span>{(h.weight_pct || 0).toFixed(1)}%</span>
+                      <div className="mini-weight-bar">
+                        <div
+                          className={`mini-bar-fill bg-${h.symbol.toLowerCase()}`}
+                          style={{ width: `${h.weight_pct || 0}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Target Market Live Positions */}
+      {status?.positions && Object.keys(status.positions).length > 0 && (
+        <div className="market-cards-section">
+          <h2 className="section-title">
+            <Activity size={18} />
+            <span>실시간 마켓 현황 & 포지션</span>
+          </h2>
+          <div className="market-cards-grid">
+            {Object.entries(status.positions).map(([mkt, pos]) => (
+              <div key={mkt} className="market-card">
+                <div className="market-card-header">
+                  <div>
+                    <span className="market-name">{mkt}</span>
+                    <span className="market-last-update">최근 갱신: {pos.last_updated ? new Date(pos.last_updated).toLocaleTimeString() : '-'}</span>
+                  </div>
+                  {getTrendBadge(pos.trend)}
+                </div>
+
+                <div className="market-price-row">
+                  <span className="price-label">현재가</span>
+                  <div className="flex items-center gap-2">
+                    <span className="price-value">{pos.current_price > 0 ? `${pos.current_price.toLocaleString()} KRW` : '-'}</span>
+                    {pos.change_rate_24h !== undefined && pos.change_rate_24h !== null && (
+                      <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${pos.change_rate_24h >= 0 ? 'text-emerald-400 bg-emerald-950/50' : 'text-rose-400 bg-rose-950/50'}`}>
+                        {pos.change_rate_24h >= 0 ? '+' : ''}{pos.change_rate_24h.toFixed(2)}%
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="indicator-mini-grid">
+                  <div className="mini-stat">
+                    <span className="mini-stat-label">RSI (14)</span>
+                    <span className={`mini-stat-val ${pos.rsi > 70 ? 'text-red-400' : pos.rsi < 30 ? 'text-emerald-400' : ''}`}>
+                      {pos.rsi !== null && pos.rsi !== undefined ? pos.rsi : '-'}
+                    </span>
+                  </div>
+                  <div className="mini-stat">
+                    <span className="mini-stat-label">MACD Hist</span>
+                    <span className={`mini-stat-val ${pos.macd_hist > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {pos.macd_hist !== null && pos.macd_hist !== undefined ? pos.macd_hist : '-'}
+                    </span>
+                  </div>
+                  <div className="mini-stat">
+                    <span className="mini-stat-label">보유 수량</span>
+                    <span className="mini-stat-val">{pos.holding_volume || 0}</span>
+                  </div>
+                  <div className="mini-stat">
+                    <span className="mini-stat-label">수익률</span>
+                    <span className={`mini-stat-val ${(pos.pnl_pct || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {(pos.pnl_pct || 0) >= 0 ? '+' : ''}{(pos.pnl_pct || 0).toFixed(2)}%
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Logs Table Section */}
+      <div className="trading-logs-section">
+        <div className="logs-header-row">
+          <div className="logs-title-area">
+            <h2 className="section-title">
+              <Clock size={18} />
+              <span>실시간 처리 및 시장 분석 로그 ({totalCount}건)</span>
+            </h2>
+          </div>
+
+          {/* Filters */}
+          <div className="filter-controls">
+            <div className="filter-group">
+              <select
+                className="trading-select"
+                value={modeFilter}
+                onChange={(e) => { setModeFilter(e.target.value); setPage(1); }}
+                style={{
+                  borderColor: modeFilter === 'LIVE' ? 'rgba(244, 63, 94, 0.5)' : modeFilter === 'DRY_RUN' ? 'rgba(16, 185, 129, 0.5)' : undefined
+                }}
+              >
+                <option value="ALL">전체 매매 모드</option>
+                <option value="DRY_RUN">🟢 모의투자 (가상) 로그</option>
+                <option value="LIVE">🔴 실전매매 (실계좌) 로그</option>
+              </select>
+            </div>
+
+            <div className="filter-group">
+              <Filter size={14} className="text-gray-400" />
+              <select
+                className="trading-select"
+                value={marketFilter}
+                onChange={(e) => { setMarketFilter(e.target.value); setPage(1); }}
+              >
+                <option value="ALL">전체 마켓</option>
+                {selectedMarkets.map(m => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="filter-group">
+              <select
+                className="trading-select"
+                value={decisionFilter}
+                onChange={(e) => { setDecisionFilter(e.target.value); setPage(1); }}
+              >
+                <option value="ALL">전체 판단</option>
+                <option value="BUY">BUY (매수)</option>
+                <option value="SELL">SELL (매도)</option>
+                <option value="HOLD">HOLD (관망)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Logs Table */}
+        <div className="table-responsive-container">
+          <table className="trading-logs-table">
+            <thead>
+              <tr>
+                <th>일시</th>
+                <th>마켓 / 모드</th>
+                <th>현재가</th>
+                <th>보조지표 (RSI / Trend)</th>
+                <th>LLM 판단 & 신뢰도</th>
+                <th>실행 액션</th>
+                <th>상세 사유</th>
+              </tr>
+            </thead>
+            <tbody>
+              {logs.length === 0 ? (
+                <tr>
+                  <td colSpan="7" className="empty-table-cell">
+                    {loading ? '로그를 불러오는 중입니다...' : '기록된 처리 로그가 없습니다.'}
+                  </td>
+                </tr>
+              ) : (
+                logs.map((log) => {
+                  const isExpanded = expandedLogId === log.id;
+                  return (
+                    <React.Fragment key={log.id}>
+                      <tr className={`log-row ${isExpanded ? 'row-expanded' : ''}`} onClick={() => toggleExpandLog(log.id)}>
+                        <td className="time-cell">{log.timestamp || '-'}</td>
+                        <td className="market-cell">
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span className="market-tag">{log.market}</span>
+                            <span style={{
+                              fontSize: '10px',
+                              padding: '2px 5px',
+                              borderRadius: '4px',
+                              background: log.is_dry_run ? 'rgba(16, 185, 129, 0.15)' : 'rgba(244, 63, 94, 0.15)',
+                              color: log.is_dry_run ? '#34d399' : '#fb7185',
+                              border: `1px solid ${log.is_dry_run ? 'rgba(16, 185, 129, 0.3)' : 'rgba(244, 63, 94, 0.3)'}`,
+                              fontWeight: 600,
+                              whiteSpace: 'nowrap'
+                            }}>
+                              {log.is_dry_run ? '모의' : '실전'}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="price-cell font-mono">
+                          {log.current_price ? `${log.current_price.toLocaleString()} ₩` : '-'}
+                        </td>
+                        <td className="indicator-cell">
+                          <span className="mr-2">RSI: <strong>{log.rsi ?? '-'}</strong></span>
+                          <span className="text-xs text-gray-400">({log.trend || 'NEUTRAL'})</span>
+                        </td>
+                        <td className="decision-cell">
+                          <div className="decision-wrapper">
+                            {getDecisionBadge(log.decision)}
+                            <span className="confidence-pill">{( (log.confidence || 0) * 100).toFixed(0)}%</span>
+                          </div>
+                        </td>
+                        <td className="action-cell">
+                          {getActionBadge(log.action_taken)}
+                        </td>
+                        <td className="reason-cell">
+                          <div className="reason-summary">
+                            <span>{log.reason || '-'}</span>
+                            {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                          </div>
+                        </td>
+                      </tr>
+                      {isExpanded && (
+                        <tr className="expanded-details-row">
+                          <td colSpan="7">
+                            <div className="log-detail-box">
+                              <div className="detail-grid">
+                                <div className="detail-item">
+                                  <span className="detail-label">MACD Hist</span>
+                                  <span className="detail-val">{log.macd_hist ?? '-'}</span>
+                                </div>
+                                <div className="detail-item">
+                                  <span className="detail-label">볼린저밴드 %B</span>
+                                  <span className="detail-val">{log.bollinger_pb ?? '-'}</span>
+                                </div>
+                                <div className="detail-item">
+                                  <span className="detail-label">거래량 비율</span>
+                                  <span className="detail-val">{log.volume_ratio ? `${log.volume_ratio}x` : '-'}</span>
+                                </div>
+                                <div className="detail-item">
+                                  <span className="detail-label">목표 투입 비중</span>
+                                  <span className="detail-val">{( (log.target_ratio || 0) * 100).toFixed(0)}%</span>
+                                </div>
+                                <div className="detail-item">
+                                  <span className="detail-label">주문 실행 금액</span>
+                                  <span className="detail-val">{log.order_amount_krw ? `${log.order_amount_krw.toLocaleString()} KRW` : '0 KRW'}</span>
+                                </div>
+                                <div className="detail-item">
+                                  <span className="detail-label">보유 수량 / 평단가</span>
+                                  <span className="detail-val">{log.holding_volume || 0} / {log.holding_avg_price ? `${log.holding_avg_price.toLocaleString()} KRW` : '-'}</span>
+                                </div>
+                              </div>
+                              <div className="reason-full-box">
+                                <span className="reason-full-title"><Sparkles size={14} className="text-amber-300 inline mr-1" /> LLM 상세 분석 근거:</span>
+                                <p className="reason-full-text">{log.reason}</p>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="pagination-bar">
+            <button
+              className="pagination-btn"
+              disabled={page <= 1}
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+            >
+              이전
+            </button>
+            <span className="pagination-info">{page} / {totalPages} 페이지</span>
+            <button
+              className="pagination-btn"
+              disabled={page >= totalPages}
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+            >
+              다음
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* ====================================================
+          MODAL 1: Account Settings Modal
+          ==================================================== */}
+      {showAccountModal && (
+        <div className="trading-modal-overlay" onClick={() => setShowAccountModal(false)}>
+          <div className="trading-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="modal-title-row">
+                <Key size={20} className="text-blue-400" />
+                <h2>Bithumb 거래소 API 연동 설정</h2>
+              </div>
+              <button className="modal-close-btn" onClick={() => setShowAccountModal(false)}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveAccount}>
+              <div className="modal-body">
+                <div className="modal-info-box">
+                  <Info size={16} className="text-blue-400 flex-shrink-0" />
+                  <div className="text-xs text-gray-300 leading-relaxed">
+                    빗썸(Bithumb) API Key는 <strong>자산조회, 주문조회, 주문하기</strong> 권한이 활성화되어 있어야 합니다.
+                    보안을 위해 허용 IP를 OCI 서버 IP로 등록해 주세요.
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">
+                    <span>Bithumb Access Key (Connect Key)</span>
+                    {accountStatus?.masked_key && (
+                      <span className="text-xs text-gray-400">현재 등록: {accountStatus.masked_key}</span>
+                    )}
+                  </label>
+                  <input
+                    type="text"
+                    className="trading-input"
+                    placeholder="새 Access Key 입력 (변경 시에만 입력)"
+                    value={accessKeyInput}
+                    onChange={(e) => setAccessKeyInput(e.target.value)}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">
+                    <span>Bithumb Secret Key</span>
+                  </label>
+                  <div className="password-input-wrapper">
+                    <input
+                      type={showSecretKey ? 'text' : 'password'}
+                      className="trading-input"
+                      placeholder="새 Secret Key 입력 (변경 시에만 입력)"
+                      value={secretKeyInput}
+                      onChange={(e) => setSecretKeyInput(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      className="pwd-toggle-btn"
+                      onClick={() => setShowSecretKey(!showSecretKey)}
+                    >
+                      {showSecretKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="account-current-detail-card">
+                  <div className="detail-row">
+                    <span className="text-gray-400">연결 상태:</span>
+                    <strong className={accountStatus?.is_connected ? 'text-emerald-400' : 'text-amber-400'}>
+                      {accountStatus?.status || 'UNKNOWN'}
+                    </strong>
+                  </div>
+                  <div className="detail-row">
+                    <span className="text-gray-400">상태 상세:</span>
+                    <span className="text-xs text-gray-300">{accountStatus?.message || '-'}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="modal-btn btn-cancel"
+                  onClick={() => setShowAccountModal(false)}
+                >
+                  닫기
+                </button>
+                <button
+                  type="submit"
+                  className="modal-btn btn-save"
+                  disabled={savingAccount}
+                >
+                  {savingAccount ? '저장 및 검증 중...' : 'API 키 저장 및 검증'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ====================================================
+          MODAL 2: Order Limits & Risk Guardrails Modal (1회 거래 제한, 1품목 제한)
+          ==================================================== */}
+      {showLimitsModal && (
+        <div className="trading-modal-overlay" onClick={() => setShowLimitsModal(false)}>
+          <div className="trading-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="modal-title-row">
+                <Sliders size={20} className="text-emerald-400" />
+                <h2>거래 한도 & 리스크 관리 설정</h2>
+              </div>
+              <button className="modal-close-btn" onClick={() => setShowLimitsModal(false)}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveLimits}>
+              <div className="modal-body">
+                {/* Trading Mode Switch */}
+                <div className="mode-toggle-card">
+                  <div>
+                    <span className="font-bold text-sm text-gray-200">투자 모드 선택</span>
+                    <p className="text-xs text-gray-400 mt-1">
+                      {limitsForm.dry_run
+                        ? '🟢 모의투자 (Dry-Run): 가상 잔고 100만원으로 안전하게 시뮬레이션 매매를 수행합니다.'
+                        : '🔴 실전매매 (Live): 빗썸 실제 계좌의 원화 잔고로 실제 코인을 매수/매도합니다.'}
+                    </p>
+                  </div>
+                  <label className="switch-label">
+                    <input
+                      type="checkbox"
+                      checked={!limitsForm.dry_run}
+                      onChange={(e) => setLimitsForm({ ...limitsForm, dry_run: !e.target.checked })}
+                    />
+                    <span className="switch-slider"></span>
+                  </label>
+                </div>
+
+                {/* 1회 거래 제한 & 동시 보유 제한 Highlights */}
+                <div className="form-grid-2">
+                  <div className="form-group">
+                    <label className="form-label">
+                      <span className="text-emerald-400 font-bold">1회 최대 거래(주문) 한도 (KRW)</span>
+                    </label>
+                    <input
+                      type="number"
+                      className="trading-input font-mono font-bold"
+                      min="5000"
+                      step="10000"
+                      value={limitsForm.max_order_krw_per_trade}
+                      onChange={(e) => setLimitsForm({ ...limitsForm, max_order_krw_per_trade: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
+                    />
+                    <div className="quick-amount-chips">
+                      {[30000, 50000, 100000, 300000, 500000].map(amt => (
+                        <button
+                          key={amt}
+                          type="button"
+                          className="amt-chip"
+                          onClick={() => setLimitsForm({ ...limitsForm, max_order_krw_per_trade: amt })}
+                        >
+                          {(amt / 10000)}만원
+                        </button>
+                      ))}
+                    </div>
+                    <span className="input-hint">1회 매수 실행 시 투입되는 최대 주문 금액 제한</span>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">
+                      <span className="text-purple-400 font-bold">동시 보유 품목 수 제한 (0 = 제한 없음)</span>
+                    </label>
+                    <input
+                      type="number"
+                      className="trading-input font-bold font-mono"
+                      min="0"
+                      max="50"
+                      step="1"
+                      placeholder="0 (무제한) 또는 개수 입력"
+                      value={limitsForm.max_holding_coins}
+                      onChange={(e) => setLimitsForm({ ...limitsForm, max_holding_coins: e.target.value === '' ? '' : (parseInt(e.target.value, 10) >= 0 ? parseInt(e.target.value, 10) : 0) })}
+                    />
+                    <div className="amt-chips mt-1">
+                      {[1, 2, 3, 5, 0].map((count) => (
+                        <button
+                          key={count}
+                          type="button"
+                          className={`amt-chip ${Number(limitsForm.max_holding_coins) === count ? 'active font-bold text-purple-300' : ''}`}
+                          onClick={() => setLimitsForm({ ...limitsForm, max_holding_coins: count })}
+                        >
+                          {count === 0 ? '♾️ 제한 없음 (0)' : count === 1 ? '🎯 1개 (단일 집중)' : `${count}개`}
+                        </button>
+                      ))}
+                    </div>
+                    <span className="input-hint">0 입력 시 품목 수 제한 없이 무제한 매수 허용. 동일 품목 이미 보유 중이어도 추가 매수 및 분할 매도 지원.</span>
+                  </div>
+                </div>
+
+                <div className="form-grid-2 mt-2">
+                  <div className="form-group">
+                    <label className="form-label">
+                      <span>1회 최소 주문 금액 (KRW)</span>
+                    </label>
+                    <input
+                      type="number"
+                      className="trading-input font-mono"
+                      min="1000"
+                      step="1000"
+                      value={limitsForm.min_order_krw}
+                      onChange={(e) => setLimitsForm({ ...limitsForm, min_order_krw: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
+                    />
+                    <span className="input-hint">빗썸 최소 주문액 기준 5,000원 이상 권장</span>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">
+                      <span className="text-emerald-400 font-bold">품목별 포트폴리오 상한 비중: <strong>{((limitsForm.max_portfolio_ratio_per_coin || 0.3) * 100).toFixed(0)}%</strong></span>
+                    </label>
+                    <input
+                      type="range"
+                      min="0.1"
+                      max="1.0"
+                      step="0.05"
+                      className="trading-range"
+                      value={limitsForm.max_portfolio_ratio_per_coin}
+                      onChange={(e) => setLimitsForm({ ...limitsForm, max_portfolio_ratio_per_coin: parseFloat(e.target.value) })}
+                    />
+                    <span className="input-hint">단일 코인 평가액이 총 자산에서 차지할 수 있는 상한선. 추가 매수 시에도 이 비율을 초과하지 않도록 자동 제한됩니다.</span>
+                  </div>
+                </div>
+
+                <div className="form-grid-2 mt-2">
+                  <div className="form-group">
+                    <label className="form-label">
+                      <span className="text-rose-400 font-bold">손절 기준 (Stop Loss %)</span>
+                    </label>
+                    <div className="input-with-suffix">
+                      <input
+                        type="number"
+                        className="trading-input font-mono text-rose-400"
+                        min="0.5"
+                        max="30"
+                        step="0.5"
+                        value={limitsForm.stop_loss_pct}
+                        onChange={(e) => setLimitsForm({ ...limitsForm, stop_loss_pct: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
+                      />
+                      <span className="suffix">%</span>
+                    </div>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">
+                      <span className="text-emerald-400 font-bold">익절 기준 (Take Profit %)</span>
+                    </label>
+                    <div className="input-with-suffix">
+                      <input
+                        type="number"
+                        className="trading-input font-mono text-emerald-400"
+                        min="1"
+                        max="100"
+                        step="0.5"
+                        value={limitsForm.take_profit_pct}
+                        onChange={(e) => setLimitsForm({ ...limitsForm, take_profit_pct: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
+                      />
+                      <span className="suffix">%</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="form-grid-2 mt-2">
+                  <div className="form-group">
+                    <label className="form-label">
+                      <span>일일 최대 손실 서킷브레이커 (%)</span>
+                    </label>
+                    <div className="input-with-suffix">
+                      <input
+                        type="number"
+                        className="trading-input font-mono text-amber-400"
+                        min="1"
+                        max="30"
+                        step="0.5"
+                        value={limitsForm.daily_max_loss_pct}
+                        onChange={(e) => setLimitsForm({ ...limitsForm, daily_max_loss_pct: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
+                      />
+                      <span className="suffix">%</span>
+                    </div>
+                    <span className="input-hint">당일 누적 손실 도달 시 거래 즉시 중단</span>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">
+                      <span>매도 후 재진입 쿨다운 (분)</span>
+                    </label>
+                    <div className="input-with-suffix">
+                      <input
+                        type="number"
+                        className="trading-input font-mono"
+                        min="1"
+                        max="180"
+                        step="1"
+                        value={limitsForm.cooldown_minutes_after_sell}
+                        onChange={(e) => setLimitsForm({ ...limitsForm, cooldown_minutes_after_sell: e.target.value === '' ? '' : parseInt(e.target.value, 10) || 1 })}
+                      />
+                      <span className="suffix">분</span>
+                    </div>
+                    <span className="input-hint">포지션 청산 후 성급한 재진입 방지</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="modal-btn btn-cancel"
+                  onClick={() => setShowLimitsModal(false)}
+                >
+                  취소
+                </button>
+                <button
+                  type="submit"
+                  className="modal-btn btn-save"
+                  disabled={savingLimits}
+                >
+                  {savingLimits ? '저장 중...' : '거래 한도 및 리스크 설정 저장'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ====================================================
+          MODAL 3: Market / Item Management Modal
+          ==================================================== */}
+      {showMarketModal && (
+        <div className="trading-modal-overlay" onClick={() => setShowMarketModal(false)}>
+          <div className="trading-modal-content market-modal-wide" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="modal-title-row">
+                <Layers size={20} className="text-purple-400" />
+                <h2>거래 품목(마켓) 및 캔들 주기 관리</h2>
+              </div>
+              <button className="modal-close-btn" onClick={() => setShowMarketModal(false)}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="modal-body">
+              {/* Currently Selected Markets */}
+              <div className="selected-markets-box">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="font-bold text-sm text-gray-200">
+                    현재 자동거래 대상 품목 ({selectedMarkets.length}개)
+                  </span>
+                  <span className="text-xs text-gray-400">클릭하여 제외 가능</span>
+                </div>
+                <div className="selected-tags-container">
+                  {selectedMarkets.map(mkt => (
+                    <span key={mkt} className="market-pill-tag">
+                      <strong>{mkt}</strong>
+                      <button
+                        type="button"
+                        className="pill-remove-btn"
+                        onClick={() => toggleMarketSelection(mkt)}
+                        title="제거"
+                      >
+                        <X size={12} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Candle Unit Selection */}
+              <div className="candle-unit-section mt-3">
+                <span className="font-bold text-sm text-gray-200 block mb-2">
+                  분석 캔들 주기 선택
+                </span>
+                <div className="candle-buttons-grid">
+                  {[1, 3, 5, 15, 30, 60, 240].map(unit => (
+                    <button
+                      key={unit}
+                      type="button"
+                      className={`candle-btn ${candleUnit === unit ? 'active' : ''}`}
+                      onClick={() => setCandleUnit(unit)}
+                    >
+                      {unit >= 60 ? `${unit / 60}시간봉` : `${unit}분봉`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Presets */}
+              <div className="presets-box mt-3">
+                <span className="text-xs text-gray-400 font-bold block mb-1">빠른 추천 프리셋:</span>
+                <div className="preset-buttons-row">
+                  <button
+                    type="button"
+                    className="preset-btn"
+                    onClick={() => applyPreset(['KRW-BTC'])}
+                  >
+                    🎯 단일 1종 (BTC 전용)
+                  </button>
+                  <button
+                    type="button"
+                    className="preset-btn"
+                    onClick={() => applyPreset(['KRW-BTC', 'KRW-ETH'])}
+                  >
+                    💎 메이저 2종 (BTC + ETH)
+                  </button>
+                  <button
+                    type="button"
+                    className="preset-btn"
+                    onClick={() => applyPreset(['KRW-BTC', 'KRW-ETH', 'KRW-XRP', 'KRW-SOL'])}
+                  >
+                    🚀 메이저 4종 (+XRP, SOL)
+                  </button>
+                  <button
+                    type="button"
+                    className="preset-btn"
+                    onClick={() => applyPreset(['KRW-BTC', 'KRW-ETH', 'KRW-XRP', 'KRW-DOGE', 'KRW-SOL'])}
+                  >
+                    ⚡ 인기 5종 (+DOGE)
+                  </button>
+                </div>
+              </div>
+
+              {/* Holding Coins Limit Section */}
+              <div className="holding-limit-modal-section mt-3 p-3 bg-slate-800/60 border border-purple-500/30 rounded-xl">
+                <div className="flex justify-between items-center mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-purple-400 font-bold text-sm">동시 보유 품목 수 제한 (0 = 제한 없음)</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      min="0"
+                      max="50"
+                      className="trading-input font-bold font-mono text-center w-24 py-1 text-purple-300"
+                      value={marketHoldingCoins}
+                      placeholder="0: 제한없음"
+                      onChange={(e) => setMarketHoldingCoins(e.target.value === '' ? '' : (parseInt(e.target.value, 10) >= 0 ? parseInt(e.target.value, 10) : 0))}
+                    />
+                    <span className="text-xs text-gray-300 font-bold">{Number(marketHoldingCoins) === 0 ? '(무제한)' : '개'}</span>
+                  </div>
+                </div>
+                <div className="amt-chips flex flex-wrap gap-2 mt-1">
+                  {[1, 2, 3, 5, 0].map((count) => (
+                    <button
+                      key={count}
+                      type="button"
+                      className={`amt-chip ${Number(marketHoldingCoins) === count ? 'active font-bold text-purple-300' : ''}`}
+                      onClick={() => setMarketHoldingCoins(count)}
+                    >
+                      {count === 0 ? '♾️ 제한 없음 (0)' : count === 1 ? '🎯 1개 (단일 집중)' : `${count}개`}
+                    </button>
+                  ))}
+                  {selectedMarkets.length > 0 && (
+                    <button
+                      type="button"
+                      className={`amt-chip ${Number(marketHoldingCoins) === selectedMarkets.length ? 'active font-bold text-purple-300' : ''}`}
+                      onClick={() => setMarketHoldingCoins(selectedMarkets.length)}
+                    >
+                      ⚡ 선택 품목 전체 ({selectedMarkets.length}개)
+                    </button>
+                  )}
+                </div>
+                <p className="text-xs text-gray-400 mt-2 leading-relaxed">
+                  💡 0 설정 시 품목 수 제한 없이 모든 추천 종목을 매수합니다. 동일 품목 추가 매수(물타기/불타기) 및 부분 매도(분할 익절)를 지원합니다.
+                </p>
+              </div>
+
+              {/* Market Search and Add */}
+              <div className="market-search-section mt-4">
+                <span className="font-bold text-sm text-gray-200 block mb-2">
+                  빗썸 원화 마켓 검색 및 추가 (400+ 종목)
+                </span>
+                <div className="search-input-wrapper">
+                  <Search size={16} className="search-icon" />
+                  <input
+                    type="text"
+                    className="trading-input pl-9"
+                    placeholder="코인명 (예: 리플, 솔라나, 도지) 또는 심볼 (XRP, SOL, DOGE) 검색..."
+                    value={marketSearchQuery}
+                    onChange={(e) => {
+                      setMarketSearchQuery(e.target.value);
+                      fetchAvailableMarkets(e.target.value);
+                    }}
+                  />
+                </div>
+
+                <div className="available-markets-list">
+                  {loadingMarkets ? (
+                    <div className="text-center py-6 text-gray-400 text-xs">
+                      마켓 목록을 검색하는 중...
+                    </div>
+                  ) : availableMarkets.length === 0 ? (
+                    <div className="text-center py-6 text-gray-400 text-xs">
+                      일치하는 빗썸 원화 마켓이 없습니다.
+                    </div>
+                  ) : (
+                    availableMarkets.slice(0, 30).map(m => {
+                      const isSelected = selectedMarkets.includes(m.market);
+                      return (
+                        <div
+                          key={m.market}
+                          className={`available-market-item ${isSelected ? 'selected' : ''}`}
+                          onClick={() => toggleMarketSelection(m.market)}
+                        >
+                          <div className="market-item-left">
+                            <span className="coin-symbol">{m.symbol}</span>
+                            <div className="coin-names">
+                              <strong>{m.korean_name}</strong>
+                              <span className="text-xs text-gray-400">{m.market}</span>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            className={`market-action-btn ${isSelected ? 'btn-remove' : 'btn-add'}`}
+                          >
+                            {isSelected ? (
+                              <>
+                                <Check size={12} />
+                                <span>선택됨</span>
+                              </>
+                            ) : (
+                              <>
+                                <Plus size={12} />
+                                <span>추가</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              <button
+                type="button"
+                className="modal-btn btn-cancel"
+                onClick={() => setShowMarketModal(false)}
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                className="modal-btn btn-save"
+                onClick={handleSaveMarkets}
+                disabled={savingMarkets}
+              >
+                {savingMarkets ? '저장 중...' : `설정 저장 (${selectedMarkets.length}개 마켓)`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
