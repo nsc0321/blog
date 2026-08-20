@@ -1624,19 +1624,26 @@ const FALLBACK_BITHUMB_MARKETS = [
                 <th>보조지표 (RSI / Trend)</th>
                 <th>LLM 판단 & 신뢰도</th>
                 <th>실행 액션</th>
+                <th>실현 손익 (수익률)</th>
                 <th>상세 사유</th>
               </tr>
             </thead>
             <tbody>
               {logs.length === 0 ? (
                 <tr>
-                  <td colSpan="7" className="empty-table-cell">
+                  <td colSpan="8" className="empty-table-cell">
                     {loading ? '로그를 불러오는 중입니다...' : '기록된 처리 로그가 없습니다.'}
                   </td>
                 </tr>
               ) : (
                 logs.map((log) => {
                   const isExpanded = expandedLogId === log.id;
+                  const hasPnl = log.pnl_krw != null && log.pnl_krw !== 0;
+                  const isSellAction = log.action_taken && (
+                    log.action_taken.includes('SELL') ||
+                    log.action_taken.includes('PROFIT') ||
+                    log.action_taken.includes('LOSS')
+                  );
                   return (
                     <React.Fragment key={log.id}>
                       <tr className={`log-row ${isExpanded ? 'row-expanded' : ''}`} onClick={() => toggleExpandLog(log.id)}>
@@ -1674,6 +1681,20 @@ const FALLBACK_BITHUMB_MARKETS = [
                         <td className="action-cell">
                           {getActionBadge(log.action_taken)}
                         </td>
+                        <td className="pnl-cell font-mono">
+                          {hasPnl ? (
+                            <span className={`pnl-tag ${log.pnl_krw >= 0 ? 'tag-profit' : 'tag-loss'}`}>
+                              {log.pnl_krw >= 0 ? '+' : ''}₩ {Math.round(log.pnl_krw).toLocaleString()}
+                              {' '}({(log.pnl_pct || 0) >= 0 ? '+' : ''}{(log.pnl_pct || 0).toFixed(2)}%)
+                            </span>
+                          ) : isSellAction ? (
+                            <span className="pnl-tag tag-profit" style={{ background: 'rgba(255,255,255,0.06)', color: '#94a3b8' }}>
+                              0 ₩ (0.00%)
+                            </span>
+                          ) : (
+                            <span className="text-gray-500">-</span>
+                          )}
+                        </td>
                         <td className="reason-cell">
                           <div className="reason-summary">
                             <span>{log.reason || '-'}</span>
@@ -1683,9 +1704,17 @@ const FALLBACK_BITHUMB_MARKETS = [
                       </tr>
                       {isExpanded && (
                         <tr className="expanded-details-row">
-                          <td colSpan="7">
+                          <td colSpan="8">
                             <div className="log-detail-box">
                               <div className="detail-grid">
+                                <div className="detail-item">
+                                  <span className="detail-label">실현 손익 (수익률)</span>
+                                  <span className={`detail-val ${hasPnl ? (log.pnl_krw >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold') : ''}`}>
+                                    {hasPnl
+                                      ? `${log.pnl_krw >= 0 ? '+' : ''}${Math.round(log.pnl_krw).toLocaleString()} KRW (${(log.pnl_pct || 0) >= 0 ? '+' : ''}${(log.pnl_pct || 0).toFixed(2)}%)`
+                                      : (isSellAction ? '0 KRW (0.00%)' : '-')}
+                                  </span>
+                                </div>
                                 <div className="detail-item">
                                   <span className="detail-label">MACD Hist</span>
                                   <span className="detail-val">{log.macd_hist ?? '-'}</span>
