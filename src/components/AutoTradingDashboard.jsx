@@ -55,7 +55,7 @@ export default function AutoTradingDashboard() {
   const [showSecretKey, setShowSecretKey] = useState(false);
   const [savingAccount, setSavingAccount] = useState(false);
 
-  // Order Limits Modal State
+  // Order Limits & Strategy Engine Modal State
   const [showLimitsModal, setShowLimitsModal] = useState(false);
   const [limitsForm, setLimitsForm] = useState({
     dry_run: true,
@@ -64,9 +64,18 @@ export default function AutoTradingDashboard() {
     max_holding_coins: 1,
     max_portfolio_ratio_per_coin: 0.3,
     stop_loss_pct: 3.0,
-    take_profit_pct: 5.0,
+    take_profit_pct: 6.0,
     daily_max_loss_pct: 5.0,
-    cooldown_minutes_after_sell: 15
+    cooldown_minutes_after_sell: 45,
+    enable_trend_filter: true,
+    enable_breakeven_stop: true,
+    breakeven_trigger_pct: 1.5,
+    enable_partial_take_profit: true,
+    partial_take_profit_pct: 3.0,
+    partial_take_profit_ratio: 0.5,
+    trailing_stop_pct: 2.0,
+    max_rsi_for_buy: 68.0,
+    min_rsi_for_buy: 38.0
   });
   const [savingLimits, setSavingLimits] = useState(false);
 
@@ -241,9 +250,18 @@ export default function AutoTradingDashboard() {
         max_holding_coins: status.max_holding_coins ?? 1,
         max_portfolio_ratio_per_coin: status.max_portfolio_ratio_per_coin ?? 0.3,
         stop_loss_pct: status.stop_loss_pct ?? 3.0,
-        take_profit_pct: status.take_profit_pct ?? 5.0,
+        take_profit_pct: status.take_profit_pct ?? 6.0,
         daily_max_loss_pct: status.daily_max_loss_pct ?? 5.0,
-        cooldown_minutes_after_sell: status.cooldown_minutes_after_sell ?? 15
+        cooldown_minutes_after_sell: status.cooldown_minutes_after_sell ?? 45,
+        enable_trend_filter: status.enable_trend_filter ?? true,
+        enable_breakeven_stop: status.enable_breakeven_stop ?? true,
+        breakeven_trigger_pct: status.breakeven_trigger_pct ?? 1.5,
+        enable_partial_take_profit: status.enable_partial_take_profit ?? true,
+        partial_take_profit_pct: status.partial_take_profit_pct ?? 3.0,
+        partial_take_profit_ratio: status.partial_take_profit_ratio ?? 0.5,
+        trailing_stop_pct: status.trailing_stop_pct ?? 2.0,
+        max_rsi_for_buy: status.max_rsi_for_buy ?? 68.0,
+        min_rsi_for_buy: status.min_rsi_for_buy ?? 38.0
       });
     }
     setShowLimitsModal(true);
@@ -485,7 +503,7 @@ const FALLBACK_BITHUMB_MARKETS = [
     }
   };
 
-  // Save Order Limits Configuration
+  // Save Order Limits & Strategy Engine Configuration
   const handleSaveLimits = async (e) => {
     e.preventDefault();
     setSavingLimits(true);
@@ -497,9 +515,18 @@ const FALLBACK_BITHUMB_MARKETS = [
       max_holding_coins: parsedHoldingCoins,
       max_portfolio_ratio_per_coin: Number(limitsForm.max_portfolio_ratio_per_coin) || 0.3,
       stop_loss_pct: Number(limitsForm.stop_loss_pct) || 3.0,
-      take_profit_pct: Number(limitsForm.take_profit_pct) || 5.0,
+      take_profit_pct: Number(limitsForm.take_profit_pct) || 6.0,
       daily_max_loss_pct: Number(limitsForm.daily_max_loss_pct) || 5.0,
-      cooldown_minutes_after_sell: parseInt(limitsForm.cooldown_minutes_after_sell, 10) || 15
+      cooldown_minutes_after_sell: parseInt(limitsForm.cooldown_minutes_after_sell, 10) || 45,
+      enable_trend_filter: Boolean(limitsForm.enable_trend_filter),
+      enable_breakeven_stop: Boolean(limitsForm.enable_breakeven_stop),
+      breakeven_trigger_pct: Number(limitsForm.breakeven_trigger_pct) || 1.5,
+      enable_partial_take_profit: Boolean(limitsForm.enable_partial_take_profit),
+      partial_take_profit_pct: Number(limitsForm.partial_take_profit_pct) || 3.0,
+      partial_take_profit_ratio: Number(limitsForm.partial_take_profit_ratio) || 0.5,
+      trailing_stop_pct: Number(limitsForm.trailing_stop_pct) || 2.0,
+      max_rsi_for_buy: Number(limitsForm.max_rsi_for_buy) || 68.0,
+      min_rsi_for_buy: Number(limitsForm.min_rsi_for_buy) || 38.0
     };
 
     // Optimistic UI state sync
@@ -1505,54 +1532,88 @@ const FALLBACK_BITHUMB_MARKETS = [
             <span>실시간 마켓 현황 & 포지션</span>
           </h2>
           <div className="market-cards-grid">
-            {Object.entries(status.positions).map(([mkt, pos]) => (
-              <div key={mkt} className="market-card">
-                <div className="market-card-header">
-                  <div>
-                    <span className="market-name">{mkt}</span>
-                    <span className="market-last-update">최근 갱신: {pos.last_updated ? new Date(pos.last_updated).toLocaleTimeString() : '-'}</span>
-                  </div>
-                  {getTrendBadge(pos.trend)}
-                </div>
+            {Object.entries(status.positions).map(([mkt, pos]) => {
+              const isHolding = (pos.holding_volume || 0) > 0;
+              const isBeActive = isHolding && (pos.pnl_pct || 0) >= (status?.breakeven_trigger_pct || 1.5);
+              const isPartialTpActive = isHolding && (pos.pnl_pct || 0) >= (status?.partial_take_profit_pct || 3.0);
 
-                <div className="market-price-row">
-                  <span className="price-label">현재가</span>
-                  <div className="flex items-center gap-2">
-                    <span className="price-value">{pos.current_price > 0 ? `${pos.current_price.toLocaleString()} KRW` : '-'}</span>
-                    {pos.change_rate_24h !== undefined && pos.change_rate_24h !== null && (
-                      <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${pos.change_rate_24h >= 0 ? 'text-emerald-400 bg-emerald-950/50' : 'text-rose-400 bg-rose-950/50'}`}>
-                        {pos.change_rate_24h >= 0 ? '+' : ''}{pos.change_rate_24h.toFixed(2)}%
+              return (
+                <div key={mkt} className="market-card" style={{ borderColor: isBeActive ? 'rgba(16, 185, 129, 0.4)' : undefined }}>
+                  <div className="market-card-header">
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span className="market-name">{mkt}</span>
+                        {isBeActive && (
+                          <span style={{
+                            fontSize: '10px',
+                            background: 'rgba(16, 185, 129, 0.25)',
+                            color: '#34d399',
+                            padding: '1px 5px',
+                            borderRadius: '4px',
+                            fontWeight: 700,
+                            border: '1px solid rgba(16, 185, 129, 0.4)'
+                          }}>
+                            🛡️ 본전보존(Risk-Free)
+                          </span>
+                        )}
+                        {isPartialTpActive && (
+                          <span style={{
+                            fontSize: '10px',
+                            background: 'rgba(59, 130, 246, 0.25)',
+                            color: '#60a5fa',
+                            padding: '1px 5px',
+                            borderRadius: '4px',
+                            fontWeight: 700,
+                            border: '1px solid rgba(59, 130, 246, 0.4)'
+                          }}>
+                            ✨ 분할익절권
+                          </span>
+                        )}
+                      </div>
+                      <span className="market-last-update">최근 갱신: {pos.last_updated ? new Date(pos.last_updated).toLocaleTimeString() : '-'}</span>
+                    </div>
+                    {getTrendBadge(pos.trend)}
+                  </div>
+
+                  <div className="market-price-row">
+                    <span className="price-label">현재가</span>
+                    <div className="flex items-center gap-2">
+                      <span className="price-value">{pos.current_price > 0 ? `${pos.current_price.toLocaleString()} KRW` : '-'}</span>
+                      {pos.change_rate_24h !== undefined && pos.change_rate_24h !== null && (
+                        <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${pos.change_rate_24h >= 0 ? 'text-emerald-400 bg-emerald-950/50' : 'text-rose-400 bg-rose-950/50'}`}>
+                          {pos.change_rate_24h >= 0 ? '+' : ''}{pos.change_rate_24h.toFixed(2)}%
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="indicator-mini-grid">
+                    <div className="mini-stat">
+                      <span className="mini-stat-label">RSI (14)</span>
+                      <span className={`mini-stat-val ${pos.rsi > 68 ? 'text-red-400 font-bold' : pos.rsi < 38 ? 'text-blue-400 font-bold' : 'text-emerald-400'}`}>
+                        {pos.rsi !== null && pos.rsi !== undefined ? pos.rsi : '-'}
                       </span>
-                    )}
+                    </div>
+                    <div className="mini-stat">
+                      <span className="mini-stat-label">MACD Hist</span>
+                      <span className={`mini-stat-val ${pos.macd_hist > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                        {pos.macd_hist !== null && pos.macd_hist !== undefined ? pos.macd_hist : '-'}
+                      </span>
+                    </div>
+                    <div className="mini-stat">
+                      <span className="mini-stat-label">보유 수량</span>
+                      <span className="mini-stat-val">{pos.holding_volume || 0}</span>
+                    </div>
+                    <div className="mini-stat">
+                      <span className="mini-stat-label">수익률</span>
+                      <span className={`mini-stat-val font-bold ${(pos.pnl_pct || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {(pos.pnl_pct || 0) >= 0 ? '+' : ''}{(pos.pnl_pct || 0).toFixed(2)}%
+                      </span>
+                    </div>
                   </div>
                 </div>
-
-                <div className="indicator-mini-grid">
-                  <div className="mini-stat">
-                    <span className="mini-stat-label">RSI (14)</span>
-                    <span className={`mini-stat-val ${pos.rsi > 70 ? 'text-red-400' : pos.rsi < 30 ? 'text-emerald-400' : ''}`}>
-                      {pos.rsi !== null && pos.rsi !== undefined ? pos.rsi : '-'}
-                    </span>
-                  </div>
-                  <div className="mini-stat">
-                    <span className="mini-stat-label">MACD Hist</span>
-                    <span className={`mini-stat-val ${pos.macd_hist > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {pos.macd_hist !== null && pos.macd_hist !== undefined ? pos.macd_hist : '-'}
-                    </span>
-                  </div>
-                  <div className="mini-stat">
-                    <span className="mini-stat-label">보유 수량</span>
-                    <span className="mini-stat-val">{pos.holding_volume || 0}</span>
-                  </div>
-                  <div className="mini-stat">
-                    <span className="mini-stat-label">수익률</span>
-                    <span className={`mini-stat-val ${(pos.pnl_pct || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {(pos.pnl_pct || 0) >= 0 ? '+' : ''}{(pos.pnl_pct || 0).toFixed(2)}%
-                    </span>
-                  </div>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -2084,6 +2145,151 @@ const FALLBACK_BITHUMB_MARKETS = [
                     <span className="input-hint">포지션 청산 후 성급한 재진입 방지</span>
                   </div>
                 </div>
+                {/* Advanced Strategy & Profit Defense Section */}
+                <div style={{
+                  background: 'rgba(30, 41, 59, 0.6)',
+                  border: '1px solid rgba(59, 130, 246, 0.25)',
+                  borderRadius: '10px',
+                  padding: '14px',
+                  marginTop: '12px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                    <ShieldCheck size={18} className="text-blue-400" />
+                    <span style={{ fontWeight: 700, fontSize: '14px', color: '#93c5fd' }}>
+                      수익성 보호 & 스마트 거래 판단 전략 (Profit & Risk Engine)
+                    </span>
+                  </div>
+
+                  {/* Strategy 1: Trend Filter */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                    <div>
+                      <span style={{ fontWeight: 600, fontSize: '13px', color: '#e2e8f0' }}>📈 상위 추세 필터 (Trend Filter)</span>
+                      <p style={{ fontSize: '11px', color: '#94a3b8', margin: '2px 0 0 0' }}>
+                        15분/1시간봉 이평선 정배열(EMA20 &gt; EMA50) 시에만 매수 허용 (역추세/하락장 진입 차단)
+                      </p>
+                    </div>
+                    <label className="switch-label">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(limitsForm.enable_trend_filter)}
+                        onChange={(e) => setLimitsForm({ ...limitsForm, enable_trend_filter: e.target.checked })}
+                      />
+                      <span className="switch-slider"></span>
+                    </label>
+                  </div>
+
+                  {/* Strategy 2: Break-Even Stop */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontWeight: 600, fontSize: '13px', color: '#e2e8f0' }}>🛡️ 본전 보존 스탑 (Break-Even Stop)</span>
+                        <span style={{ fontSize: '10px', background: 'rgba(16, 185, 129, 0.2)', color: '#34d399', padding: '1px 5px', borderRadius: '4px', fontWeight: 600 }}>무위험 전환</span>
+                      </div>
+                      <p style={{ fontSize: '11px', color: '#94a3b8', margin: '2px 0 0 0' }}>
+                        수익률 +{limitsForm.breakeven_trigger_pct || 1.5}% 도달 시 손절 라인을 매수가+수수료로 상향하여 원금 손실 0% 방어
+                      </p>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      {limitsForm.enable_breakeven_stop && (
+                        <div className="input-with-suffix" style={{ width: '80px' }}>
+                          <input
+                            type="number"
+                            className="trading-input font-mono text-xs"
+                            min="0.5"
+                            max="10"
+                            step="0.5"
+                            value={limitsForm.breakeven_trigger_pct}
+                            onChange={(e) => setLimitsForm({ ...limitsForm, breakeven_trigger_pct: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
+                          />
+                          <span className="suffix">%</span>
+                        </div>
+                      )}
+                      <label className="switch-label">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(limitsForm.enable_breakeven_stop)}
+                          onChange={(e) => setLimitsForm({ ...limitsForm, enable_breakeven_stop: e.target.checked })}
+                        />
+                        <span className="switch-slider"></span>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Strategy 3: Partial Take-Profit */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontWeight: 600, fontSize: '13px', color: '#e2e8f0' }}>✨ 다단계 분할 익절 (Partial Take Profit)</span>
+                        <span style={{ fontSize: '10px', background: 'rgba(59, 130, 246, 0.2)', color: '#60a5fa', padding: '1px 5px', borderRadius: '4px', fontWeight: 600 }}>수익 확정</span>
+                      </div>
+                      <p style={{ fontSize: '11px', color: '#94a3b8', margin: '2px 0 0 0' }}>
+                        목표 수익(+{limitsForm.partial_take_profit_pct || 3.0}%) 도달 시 보유 물량의 50% 분할 매도, 잔여 50%는 트레일링 스탑
+                      </p>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      {limitsForm.enable_partial_take_profit && (
+                        <div className="input-with-suffix" style={{ width: '80px' }}>
+                          <input
+                            type="number"
+                            className="trading-input font-mono text-xs"
+                            min="1.0"
+                            max="30"
+                            step="0.5"
+                            value={limitsForm.partial_take_profit_pct}
+                            onChange={(e) => setLimitsForm({ ...limitsForm, partial_take_profit_pct: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
+                          />
+                          <span className="suffix">%</span>
+                        </div>
+                      )}
+                      <label className="switch-label">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(limitsForm.enable_partial_take_profit)}
+                          onChange={(e) => setLimitsForm({ ...limitsForm, enable_partial_take_profit: e.target.checked })}
+                        />
+                        <span className="switch-slider"></span>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Strategy 4 & 5: Trailing Stop & Max RSI for BUY */}
+                  <div className="form-grid-2 mt-2">
+                    <div className="form-group mb-0">
+                      <label className="form-label">
+                        <span className="text-blue-300 font-bold">트레일링 스탑 폭 (Trailing Stop %)</span>
+                      </label>
+                      <div className="input-with-suffix">
+                        <input
+                          type="number"
+                          className="trading-input font-mono"
+                          min="0.5"
+                          max="15"
+                          step="0.5"
+                          value={limitsForm.trailing_stop_pct}
+                          onChange={(e) => setLimitsForm({ ...limitsForm, trailing_stop_pct: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
+                        />
+                        <span className="suffix">%</span>
+                      </div>
+                      <span className="input-hint">수익 달성 후 최고점 대비 하락 시 청산 폭</span>
+                    </div>
+
+                    <div className="form-group mb-0">
+                      <label className="form-label">
+                        <span className="text-amber-300 font-bold">과매수 진입 차단 (RSI 상한선)</span>
+                      </label>
+                      <input
+                        type="number"
+                        className="trading-input font-mono font-bold text-amber-300"
+                        min="50"
+                        max="85"
+                        step="1"
+                        value={limitsForm.max_rsi_for_buy}
+                        onChange={(e) => setLimitsForm({ ...limitsForm, max_rsi_for_buy: e.target.value === '' ? '' : parseFloat(e.target.value) || 68 })}
+                      />
+                      <span className="input-hint">RSI {limitsForm.max_rsi_for_buy || 68} 초과 시 상투 매수(FOMO) 차단</span>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div className="modal-footer">
@@ -2099,7 +2305,7 @@ const FALLBACK_BITHUMB_MARKETS = [
                   className="modal-btn btn-save"
                   disabled={savingLimits}
                 >
-                  {savingLimits ? '저장 중...' : '거래 한도 및 리스크 설정 저장'}
+                  {savingLimits ? '저장 중...' : '거래 한도 및 전략 설정 저장'}
                 </button>
               </div>
             </form>
