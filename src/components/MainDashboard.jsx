@@ -136,7 +136,7 @@ export default function MainDashboard({ onNavigate }) {
             </div>
             <div className="highlight-item">
               <Cpu size={14} />
-              <span>Custom Skill 워크숍 및 샌드박스</span>
+              <span>Custom Skill 워크숍 및 MCP 구동 엔진</span>
             </div>
             <div className="highlight-item">
               <Activity size={14} />
