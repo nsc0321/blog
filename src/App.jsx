@@ -7,27 +7,85 @@ import AutoTradingDashboard from './components/AutoTradingDashboard';
 
 const getPageFromPath = () => {
   if (typeof window === 'undefined') return 'dashboard';
-  const path = window.location.pathname.toLowerCase().replace(/\/$/, '');
+  const path = window.location.pathname.toLowerCase();
   const hash = window.location.hash.toLowerCase();
+  
+  // 1. URL search params check (?page=agent, ?page=trading, ?page=mabinogi)
+  try {
+    const searchParams = new URLSearchParams(window.location.search);
+    const pParam = searchParams.get('page') || searchParams.get('tab');
+    if (pParam) {
+      const lowerP = pParam.toLowerCase();
+      if (lowerP.includes('trading')) return 'trading';
+      if (lowerP.includes('agent') || lowerP.includes('agnet')) return 'agent';
+      if (lowerP.includes('mabinogi')) return 'mabinogi';
+    }
+  } catch (e) {}
 
-  // /blog/trading 또는 #trading -> 자동거래 페이지
-  if (path.endsWith('/trading') || hash === '#trading') {
+  // 2. /blog/trading 또는 #trading 또는 /trading
+  if (path.includes('trading') || hash.includes('trading')) {
     return 'trading';
   }
 
-  // /blog/agent 또는 /blog/agnet 또는 #agent -> Agent 페이지
-  if (path.endsWith('/agent') || path.endsWith('/agnet') || hash === '#agent') {
+  // 3. /blog/agent 또는 /blog/agnet 또는 #agent 또는 /agent
+  if (path.includes('agent') || path.includes('agnet') || hash.includes('agent') || hash.includes('agnet')) {
     return 'agent';
   }
 
-  // /blog/mabinogi 또는 #mabinogi -> 마비노기 페이지
-  if (path.endsWith('/mabinogi') || hash === '#mabinogi') {
+  // 4. /blog/mabinogi 또는 #mabinogi 또는 /mabinogi
+  if (path.includes('mabinogi') || hash.includes('mabinogi')) {
     return 'mabinogi';
   }
 
-  // /blog 또는 /blog/ 또는 기본 접속 -> 메인 대시보드
+  // 기본 접속 -> 메인 대시보드
   return 'dashboard';
 };
+
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error("Page Render Error Caught:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: '60px 20px', textAlign: 'center', color: '#fff' }}>
+          <h2 style={{ fontSize: '20px', marginBottom: '12px', color: '#f87171' }}>⚠️ 화면을 불러오는 중 오류가 발생했습니다</h2>
+          <p style={{ fontSize: '13px', color: 'rgba(255, 255, 255, 0.6)', marginBottom: '20px' }}>
+            {this.state.error ? this.state.error.message : '알 수 없는 오류'}
+          </p>
+          <button
+            onClick={() => {
+              this.setState({ hasError: false, error: null });
+              if (this.props.onReset) this.props.onReset();
+            }}
+            style={{
+              background: 'var(--accent-gradient)',
+              border: 'none',
+              color: '#fff',
+              padding: '10px 20px',
+              borderRadius: '8px',
+              fontWeight: '700',
+              cursor: 'pointer'
+            }}
+          >
+            메인 대시보드로 돌아가기
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 export default function App() {
   const [activePage, setActivePage] = useState(getPageFromPath);
@@ -37,16 +95,20 @@ export default function App() {
     setActivePage(page);
     setMobileMenuOpen(false);
 
-    // 경로 설정 (/blog, /blog/trading, /blog/agent, /blog/mabinogi)
-    let targetPath = '/blog';
+    // 환경별 Base Path 감지 (/blog 포함 여부)
+    const currentPath = window.location.pathname.toLowerCase();
+    const hasBlogPrefix = currentPath.includes('/blog');
+    const basePrefix = hasBlogPrefix ? '/blog' : '';
+
+    let targetPath = basePrefix || '/blog';
     if (page === 'trading') {
-      targetPath = '/blog/trading';
+      targetPath = `${basePrefix}/trading`;
     } else if (page === 'agent') {
-      targetPath = '/blog/agent';
+      targetPath = `${basePrefix}/agent`;
     } else if (page === 'mabinogi') {
-      targetPath = '/blog/mabinogi';
+      targetPath = `${basePrefix}/mabinogi`;
     } else {
-      targetPath = '/blog';
+      targetPath = basePrefix || '/blog';
     }
 
     try {
@@ -127,10 +189,12 @@ export default function App() {
 
       {/* Page Content View */}
       <main className="main-content-view">
-        {activePage === 'dashboard' && <MainDashboard onNavigate={(page) => handleNavigate(page)} />}
-        {activePage === 'trading' && <AutoTradingDashboard />}
-        {activePage === 'agent' && <VoiceAssistant />}
-        {activePage === 'mabinogi' && <MabinogiArchive />}
+        <ErrorBoundary onReset={() => handleNavigate('dashboard')}>
+          {activePage === 'dashboard' && <MainDashboard onNavigate={(page) => handleNavigate(page)} />}
+          {activePage === 'trading' && <AutoTradingDashboard />}
+          {activePage === 'agent' && <VoiceAssistant />}
+          {activePage === 'mabinogi' && <MabinogiArchive />}
+        </ErrorBoundary>
       </main>
     </div>
   );
