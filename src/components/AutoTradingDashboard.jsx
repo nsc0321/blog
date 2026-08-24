@@ -88,6 +88,7 @@ export default function AutoTradingDashboard() {
   const [availableMarkets, setAvailableMarkets] = useState([]);
   const [marketSearchQuery, setMarketSearchQuery] = useState('');
   const [loadingMarkets, setLoadingMarkets] = useState(false);
+  const [savingMarkets, setSavingMarkets] = useState(false);
   // Weekly Summary & Folding State
   const [weeklySummary, setWeeklySummary] = useState(null);
   const [weeklyLoading, setWeeklyLoading] = useState(false);
@@ -813,6 +814,41 @@ const FALLBACK_BITHUMB_MARKETS = [
     return <span className="trend-badge trend-neutral">중립 ({trend || 'NEUTRAL'})</span>;
   };
 
+  const getMarketKoreanName = (marketCode, symbol) => {
+    if (status?.positions?.[marketCode]?.korean_name) return status.positions[marketCode].korean_name;
+    const inHoldings = status?.assets?.holdings?.find(h => h.market === marketCode);
+    if (inHoldings?.korean_name) return inHoldings.korean_name;
+    const inAvail = availableMarkets.find(m => m.market === marketCode || m.symbol === symbol);
+    if (inAvail?.korean_name) return inAvail.korean_name;
+    const inFallback = FALLBACK_BITHUMB_MARKETS.find(m => m.market === marketCode || m.symbol === symbol);
+    if (inFallback?.korean_name) return inFallback.korean_name;
+    return symbol || (marketCode ? marketCode.replace('KRW-', '') : '-');
+  };
+
+  const getCoinBgColor = (symbol = '') => {
+    const sym = symbol.toUpperCase();
+    if (sym === 'BTC') return 'linear-gradient(135deg, #f59e0b, #d97706)';
+    if (sym === 'ETH') return 'linear-gradient(135deg, #8b5cf6, #6366f1)';
+    if (sym === 'XRP') return 'linear-gradient(135deg, #0284c7, #0369a1)';
+    if (sym === 'SOL') return 'linear-gradient(135deg, #14b8a6, #06b6d4)';
+    if (sym === 'DOGE') return 'linear-gradient(135deg, #eab308, #ca8a04)';
+    if (sym === 'ADA') return 'linear-gradient(135deg, #3b82f6, #1d4ed8)';
+    if (sym === 'AVAX') return 'linear-gradient(135deg, #ef4444, #b91c1c)';
+    if (sym === 'DOT') return 'linear-gradient(135deg, #ec4899, #be185d)';
+    if (sym === 'LINK') return 'linear-gradient(135deg, #2563eb, #1e40af)';
+    if (sym === 'SUI') return 'linear-gradient(135deg, #38bdf8, #0284c7)';
+    if (sym === 'SHIB' || sym === 'PEPE') return 'linear-gradient(135deg, #f97316, #ea580c)';
+    
+    // Hash-based vibrant gradient for other altcoins
+    let hash = 0;
+    for (let i = 0; i < sym.length; i++) {
+      hash = sym.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const hue1 = Math.abs(hash % 360);
+    const hue2 = (hue1 + 40) % 360;
+    return `linear-gradient(135deg, hsl(${hue1}, 75%, 50%), hsl(${hue2}, 75%, 40%))`;
+  };
+
   // If not authenticated, display modern cyber/fintech login panel
   if (!token) {
     return (
@@ -1490,6 +1526,183 @@ const FALLBACK_BITHUMB_MARKETS = [
 
         {!foldedSections.assets && (
           <>
+            {/* Real-time Dynamic Holdings Showcase Widget */}
+            {(() => {
+              const heldCoins = status?.assets?.held_coins_summary || status?.assets?.holdings?.filter(h => (h.volume || 0) > 0) || [];
+              const maxHolding = status?.max_holding_coins ?? 1;
+              const isUnlimited = maxHolding === 0;
+              const heldCount = heldCoins.length;
+              const remainingSlots = isUnlimited ? '무제한' : Math.max(0, maxHolding - heldCount);
+              const isLimitReached = !isUnlimited && heldCount >= maxHolding;
+
+              return (
+                <div className="dynamic-holdings-showcase-card" style={{
+                  background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.85) 0%, rgba(30, 41, 59, 0.7) 100%)',
+                  border: isLimitReached ? '1px solid rgba(245, 158, 11, 0.4)' : '1px solid rgba(16, 185, 129, 0.3)',
+                  borderRadius: '14px',
+                  padding: '16px 20px',
+                  marginBottom: '16px',
+                  boxShadow: '0 8px 24px rgba(0, 0, 0, 0.3)'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div style={{
+                        background: isLimitReached ? 'rgba(245, 158, 11, 0.2)' : 'rgba(16, 185, 129, 0.2)',
+                        padding: '6px',
+                        borderRadius: '8px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}>
+                        <Layers size={18} className={isLimitReached ? 'text-amber-400' : 'text-emerald-400'} />
+                      </div>
+                      <div>
+                        <span style={{ fontWeight: 800, fontSize: '14px', color: '#f8fafc' }}>
+                          ⚡ 실시간 동시 보유 품목 현황
+                        </span>
+                        <span style={{
+                          fontSize: '11px',
+                          marginLeft: '8px',
+                          padding: '2px 8px',
+                          borderRadius: '6px',
+                          background: isLimitReached ? 'rgba(245, 158, 11, 0.2)' : 'rgba(16, 185, 129, 0.2)',
+                          color: isLimitReached ? '#fde047' : '#34d399',
+                          fontWeight: 700,
+                          border: `1px solid ${isLimitReached ? 'rgba(245, 158, 11, 0.4)' : 'rgba(16, 185, 129, 0.4)'}`
+                        }}>
+                          {heldCount}개 보유 중 {isUnlimited ? '/ 무제한' : `/ 최대 ${maxHolding}개`}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px' }}>
+                      {isLimitReached ? (
+                        <span style={{ color: '#fbbf24', background: 'rgba(245, 158, 11, 0.15)', padding: '4px 10px', borderRadius: '6px', fontWeight: 600, border: '1px solid rgba(245, 158, 11, 0.3)' }}>
+                          ⚠️ 보유 한도 도달 (신규 매수 일시 제한)
+                        </span>
+                      ) : (
+                        <span style={{ color: '#34d399', background: 'rgba(16, 185, 129, 0.15)', padding: '4px 10px', borderRadius: '6px', fontWeight: 600, border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+                          ✅ 신규 매수 가능 슬롯: {remainingSlots}개
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {heldCoins.length === 0 ? (
+                    <div style={{
+                      background: 'rgba(0, 0, 0, 0.25)',
+                      borderRadius: '10px',
+                      padding: '16px',
+                      textAlign: 'center',
+                      color: 'rgba(255, 255, 255, 0.65)',
+                      fontSize: '13px',
+                      border: '1px dashed rgba(255, 255, 255, 0.12)'
+                    }}>
+                      💡 현재 보유 중인 암호화폐가 없습니다. (전액 원화 100% 현금 대기 중 / 최적 진입 시그널 탐색 중)
+                    </div>
+                  ) : (
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+                      gap: '12px'
+                    }}>
+                      {heldCoins.map((hc) => {
+                        const sym = hc.symbol || hc.market.replace('KRW-', '');
+                        const korName = hc.korean_name || getMarketKoreanName(hc.market, sym);
+                        const isProfit = (hc.pnl_pct || 0) >= 0;
+
+                        return (
+                          <div key={hc.market} style={{
+                            background: 'rgba(15, 23, 42, 0.75)',
+                            border: `1px solid ${isProfit ? 'rgba(16, 185, 129, 0.35)' : 'rgba(239, 68, 68, 0.35)'}`,
+                            borderRadius: '10px',
+                            padding: '12px 14px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '8px',
+                            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.25)',
+                            position: 'relative',
+                            overflow: 'hidden'
+                          }}>
+                            {/* Coin Header */}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span style={{
+                                  width: '28px',
+                                  height: '28px',
+                                  borderRadius: '50%',
+                                  background: getCoinBgColor(sym),
+                                  color: '#fff',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  fontWeight: 800,
+                                  fontSize: '12px',
+                                  boxShadow: '0 2px 6px rgba(0,0,0,0.3)'
+                                }}>
+                                  {sym.slice(0, 1)}
+                                </span>
+                                <div>
+                                  <div style={{ fontWeight: 800, fontSize: '13px', color: '#fff' }}>{korName}</div>
+                                  <div style={{ fontSize: '10px', color: '#94a3b8' }}>{hc.market}</div>
+                                </div>
+                              </div>
+
+                              <span style={{
+                                fontSize: '10px',
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                fontWeight: 700,
+                                background: isProfit ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)',
+                                color: isProfit ? '#34d399' : '#f87171',
+                                border: `1px solid ${isProfit ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`
+                              }}>
+                                {hc.status_tag || '보유중'}
+                              </span>
+                            </div>
+
+                            {/* Evaluation & PnL */}
+                            <div style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'baseline',
+                              background: 'rgba(0, 0, 0, 0.25)',
+                              padding: '8px 10px',
+                              borderRadius: '8px'
+                            }}>
+                              <div>
+                                <span style={{ fontSize: '10px', color: '#94a3b8', display: 'block' }}>평가 금액</span>
+                                <span style={{ fontSize: '14px', fontWeight: 800, color: '#f1f5f9' }}>
+                                  ₩ {(hc.eval_krw || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                </span>
+                              </div>
+                              <div style={{ textAlign: 'right' }}>
+                                <span style={{ fontSize: '10px', color: '#94a3b8', display: 'block' }}>평가 손익 (수익률)</span>
+                                <span style={{
+                                  fontSize: '13px',
+                                  fontWeight: 800,
+                                  color: isProfit ? '#34d399' : '#f87171'
+                                }}>
+                                  {isProfit ? '+' : ''}₩ {(hc.pnl_krw || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                  {' '}({isProfit ? '+' : ''}{(hc.pnl_pct || 0).toFixed(2)}%)
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Volume & Avg Price Sub */}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#94a3b8' }}>
+                              <span>수량: <strong>{(hc.volume || 0).toFixed(4)} {sym}</strong></span>
+                              <span>평단: <strong>₩ {(hc.avg_price || 0).toLocaleString()}</strong></span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
             {/* 4 Hero Asset Metrics */}
             <div className="asset-hero-grid">
               {/* Card 1: Total Net Worth */}
@@ -1575,10 +1788,10 @@ const FALLBACK_BITHUMB_MARKETS = [
                     <span className="legend-dot dot-krw"></span>
                     <span>원화(KRW) {(status?.assets?.krw_weight_pct || 100).toFixed(1)}%</span>
                   </div>
-                  {status?.assets?.holdings?.map((h) => (
+                  {status?.assets?.holdings?.filter(h => (h.weight_pct || 0) > 0).map((h) => (
                     <div key={h.market} className="legend-item">
-                      <span className={`legend-dot dot-${h.symbol.toLowerCase()}`}></span>
-                      <span>{h.symbol} {(h.weight_pct || 0).toFixed(1)}%</span>
+                      <span className="legend-dot" style={{ background: getCoinBgColor(h.symbol) }}></span>
+                      <span>{h.korean_name || getMarketKoreanName(h.market, h.symbol)} ({(h.weight_pct || 0).toFixed(1)}%)</span>
                     </div>
                   ))}
                 </div>
@@ -1586,16 +1799,16 @@ const FALLBACK_BITHUMB_MARKETS = [
               <div className="allocation-progress-bar">
                 <div
                   className="bar-segment bar-krw"
-                  style={{ width: `${Math.max(status?.assets?.krw_weight_pct ?? 100, (status?.assets?.holdings?.some(h => h.weight_pct > 0) ? 0 : 100))}%` }}
+                  style={{ width: `${Math.max(status?.assets?.krw_weight_pct ?? 100, (status?.assets?.holdings?.some(h => (h.weight_pct || 0) > 0) ? 0 : 100))}%` }}
                   title={`KRW: ${(status?.assets?.krw_weight_pct || 100).toFixed(1)}%`}
                 />
                 {status?.assets?.holdings?.map((h) => (
                   (h.weight_pct || 0) > 0 ? (
                     <div
                       key={h.market}
-                      className={`bar-segment bar-${h.symbol.toLowerCase()}`}
-                      style={{ width: `${h.weight_pct}%` }}
-                      title={`${h.symbol}: ${h.weight_pct.toFixed(1)}%`}
+                      className="bar-segment"
+                      style={{ width: `${h.weight_pct}%`, background: getCoinBgColor(h.symbol) }}
+                      title={`${h.korean_name || h.symbol}: ${h.weight_pct.toFixed(1)}%`}
                     />
                   ) : null
                 ))}
@@ -1608,13 +1821,14 @@ const FALLBACK_BITHUMB_MARKETS = [
                 <thead>
                   <tr>
                     <th>자산 종목</th>
+                    <th>상태</th>
                     <th>보유 수량</th>
                     <th>매수 평균가</th>
-                    <th>현재가</th>
+                    <th>현재가 (24h)</th>
                     <th>매수 금액</th>
                     <th>평가 금액</th>
                     <th>평가 손익 (수익률)</th>
-                    <th>포트폴리오 비중</th>
+                    <th>비중</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1625,15 +1839,27 @@ const FALLBACK_BITHUMB_MARKETS = [
                         <span className="asset-circle circle-krw">₩</span>
                         <div>
                           <strong>대한민국 원화</strong>
-                          <span className="asset-symbol">KRW</span>
+                          <span className="asset-symbol">KRW (현금)</span>
                         </div>
                       </div>
+                    </td>
+                    <td>
+                      <span style={{
+                        fontSize: '11px',
+                        padding: '2px 6px',
+                        borderRadius: '4px',
+                        background: 'rgba(59, 130, 246, 0.15)',
+                        color: '#60a5fa',
+                        fontWeight: 700
+                      }}>
+                        보유중
+                      </span>
                     </td>
                     <td>{(status?.assets?.krw_balance || (status?.is_dry_run ? 1000000 : 0)).toLocaleString()} KRW</td>
                     <td>-</td>
                     <td>1 KRW</td>
                     <td>₩ {(status?.assets?.krw_balance || (status?.is_dry_run ? 1000000 : 0)).toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
-                    <td>₩ {(status?.assets?.krw_balance || (status?.is_dry_run ? 1000000 : 0)).toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                    <td><strong>₩ {(status?.assets?.krw_balance || (status?.is_dry_run ? 1000000 : 0)).toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong></td>
                     <td><span className="text-gray-400">-</span></td>
                     <td>
                       <div className="weight-cell">
@@ -1646,45 +1872,96 @@ const FALLBACK_BITHUMB_MARKETS = [
                   </tr>
 
                   {/* Crypto Holdings Rows */}
-                  {status?.assets?.holdings?.map((h) => (
-                    <tr key={h.market}>
-                      <td>
-                        <div className="asset-name-cell">
-                          <span className={`asset-circle circle-${h.symbol.toLowerCase()}`}>{h.symbol.slice(0, 1)}</span>
+                  {status?.assets?.holdings?.map((h) => {
+                    const isHeld = (h.volume || 0) > 0;
+                    const korName = h.korean_name || getMarketKoreanName(h.market, h.symbol);
+                    const isProfit = (h.pnl_krw || 0) >= 0;
+
+                    return (
+                      <tr key={h.market} style={{ opacity: isHeld ? 1 : 0.65, background: isHeld ? 'rgba(16, 185, 129, 0.03)' : undefined }}>
+                        <td>
+                          <div className="asset-name-cell">
+                            <span
+                              className="asset-circle"
+                              style={{ background: getCoinBgColor(h.symbol), color: '#fff', fontWeight: 800 }}
+                            >
+                              {h.symbol.slice(0, 1)}
+                            </span>
+                            <div>
+                              <strong>{korName}</strong>
+                              <span className="asset-symbol">{h.market}</span>
+                            </div>
+                          </div>
+                        </td>
+                        <td>
+                          {isHeld ? (
+                            <span style={{
+                              fontSize: '11px',
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              background: 'rgba(16, 185, 129, 0.2)',
+                              color: '#34d399',
+                              fontWeight: 700,
+                              border: '1px solid rgba(16, 185, 129, 0.3)'
+                            }}>
+                              🟢 보유중
+                            </span>
+                          ) : (
+                            <span style={{
+                              fontSize: '11px',
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              background: 'rgba(255, 255, 255, 0.05)',
+                              color: '#94a3b8',
+                              fontWeight: 600
+                            }}>
+                              ⚪ 관망 (0)
+                            </span>
+                          )}
+                        </td>
+                        <td>{isHeld ? `${h.volume.toFixed(6)} ${h.symbol}` : '0.000000'}</td>
+                        <td>{h.avg_price > 0 ? `₩ ${h.avg_price.toLocaleString()}` : '-'}</td>
+                        <td>
                           <div>
-                            <strong>{h.symbol === 'BTC' ? '비트코인' : h.symbol === 'ETH' ? '이더리움' : h.symbol}</strong>
-                            <span className="asset-symbol">{h.market}</span>
+                            <span>{h.current_price > 0 ? `₩ ${h.current_price.toLocaleString()}` : '-'}</span>
+                            {h.change_rate_24h !== undefined && (
+                              <span style={{
+                                fontSize: '10px',
+                                marginLeft: '4px',
+                                fontWeight: 700,
+                                color: (h.change_rate_24h || 0) >= 0 ? '#34d399' : '#f87171'
+                              }}>
+                                ({(h.change_rate_24h || 0) >= 0 ? '+' : ''}{(h.change_rate_24h || 0).toFixed(2)}%)
+                              </span>
+                            )}
                           </div>
-                        </div>
-                      </td>
-                      <td>{h.volume > 0 ? h.volume.toFixed(6) : '0.000000'} {h.symbol}</td>
-                      <td>{h.avg_price > 0 ? `₩ ${h.avg_price.toLocaleString()}` : '-'}</td>
-                      <td>{h.current_price > 0 ? `₩ ${h.current_price.toLocaleString()}` : '-'}</td>
-                      <td>₩ {h.buy_krw.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
-                      <td><strong>₩ {h.eval_krw.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong></td>
-                      <td>
-                        {h.volume > 0 ? (
-                          <span className={`pnl-tag ${(h.pnl_krw || 0) >= 0 ? 'tag-profit' : 'tag-loss'}`}>
-                            {(h.pnl_krw || 0) >= 0 ? '+' : ''}₩ {(h.pnl_krw || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                            {' '}({(h.pnl_pct || 0) >= 0 ? '+' : ''}{(h.pnl_pct || 0).toFixed(2)}%)
-                          </span>
-                        ) : (
-                          <span className="text-gray-400">-</span>
-                        )}
-                      </td>
-                      <td>
-                        <div className="weight-cell">
-                          <span>{(h.weight_pct || 0).toFixed(1)}%</span>
-                          <div className="mini-weight-bar">
-                            <div
-                              className={`mini-bar-fill bg-${h.symbol.toLowerCase()}`}
-                              style={{ width: `${h.weight_pct || 0}%` }}
-                            ></div>
+                        </td>
+                        <td>{isHeld ? `₩ ${h.buy_krw.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : '-'}</td>
+                        <td>{isHeld ? <strong>₩ {h.eval_krw.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong> : '-'}</td>
+                        <td>
+                          {isHeld ? (
+                            <span className={`pnl-tag ${isProfit ? 'tag-profit' : 'tag-loss'}`}>
+                              {isProfit ? '+' : ''}₩ {(h.pnl_krw || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                              {' '}({isProfit ? '+' : ''}{(h.pnl_pct || 0).toFixed(2)}%)
+                            </span>
+                          ) : (
+                            <span className="text-gray-400">-</span>
+                          )}
+                        </td>
+                        <td>
+                          <div className="weight-cell">
+                            <span>{(h.weight_pct || 0).toFixed(1)}%</span>
+                            <div className="mini-weight-bar">
+                              <div
+                                className="mini-bar-fill"
+                                style={{ width: `${h.weight_pct || 0}%`, background: getCoinBgColor(h.symbol) }}
+                              ></div>
+                            </div>
                           </div>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -1953,88 +2230,178 @@ const FALLBACK_BITHUMB_MARKETS = [
 
           {!foldedSections.marketCards && (
             <div className="market-cards-grid">
-              {Object.entries(status.positions).map(([mkt, pos]) => {
-                const isHolding = (pos.holding_volume || 0) > 0;
-                const isBeActive = isHolding && (pos.pnl_pct || 0) >= (status?.breakeven_trigger_pct || 1.5);
-                const isPartialTpActive = isHolding && (pos.pnl_pct || 0) >= (status?.partial_take_profit_pct || 3.0);
+              {Object.entries(status.positions)
+                .sort(([m1, p1], [m2, p2]) => ((p2.holding_volume || 0) > 0 ? 1 : 0) - ((p1.holding_volume || 0) > 0 ? 1 : 0))
+                .map(([mkt, pos]) => {
+                  const sym = pos.symbol || mkt.replace('KRW-', '');
+                  const korName = pos.korean_name || getMarketKoreanName(mkt, sym);
+                  const isHolding = (pos.holding_volume || 0) > 0;
+                  const isBeActive = isHolding && (pos.pnl_pct || 0) >= (status?.breakeven_trigger_pct || 1.5);
+                  const isPartialTpActive = isHolding && (pos.pnl_pct || 0) >= (status?.partial_take_profit_pct || 3.0);
+                  const isProfit = (pos.pnl_pct || 0) >= 0;
 
-                return (
-                  <div key={mkt} className="market-card" style={{ borderColor: isBeActive ? 'rgba(16, 185, 129, 0.4)' : undefined }}>
-                    <div className="market-card-header">
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span className="market-name">{mkt}</span>
-                          {isBeActive && (
+                  return (
+                    <div
+                      key={mkt}
+                      className="market-card"
+                      style={{
+                        borderColor: isHolding
+                          ? (isBeActive ? 'rgba(16, 185, 129, 0.7)' : 'rgba(52, 211, 153, 0.55)')
+                          : 'rgba(255, 255, 255, 0.08)',
+                        boxShadow: isHolding
+                          ? '0 6px 20px rgba(16, 185, 129, 0.12), 0 0 12px rgba(16, 185, 129, 0.1)'
+                          : undefined,
+                        background: isHolding
+                          ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.04) 0%, rgba(15, 23, 42, 0.8) 100%)'
+                          : undefined
+                      }}
+                    >
+                      <div className="market-card-header">
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                             <span style={{
-                              fontSize: '10px',
-                              background: 'rgba(16, 185, 129, 0.25)',
-                              color: '#34d399',
-                              padding: '1px 5px',
-                              borderRadius: '4px',
-                              fontWeight: 700,
-                              border: '1px solid rgba(16, 185, 129, 0.4)'
+                              width: '24px',
+                              height: '24px',
+                              borderRadius: '50%',
+                              background: getCoinBgColor(sym),
+                              color: '#fff',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontWeight: 800,
+                              fontSize: '11px'
                             }}>
-                              🛡️ 본전보존(Risk-Free)
+                              {sym.slice(0, 1)}
                             </span>
-                          )}
-                          {isPartialTpActive && (
-                            <span style={{
-                              fontSize: '10px',
-                              background: 'rgba(59, 130, 246, 0.25)',
-                              color: '#60a5fa',
-                              padding: '1px 5px',
-                              borderRadius: '4px',
-                              fontWeight: 700,
-                              border: '1px solid rgba(59, 130, 246, 0.4)'
-                            }}>
-                              ✨ 분할익절권
+                            <strong style={{ fontSize: '15px', color: '#fff' }}>{korName}</strong>
+                            <span className="market-name" style={{ fontSize: '11px', color: '#94a3b8' }}>{mkt}</span>
+
+                            {isHolding && (
+                              <span style={{
+                                fontSize: '10px',
+                                background: 'rgba(16, 185, 129, 0.25)',
+                                color: '#34d399',
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                fontWeight: 800,
+                                border: '1px solid rgba(16, 185, 129, 0.45)'
+                              }}>
+                                🎯 보유 중
+                              </span>
+                            )}
+                            {isBeActive && (
+                              <span style={{
+                                fontSize: '10px',
+                                background: 'rgba(16, 185, 129, 0.25)',
+                                color: '#34d399',
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                fontWeight: 700,
+                                border: '1px solid rgba(16, 185, 129, 0.4)'
+                              }}>
+                                🛡️ 본전보존
+                              </span>
+                            )}
+                            {isPartialTpActive && (
+                              <span style={{
+                                fontSize: '10px',
+                                background: 'rgba(59, 130, 246, 0.25)',
+                                color: '#60a5fa',
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                fontWeight: 700,
+                                border: '1px solid rgba(59, 130, 246, 0.4)'
+                              }}>
+                                ✨ 분할익절권
+                              </span>
+                            )}
+                          </div>
+                          <span className="market-last-update">최근 갱신: {pos.last_updated ? new Date(pos.last_updated).toLocaleTimeString() : '-'}</span>
+                        </div>
+                        {getTrendBadge(pos.trend)}
+                      </div>
+
+                      <div className="market-price-row">
+                        <span className="price-label">현재가</span>
+                        <div className="flex items-center gap-2">
+                          <span className="price-value">{pos.current_price > 0 ? `${pos.current_price.toLocaleString()} KRW` : '-'}</span>
+                          {pos.change_rate_24h !== undefined && pos.change_rate_24h !== null && (
+                            <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${pos.change_rate_24h >= 0 ? 'text-emerald-400 bg-emerald-950/50' : 'text-rose-400 bg-rose-950/50'}`}>
+                              {pos.change_rate_24h >= 0 ? '+' : ''}{pos.change_rate_24h.toFixed(2)}%
                             </span>
                           )}
                         </div>
-                        <span className="market-last-update">최근 갱신: {pos.last_updated ? new Date(pos.last_updated).toLocaleTimeString() : '-'}</span>
                       </div>
-                      {getTrendBadge(pos.trend)}
-                    </div>
 
-                    <div className="market-price-row">
-                      <span className="price-label">현재가</span>
-                      <div className="flex items-center gap-2">
-                        <span className="price-value">{pos.current_price > 0 ? `${pos.current_price.toLocaleString()} KRW` : '-'}</span>
-                        {pos.change_rate_24h !== undefined && pos.change_rate_24h !== null && (
-                          <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${pos.change_rate_24h >= 0 ? 'text-emerald-400 bg-emerald-950/50' : 'text-rose-400 bg-rose-950/50'}`}>
-                            {pos.change_rate_24h >= 0 ? '+' : ''}{pos.change_rate_24h.toFixed(2)}%
+                      {/* Holding Position Highlight Card if Held */}
+                      {isHolding && (
+                        <div style={{
+                          background: 'rgba(15, 23, 42, 0.65)',
+                          border: `1px solid ${isProfit ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+                          borderRadius: '8px',
+                          padding: '8px 10px',
+                          margin: '8px 0',
+                          display: 'grid',
+                          gridTemplateColumns: '1fr 1fr',
+                          gap: '6px',
+                          fontSize: '11px'
+                        }}>
+                          <div>
+                            <span style={{ color: '#94a3b8', display: 'block', fontSize: '10px' }}>보유 수량 / 평단</span>
+                            <span style={{ fontWeight: 700, color: '#f1f5f9' }}>
+                              {(pos.holding_volume || 0).toFixed(4)} {sym}
+                            </span>
+                            <div style={{ fontSize: '10px', color: '#64748b' }}>
+                              ₩ {(pos.holding_avg_price || 0).toLocaleString()}
+                            </div>
+                          </div>
+                          <div style={{ textAlign: 'right' }}>
+                            <span style={{ color: '#94a3b8', display: 'block', fontSize: '10px' }}>평가 손익 (수익률)</span>
+                            <span style={{
+                              fontWeight: 800,
+                              fontSize: '12px',
+                              color: isProfit ? '#34d399' : '#f87171'
+                            }}>
+                              {isProfit ? '+' : ''}₩ {Math.round(pos.pnl_krw || 0).toLocaleString()}
+                            </span>
+                            <div style={{
+                              fontSize: '10px',
+                              fontWeight: 700,
+                              color: isProfit ? '#34d399' : '#f87171'
+                            }}>
+                              ({isProfit ? '+' : ''}{(pos.pnl_pct || 0).toFixed(2)}%)
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="indicator-mini-grid">
+                        <div className="mini-stat">
+                          <span className="mini-stat-label">RSI (14)</span>
+                          <span className={`mini-stat-val ${pos.rsi > 68 ? 'text-red-400 font-bold' : pos.rsi < 38 ? 'text-blue-400 font-bold' : 'text-emerald-400'}`}>
+                            {pos.rsi !== null && pos.rsi !== undefined ? pos.rsi : '-'}
                           </span>
-                        )}
+                        </div>
+                        <div className="mini-stat">
+                          <span className="mini-stat-label">MACD Hist</span>
+                          <span className={`mini-stat-val ${pos.macd_hist > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                            {pos.macd_hist !== null && pos.macd_hist !== undefined ? pos.macd_hist : '-'}
+                          </span>
+                        </div>
+                        <div className="mini-stat">
+                          <span className="mini-stat-label">보유 수량</span>
+                          <span className="mini-stat-val">{(pos.holding_volume || 0) > 0 ? (pos.holding_volume).toFixed(4) : '0'}</span>
+                        </div>
+                        <div className="mini-stat">
+                          <span className="mini-stat-label">수익률</span>
+                          <span className={`mini-stat-val font-bold ${(pos.pnl_pct || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                            {(pos.pnl_pct || 0) >= 0 ? '+' : ''}{(pos.pnl_pct || 0).toFixed(2)}%
+                          </span>
+                        </div>
                       </div>
                     </div>
-
-                    <div className="indicator-mini-grid">
-                      <div className="mini-stat">
-                        <span className="mini-stat-label">RSI (14)</span>
-                        <span className={`mini-stat-val ${pos.rsi > 68 ? 'text-red-400 font-bold' : pos.rsi < 38 ? 'text-blue-400 font-bold' : 'text-emerald-400'}`}>
-                          {pos.rsi !== null && pos.rsi !== undefined ? pos.rsi : '-'}
-                        </span>
-                      </div>
-                      <div className="mini-stat">
-                        <span className="mini-stat-label">MACD Hist</span>
-                        <span className={`mini-stat-val ${pos.macd_hist > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                          {pos.macd_hist !== null && pos.macd_hist !== undefined ? pos.macd_hist : '-'}
-                        </span>
-                      </div>
-                      <div className="mini-stat">
-                        <span className="mini-stat-label">보유 수량</span>
-                        <span className="mini-stat-val">{pos.holding_volume || 0}</span>
-                      </div>
-                      <div className="mini-stat">
-                        <span className="mini-stat-label">수익률</span>
-                        <span className={`mini-stat-val font-bold ${(pos.pnl_pct || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                          {(pos.pnl_pct || 0) >= 0 ? '+' : ''}{(pos.pnl_pct || 0).toFixed(2)}%
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
             </div>
           )}
         </div>
