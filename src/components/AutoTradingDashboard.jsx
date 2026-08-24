@@ -87,8 +87,25 @@ export default function AutoTradingDashboard() {
   const [availableMarkets, setAvailableMarkets] = useState([]);
   const [marketSearchQuery, setMarketSearchQuery] = useState('');
   const [loadingMarkets, setLoadingMarkets] = useState(false);
-  const [savingMarkets, setSavingMarkets] = useState(false);
-  const [quickSavingHolding, setQuickSavingHolding] = useState(false);
+  // Weekly Summary & Folding State
+  const [weeklySummary, setWeeklySummary] = useState(null);
+  const [weeklyLoading, setWeeklyLoading] = useState(false);
+  const [cleaningLogs, setCleaningLogs] = useState(false);
+  const [foldedSections, setFoldedSections] = useState({
+    account: false,
+    kpi: false,
+    assets: false,
+    weekly: false,
+    marketCards: false,
+    logs: false
+  });
+
+  const toggleSectionFold = (sectionKey) => {
+    setFoldedSections(prev => ({
+      ...prev,
+      [sectionKey]: !prev[sectionKey]
+    }));
+  };
 
   const timerRef = useRef(null);
 
@@ -430,9 +447,68 @@ const FALLBACK_BITHUMB_MARKETS = [
     }
   };
 
+  // Fetch Weekly Summary
+  const fetchWeeklySummary = async (currentMode = modeFilter) => {
+    setWeeklyLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/trading/summary/weekly?mode=${currentMode}`, {
+        headers: getAuthHeaders()
+      });
+      if (res.status === 401) {
+        handleUnauthorized();
+        return;
+      }
+      if (res.ok) {
+        const data = await res.json();
+        setWeeklySummary(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch weekly summary:', err);
+    } finally {
+      setWeeklyLoading(false);
+    }
+  };
+
+  // Cleanup Old Logs or Clear All
+  const handleCleanupLogs = async (daysToKeep = 7, clearAll = false) => {
+    const confirmMsg = clearAll
+      ? '정말로 모든 거래 분석 및 처리 로그 기록을 영구 삭제(초기화)하시겠습니까?'
+      : `${daysToKeep}일 이전의 오래된 상세 로그를 정리하시겠습니까?\n(최근 7일간의 기록은 안전하게 보존됩니다)`;
+    if (!window.confirm(confirmMsg)) return;
+
+    setCleaningLogs(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/trading/logs/cleanup`, {
+        method: 'POST',
+        headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          days_to_keep: daysToKeep,
+          clear_all: clearAll,
+          is_dry_run: modeFilter === 'DRY_RUN' ? true : (modeFilter === 'LIVE' ? false : undefined)
+        })
+      });
+      if (res.status === 401) {
+        handleUnauthorized();
+        return;
+      }
+      const data = await res.json();
+      if (res.ok) {
+        setAlertMsg({ type: 'success', text: data.message || '로그 정리가 완료되었습니다.' });
+        await Promise.all([fetchLogs(1, modeFilter), fetchWeeklySummary(modeFilter)]);
+      } else {
+        setAlertMsg({ type: 'error', text: data.message || '로그 정리 실패' });
+      }
+    } catch (err) {
+      setAlertMsg({ type: 'error', text: `로그 정리 오류: ${err.message}` });
+    } finally {
+      setCleaningLogs(false);
+      setTimeout(() => setAlertMsg(null), 5000);
+    }
+  };
+
   const handleRefreshAll = async () => {
     if (!token) return;
-    await Promise.all([fetchStatus(), fetchAccountStatus(), fetchLogs(page, modeFilter)]);
+    await Promise.all([fetchStatus(), fetchAccountStatus(), fetchLogs(page, modeFilter), fetchWeeklySummary(modeFilter)]);
   };
 
   // Trigger Manual Trading Loop
@@ -1062,65 +1138,88 @@ const FALLBACK_BITHUMB_MARKETS = [
         </div>
       </div>
 
-      {/* Account Verification Check Banner */}
-      <div className="account-check-card">
-        <div className="account-check-left">
-          <div className={`account-status-icon-box ${
-            accountStatus?.status === 'CONNECTED' ? 'bg-emerald-glow' :
-            accountStatus?.status === 'IP_RESTRICTED' ? 'bg-amber-glow' :
-            accountStatus?.status === 'INVALID_KEY' ? 'bg-rose-glow' : 'bg-blue-glow'
-          }`}>
-            {accountStatus?.status === 'CONNECTED' ? (
-              <ShieldCheck size={22} className="text-emerald-400" />
-            ) : accountStatus?.status === 'IP_RESTRICTED' ? (
-              <ShieldAlert size={22} className="text-amber-400" />
-            ) : accountStatus?.status === 'INVALID_KEY' ? (
-              <ShieldX size={22} className="text-rose-400" />
-            ) : (
-              <Key size={22} className="text-blue-400" />
-            )}
-          </div>
-          <div className="account-check-info">
-            <div className="account-title-row">
-              <span className="account-check-title">빗썸 거래소 API 계정 상태</span>
-              <span className={`account-status-badge status-${accountStatus?.status?.toLowerCase() || 'checking'}`}>
-                {accountLoading ? '상태 확인 중...' :
-                 accountStatus?.status === 'CONNECTED' ? '🟢 API 연동 완료 (실계좌)' :
-                 accountStatus?.status === 'IP_RESTRICTED' ? '🟡 허용 IP 제한 (모의투자 권장)' :
-                 accountStatus?.status === 'INVALID_KEY' ? '🔴 API 인증 오류' :
-                 accountStatus?.status === 'CONFIG_MISSING' ? '⚪ API Key 미설정' :
-                 '검증 완료'}
-              </span>
-              {accountStatus?.masked_key && (
-                <span className="account-key-pill">
-                  <Key size={12} /> Key: {accountStatus.masked_key}
-                </span>
+      {/* 1. Account Verification Check Banner (Foldable) */}
+      <div className="account-check-card" style={{ marginBottom: '16px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', cursor: 'pointer' }} onClick={() => toggleSectionFold('account')}>
+          <div className="account-check-left">
+            <div className={`account-status-icon-box ${
+              accountStatus?.status === 'CONNECTED' ? 'bg-emerald-glow' :
+              accountStatus?.status === 'IP_RESTRICTED' ? 'bg-amber-glow' :
+              accountStatus?.status === 'INVALID_KEY' ? 'bg-rose-glow' : 'bg-blue-glow'
+            }`}>
+              {accountStatus?.status === 'CONNECTED' ? (
+                <ShieldCheck size={22} className="text-emerald-400" />
+              ) : accountStatus?.status === 'IP_RESTRICTED' ? (
+                <ShieldAlert size={22} className="text-amber-400" />
+              ) : accountStatus?.status === 'INVALID_KEY' ? (
+                <ShieldX size={22} className="text-rose-400" />
+              ) : (
+                <Key size={22} className="text-blue-400" />
               )}
             </div>
-            <p className="account-check-desc">
-              {accountLoading ? 'Bithumb API 연결 및 계정 권한을 검증하고 있습니다...' :
-               accountStatus?.message || '거래소 API 접근 권한 상태를 확인했습니다.'}
-            </p>
+            <div className="account-check-info">
+              <div className="account-title-row">
+                <span className="account-check-title">빗썸 거래소 API 계정 상태</span>
+                <span className={`account-status-badge status-${accountStatus?.status?.toLowerCase() || 'checking'}`}>
+                  {accountLoading ? '상태 확인 중...' :
+                   accountStatus?.status === 'CONNECTED' ? '🟢 API 연동 완료 (실계좌)' :
+                   accountStatus?.status === 'IP_RESTRICTED' ? '🟡 허용 IP 제한 (모의투자 권장)' :
+                   accountStatus?.status === 'INVALID_KEY' ? '🔴 API 인증 오류' :
+                   accountStatus?.status === 'CONFIG_MISSING' ? '⚪ API Key 미설정' :
+                   '검증 완료'}
+                </span>
+                {accountStatus?.masked_key && (
+                  <span className="account-key-pill">
+                    <Key size={12} /> Key: {accountStatus.masked_key}
+                  </span>
+                )}
+              </div>
+              {!foldedSections.account && (
+                <p className="account-check-desc">
+                  {accountLoading ? 'Bithumb API 연결 및 계정 권한을 검증하고 있습니다...' :
+                   accountStatus?.message || '거래소 API 접근 권한 상태를 확인했습니다.'}
+                </p>
+              )}
+            </div>
           </div>
-        </div>
 
-        <div className="account-check-actions">
-          <button
-            className="account-btn btn-recheck"
-            onClick={fetchAccountStatus}
-            disabled={accountLoading}
-            title="계정 접근 권한 즉시 재확인"
-          >
-            <RefreshCw size={14} className={accountLoading ? 'spin-anim' : ''} />
-            <span>상태 재검사</span>
-          </button>
-          <button
-            className="account-btn btn-edit-keys"
-            onClick={() => setShowAccountModal(true)}
-          >
-            <Key size={14} />
-            <span>API 키 관리</span>
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }} onClick={(e) => e.stopPropagation()}>
+            <button
+              className="account-btn btn-recheck"
+              onClick={fetchAccountStatus}
+              disabled={accountLoading}
+              title="계정 접근 권한 즉시 재확인"
+            >
+              <RefreshCw size={14} className={accountLoading ? 'spin-anim' : ''} />
+              <span>상태 재검사</span>
+            </button>
+            <button
+              className="account-btn btn-edit-keys"
+              onClick={() => setShowAccountModal(true)}
+            >
+              <Key size={14} />
+              <span>API 키 관리</span>
+            </button>
+            <button
+              type="button"
+              className="fold-toggle-btn"
+              onClick={() => toggleSectionFold('account')}
+              title={foldedSections.account ? '펼치기' : '접기'}
+              style={{
+                background: 'rgba(255, 255, 255, 0.06)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                color: '#cbd5e1',
+                padding: '6px',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              {foldedSections.account ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1134,111 +1233,155 @@ const FALLBACK_BITHUMB_MARKETS = [
         </div>
       )}
 
-      {/* KPI Cards Grid */}
-      <div className="kpi-cards-grid">
-        <div className="kpi-card">
-          <div className="kpi-icon-box bg-blue-glow">
-            <Cpu size={20} className="text-blue-400" />
+      {/* 2. KPI Cards Grid & Quick Selector (Foldable) */}
+      <div style={{ marginBottom: '16px' }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '8px 12px',
+            background: 'rgba(15, 23, 42, 0.6)',
+            borderRadius: '10px',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            marginBottom: foldedSections.kpi ? '0' : '10px',
+            cursor: 'pointer'
+          }}
+          onClick={() => toggleSectionFold('kpi')}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Activity size={16} className="text-blue-400" />
+            <span style={{ fontWeight: 700, fontSize: '13px', color: '#f1f5f9' }}>핵심 운영 지표 & 퀵 설정</span>
+            {foldedSections.kpi && (
+              <span style={{ fontSize: '11px', color: '#94a3b8', background: 'rgba(255,255,255,0.05)', padding: '2px 8px', borderRadius: '4px' }}>
+                총 분석 {status?.total_logs_count || 0}회 | 1회 ₩{(status?.max_order_krw || 50000).toLocaleString()} | 보유 {status?.max_holding_coins === 0 ? '무제한' : `${status?.max_holding_coins || 1}개`} | 손절 -{status?.stop_loss_pct || 3}% / 익절 +{status?.take_profit_pct || 6}%
+              </span>
+            )}
           </div>
-          <div className="kpi-content">
-            <span className="kpi-label">총 분석 사이클</span>
-            <span className="kpi-value">{status?.total_logs_count?.toLocaleString() || 0} 회</span>
-            <span className="kpi-sub">매수 {status?.total_buys || 0} / 매도 {status?.total_sells || 0}</span>
-          </div>
-        </div>
-
-        <div className="kpi-card kpi-card-interactive" onClick={openLimitsModal} title="클릭하여 거래 한도 및 동시 보유 제한 변경">
-          <div className="kpi-icon-box bg-emerald-glow">
-            <DollarSign size={20} className="text-emerald-400" />
-          </div>
-          <div className="kpi-content">
-            <span className="kpi-label">1회 거래 제한 & 보유 제한 ⚙️</span>
-            <span className="kpi-value">
-              ₩ {(status?.max_order_krw || 50000).toLocaleString()} (1회)
-            </span>
-            <span className="kpi-sub font-semibold text-emerald-400">
-              {status?.max_holding_coins === 0 ? (
-                <span className="text-purple-300 font-extrabold underline">♾️ 품목 제한 없음 (무제한)</span>
-              ) : (
-                <>최대 <span className="text-purple-300 font-extrabold underline">{status?.max_holding_coins || 1}개 품목</span> 동시 보유</>
-              )}
-            </span>
-          </div>
-        </div>
-
-        <div className="kpi-card kpi-card-interactive" onClick={openLimitsModal} title="클릭하여 리스크 관리 설정 변경">
-          <div className="kpi-icon-box bg-amber-glow">
-            <ShieldAlert size={20} className="text-amber-400" />
-          </div>
-          <div className="kpi-content">
-            <span className="kpi-label">리스크 가드레일 ⚙️</span>
-            <span className="kpi-value text-amber-300">
-              손절 -{status?.stop_loss_pct || 3.0}% / 익절 +{status?.take_profit_pct || 5.0}%
-            </span>
-            <span className="kpi-sub">코인별 상한: {((status?.max_portfolio_ratio_per_coin || 0.3) * 100).toFixed(0)}% / 일일 손실: {status?.daily_max_loss_pct || 5.0}%</span>
-          </div>
-        </div>
-
-        <div className="kpi-card kpi-card-interactive" onClick={openMarketModal} title="클릭하여 거래 마켓 및 품목 관리">
-          <div className="kpi-icon-box bg-purple-glow">
-            <Layers size={20} className="text-purple-400" />
-          </div>
-          <div className="kpi-content">
-            <span className="kpi-label">대상 마켓 & 캔들 주기 ⚙️</span>
-            <span className="kpi-value text-purple-300">
-              {status?.target_markets?.join(', ') || 'KRW-BTC'}
-            </span>
-            <span className="kpi-sub">{status?.candle_unit_minutes || 15}분봉 기준 분석 (총 {status?.target_markets?.length || 0}개 마켓)</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Quick Holding Limit Selector Bar */}
-      <div className="holding-quick-bar">
-        <div className="holding-quick-info">
-          <div className="holding-quick-badge">
-            <Layers size={15} className="text-purple-400" />
-            <span className="font-bold text-sm text-purple-200">동시 보유 품목 수 제한 (원클릭 즉시 변경):</span>
-          </div>
-          <span className="holding-quick-desc">
-            {status?.max_holding_coins === 0 ? (
-              <strong>♾️ 품목 수 제한 없이 (무제한)</strong>
-            ) : (
-              <>현재 <strong>{status?.max_holding_coins || 1}개 품목</strong>까지</>
-            )}{' '}
-            동시 포지션을 보유하도록 설정되어 있습니다. (동일 품목 추가 매수 & 분할 매도 지원)
-          </span>
-        </div>
-        <div className="holding-quick-chips">
-          {[1, 2, 3, 5, 0].map((num) => {
-            const isActive = Number(status?.max_holding_coins) === num;
-            return (
-              <button
-                key={num}
-                type="button"
-                className={`holding-chip-btn ${isActive ? 'active' : ''}`}
-                onClick={() => handleQuickChangeHoldingCoins(num)}
-                disabled={quickSavingHolding}
-              >
-                {num === 0 ? '♾️ 제한 없음 (무제한)' : num === 1 ? '🎯 1개 (단일 집중)' : `${num}개 보유`}
-                {isActive && <span className="active-dot">● 적용중</span>}
-              </button>
-            );
-          })}
           <button
             type="button"
-            className="holding-chip-btn custom-chip-btn"
-            onClick={openLimitsModal}
-            title="직접 숫자 입력 및 상세 설정"
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: '#94a3b8',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center'
+            }}
           >
-            ✏️ 상세 설정...
+            {foldedSections.kpi ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
           </button>
         </div>
+
+        {!foldedSections.kpi && (
+          <>
+            <div className="kpi-cards-grid">
+              <div className="kpi-card">
+                <div className="kpi-icon-box bg-blue-glow">
+                  <Cpu size={20} className="text-blue-400" />
+                </div>
+                <div className="kpi-content">
+                  <span className="kpi-label">총 분석 사이클</span>
+                  <span className="kpi-value">{status?.total_logs_count?.toLocaleString() || 0} 회</span>
+                  <span className="kpi-sub">매수 {status?.total_buys || 0} / 매도 {status?.total_sells || 0}</span>
+                </div>
+              </div>
+
+              <div className="kpi-card kpi-card-interactive" onClick={openLimitsModal} title="클릭하여 거래 한도 및 동시 보유 제한 변경">
+                <div className="kpi-icon-box bg-emerald-glow">
+                  <DollarSign size={20} className="text-emerald-400" />
+                </div>
+                <div className="kpi-content">
+                  <span className="kpi-label">1회 거래 제한 & 보유 제한 ⚙️</span>
+                  <span className="kpi-value">
+                    ₩ {(status?.max_order_krw || 50000).toLocaleString()} (1회)
+                  </span>
+                  <span className="kpi-sub font-semibold text-emerald-400">
+                    {status?.max_holding_coins === 0 ? (
+                      <span className="text-purple-300 font-extrabold underline">♾️ 품목 제한 없음 (무제한)</span>
+                    ) : (
+                      <>최대 <span className="text-purple-300 font-extrabold underline">{status?.max_holding_coins || 1}개 품목</span> 동시 보유</>
+                    )}
+                  </span>
+                </div>
+              </div>
+
+              <div className="kpi-card kpi-card-interactive" onClick={openLimitsModal} title="클릭하여 리스크 관리 설정 변경">
+                <div className="kpi-icon-box bg-amber-glow">
+                  <ShieldAlert size={20} className="text-amber-400" />
+                </div>
+                <div className="kpi-content">
+                  <span className="kpi-label">리스크 가드레일 ⚙️</span>
+                  <span className="kpi-value text-amber-300">
+                    손절 -{status?.stop_loss_pct || 3.0}% / 익절 +{status?.take_profit_pct || 6.0}%
+                  </span>
+                  <span className="kpi-sub">트레일링스탑: {status?.trailing_stop_pct || 2.0}% / 1차분할익절: {status?.partial_take_profit_pct || 3.0}%</span>
+                </div>
+              </div>
+
+              <div className="kpi-card kpi-card-interactive" onClick={openMarketModal} title="클릭하여 거래 마켓 및 품목 관리">
+                <div className="kpi-icon-box bg-purple-glow">
+                  <Layers size={20} className="text-purple-400" />
+                </div>
+                <div className="kpi-content">
+                  <span className="kpi-label">대상 마켓 & 캔들 주기 ⚙️</span>
+                  <span className="kpi-value text-purple-300">
+                    {status?.target_markets?.join(', ') || 'KRW-BTC'}
+                  </span>
+                  <span className="kpi-sub">{status?.candle_unit_minutes || 15}분봉 기준 분석 (총 {status?.target_markets?.length || 0}개 마켓)</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Holding Limit Selector Bar */}
+            <div className="holding-quick-bar mt-2">
+              <div className="holding-quick-info">
+                <div className="holding-quick-badge">
+                  <Layers size={15} className="text-purple-400" />
+                  <span className="font-bold text-sm text-purple-200">동시 보유 품목 수 제한 (원클릭 즉시 변경):</span>
+                </div>
+                <span className="holding-quick-desc">
+                  {status?.max_holding_coins === 0 ? (
+                    <strong>♾️ 품목 수 제한 없이 (무제한)</strong>
+                  ) : (
+                    <>현재 <strong>{status?.max_holding_coins || 1}개 품목</strong>까지</>
+                  )}{' '}
+                  동시 포지션을 보유하도록 설정되어 있습니다. (동일 품목 추가 매수 & 분할 매도 지원)
+                </span>
+              </div>
+              <div className="holding-quick-chips">
+                {[1, 2, 3, 5, 0].map((num) => {
+                  const isActive = Number(status?.max_holding_coins) === num;
+                  return (
+                    <button
+                      key={num}
+                      type="button"
+                      className={`holding-chip-btn ${isActive ? 'active' : ''}`}
+                      onClick={() => handleQuickChangeHoldingCoins(num)}
+                      disabled={quickSavingHolding}
+                    >
+                      {num === 0 ? '♾️ 제한 없음 (무제한)' : num === 1 ? '🎯 1개 (단일 집중)' : `${num}개 보유`}
+                      {isActive && <span className="active-dot">● 적용중</span>}
+                    </button>
+                  );
+                })}
+                <button
+                  type="button"
+                  className="holding-chip-btn custom-chip-btn"
+                  onClick={openLimitsModal}
+                  title="직접 숫자 입력 및 상세 설정"
+                >
+                  ✏️ 상세 설정...
+                </button>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
-      {/* Current Asset & Portfolio Summary Section */}
-      <div className="trading-asset-section">
-        <div className="asset-section-header">
+      {/* 3. Current Asset & Portfolio Summary Section (Foldable) */}
+      <div className="trading-asset-section" style={{ marginBottom: '16px' }}>
+        <div className="asset-section-header" style={{ cursor: 'pointer' }} onClick={() => toggleSectionFold('assets')}>
           <div className="asset-title-group">
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
               <h2 className="section-title" style={{ margin: 0 }}>
@@ -1258,7 +1401,7 @@ const FALLBACK_BITHUMB_MARKETS = [
             </span>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }} onClick={(e) => e.stopPropagation()}>
             {status?.is_dry_run ? (
               <button
                 type="button"
@@ -1321,315 +1464,593 @@ const FALLBACK_BITHUMB_MARKETS = [
                 <strong>{(status.assets.total_return_pct || 0) >= 0 ? '+' : ''}{(status.assets.total_return_pct || 0).toFixed(2)}%</strong>
               </div>
             )}
+
+            <button
+              type="button"
+              className="fold-toggle-btn"
+              onClick={() => toggleSectionFold('assets')}
+              title={foldedSections.assets ? '펼치기' : '접기'}
+              style={{
+                background: 'rgba(255, 255, 255, 0.06)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                color: '#cbd5e1',
+                padding: '6px',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              {foldedSections.assets ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
+            </button>
           </div>
         </div>
 
-        {/* 4 Hero Asset Metrics */}
-        <div className="asset-hero-grid">
-          {/* Card 1: Total Net Worth */}
-          <div className="asset-hero-card card-total">
-            <div className="asset-card-top">
-              <span className="asset-card-label">총 추정 자산</span>
-              <div className="asset-icon-pill bg-emerald-glow">
-                <Coins size={18} className="text-emerald-400" />
-              </div>
-            </div>
-            <div className="asset-card-main-val">
-              ₩ {(status?.assets?.total_net_assets || (status?.is_dry_run ? 1000000 : 0)).toLocaleString(undefined, { maximumFractionDigits: 0 })}
-            </div>
-            <div className="asset-card-sub-info">
-              <span>원화 잔고 + 보유 코인 평가액 합산</span>
-            </div>
-          </div>
-
-          {/* Card 2: KRW Balance */}
-          <div className="asset-hero-card card-krw">
-            <div className="asset-card-top">
-              <span className="asset-card-label">보유 원화 잔고</span>
-              <div className="asset-icon-pill bg-blue-glow">
-                <Banknote size={18} className="text-blue-400" />
-              </div>
-            </div>
-            <div className="asset-card-main-val">
-              ₩ {(status?.assets?.krw_balance || (status?.is_dry_run ? 1000000 : 0)).toLocaleString(undefined, { maximumFractionDigits: 0 })}
-            </div>
-            <div className="asset-card-sub-info">
-              <span className="text-blue-300">주문 가능 자금 (비중 {(status?.assets?.krw_weight_pct || 100).toFixed(1)}%)</span>
-            </div>
-          </div>
-
-          {/* Card 3: Crypto Evaluation */}
-          <div className="asset-hero-card card-crypto">
-            <div className="asset-card-top">
-              <span className="asset-card-label">코인 평가 금액</span>
-              <div className="asset-icon-pill bg-purple-glow">
-                <PieChart size={18} className="text-purple-400" />
-              </div>
-            </div>
-            <div className="asset-card-main-val">
-              ₩ {(status?.assets?.crypto_eval_total || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
-            </div>
-            <div className="asset-card-sub-info">
-              <span>총 매수 원금: ₩ {(status?.assets?.crypto_buy_total || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-            </div>
-          </div>
-
-          {/* Card 4: Total PnL */}
-          <div className="asset-hero-card card-pnl">
-            <div className="asset-card-top">
-              <span className="asset-card-label">총 평가 손익</span>
-              <div className="asset-icon-pill bg-amber-glow">
-                {(status?.assets?.total_pnl_krw || 0) >= 0 ? (
-                  <TrendingUp size={18} className="text-emerald-400" />
-                ) : (
-                  <TrendingDown size={18} className="text-rose-400" />
-                )}
-              </div>
-            </div>
-            <div className={`asset-card-main-val ${(status?.assets?.total_pnl_krw || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-              {(status?.assets?.total_pnl_krw || 0) >= 0 ? '+' : ''}₩ {(status?.assets?.total_pnl_krw || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
-            </div>
-            <div className="asset-card-sub-info">
-              <span className={(status?.assets?.total_pnl_pct || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
-                수익률: {(status?.assets?.total_pnl_pct || 0) >= 0 ? '+' : ''}{(status?.assets?.total_pnl_pct || 0).toFixed(2)}%
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Visual Asset Allocation Bar */}
-        <div className="asset-allocation-box">
-          <div className="allocation-header">
-            <div className="alloc-title">
-              <Percent size={15} />
-              <span>자산 포트폴리오 비중 구성</span>
-            </div>
-            <div className="alloc-legend">
-              <div className="legend-item">
-                <span className="legend-dot dot-krw"></span>
-                <span>원화(KRW) {(status?.assets?.krw_weight_pct || 100).toFixed(1)}%</span>
-              </div>
-              {status?.assets?.holdings?.map((h) => (
-                <div key={h.market} className="legend-item">
-                  <span className={`legend-dot dot-${h.symbol.toLowerCase()}`}></span>
-                  <span>{h.symbol} {(h.weight_pct || 0).toFixed(1)}%</span>
+        {!foldedSections.assets && (
+          <>
+            {/* 4 Hero Asset Metrics */}
+            <div className="asset-hero-grid">
+              {/* Card 1: Total Net Worth */}
+              <div className="asset-hero-card card-total">
+                <div className="asset-card-top">
+                  <span className="asset-card-label">총 추정 자산</span>
+                  <div className="asset-icon-pill bg-emerald-glow">
+                    <Coins size={18} className="text-emerald-400" />
+                  </div>
                 </div>
-              ))}
-            </div>
-          </div>
-          <div className="allocation-progress-bar">
-            <div
-              className="bar-segment bar-krw"
-              style={{ width: `${Math.max(status?.assets?.krw_weight_pct ?? 100, (status?.assets?.holdings?.some(h => h.weight_pct > 0) ? 0 : 100))}%` }}
-              title={`KRW: ${(status?.assets?.krw_weight_pct || 100).toFixed(1)}%`}
-            />
-            {status?.assets?.holdings?.map((h) => (
-              (h.weight_pct || 0) > 0 ? (
-                <div
-                  key={h.market}
-                  className={`bar-segment bar-${h.symbol.toLowerCase()}`}
-                  style={{ width: `${h.weight_pct}%` }}
-                  title={`${h.symbol}: ${h.weight_pct.toFixed(1)}%`}
-                />
-              ) : null
-            ))}
-          </div>
-        </div>
+                <div className="asset-card-main-val">
+                  ₩ {(status?.assets?.total_net_assets || (status?.is_dry_run ? 1000000 : 0)).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                </div>
+                <div className="asset-card-sub-info">
+                  <span>원화 잔고 + 보유 코인 평가액 합산</span>
+                </div>
+              </div>
 
-        {/* Holdings Breakdown Table */}
-        <div className="holdings-table-wrapper">
-          <table className="holdings-table">
-            <thead>
-              <tr>
-                <th>자산 종목</th>
-                <th>보유 수량</th>
-                <th>매수 평균가</th>
-                <th>현재가</th>
-                <th>매수 금액</th>
-                <th>평가 금액</th>
-                <th>평가 손익 (수익률)</th>
-                <th>포트폴리오 비중</th>
-              </tr>
-            </thead>
-            <tbody>
-              {/* KRW Row */}
-              <tr className="krw-row">
-                <td>
-                  <div className="asset-name-cell">
-                    <span className="asset-circle circle-krw">₩</span>
-                    <div>
-                      <strong>대한민국 원화</strong>
-                      <span className="asset-symbol">KRW</span>
-                    </div>
+              {/* Card 2: KRW Balance */}
+              <div className="asset-hero-card card-krw">
+                <div className="asset-card-top">
+                  <span className="asset-card-label">보유 원화 잔고</span>
+                  <div className="asset-icon-pill bg-blue-glow">
+                    <Banknote size={18} className="text-blue-400" />
                   </div>
-                </td>
-                <td>{(status?.assets?.krw_balance || (status?.is_dry_run ? 1000000 : 0)).toLocaleString()} KRW</td>
-                <td>-</td>
-                <td>1 KRW</td>
-                <td>₩ {(status?.assets?.krw_balance || (status?.is_dry_run ? 1000000 : 0)).toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
-                <td>₩ {(status?.assets?.krw_balance || (status?.is_dry_run ? 1000000 : 0)).toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
-                <td><span className="text-gray-400">-</span></td>
-                <td>
-                  <div className="weight-cell">
-                    <span>{(status?.assets?.krw_weight_pct || 100).toFixed(1)}%</span>
-                    <div className="mini-weight-bar">
-                      <div className="mini-bar-fill bg-blue-500" style={{ width: `${status?.assets?.krw_weight_pct || 100}%` }}></div>
-                    </div>
-                  </div>
-                </td>
-              </tr>
+                </div>
+                <div className="asset-card-main-val">
+                  ₩ {(status?.assets?.krw_balance || (status?.is_dry_run ? 1000000 : 0)).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                </div>
+                <div className="asset-card-sub-info">
+                  <span className="text-blue-300">주문 가능 자금 (비중 {(status?.assets?.krw_weight_pct || 100).toFixed(1)}%)</span>
+                </div>
+              </div>
 
-              {/* Crypto Holdings Rows */}
-              {status?.assets?.holdings?.map((h) => (
-                <tr key={h.market}>
-                  <td>
-                    <div className="asset-name-cell">
-                      <span className={`asset-circle circle-${h.symbol.toLowerCase()}`}>{h.symbol.slice(0, 1)}</span>
-                      <div>
-                        <strong>{h.symbol === 'BTC' ? '비트코인' : h.symbol === 'ETH' ? '이더리움' : h.symbol}</strong>
-                        <span className="asset-symbol">{h.market}</span>
-                      </div>
-                    </div>
-                  </td>
-                  <td>{h.volume > 0 ? h.volume.toFixed(6) : '0.000000'} {h.symbol}</td>
-                  <td>{h.avg_price > 0 ? `₩ ${h.avg_price.toLocaleString()}` : '-'}</td>
-                  <td>{h.current_price > 0 ? `₩ ${h.current_price.toLocaleString()}` : '-'}</td>
-                  <td>₩ {h.buy_krw.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
-                  <td><strong>₩ {h.eval_krw.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong></td>
-                  <td>
-                    {h.volume > 0 ? (
-                      <span className={`pnl-tag ${(h.pnl_krw || 0) >= 0 ? 'tag-profit' : 'tag-loss'}`}>
-                        {(h.pnl_krw || 0) >= 0 ? '+' : ''}₩ {(h.pnl_krw || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                        {' '}({(h.pnl_pct || 0) >= 0 ? '+' : ''}{(h.pnl_pct || 0).toFixed(2)}%)
-                      </span>
+              {/* Card 3: Crypto Evaluation */}
+              <div className="asset-hero-card card-crypto">
+                <div className="asset-card-top">
+                  <span className="asset-card-label">코인 평가 금액</span>
+                  <div className="asset-icon-pill bg-purple-glow">
+                    <PieChart size={18} className="text-purple-400" />
+                  </div>
+                </div>
+                <div className="asset-card-main-val">
+                  ₩ {(status?.assets?.crypto_eval_total || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                </div>
+                <div className="asset-card-sub-info">
+                  <span>총 매수 원금: ₩ {(status?.assets?.crypto_buy_total || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                </div>
+              </div>
+
+              {/* Card 4: Total PnL */}
+              <div className="asset-hero-card card-pnl">
+                <div className="asset-card-top">
+                  <span className="asset-card-label">총 평가 손익</span>
+                  <div className="asset-icon-pill bg-amber-glow">
+                    {(status?.assets?.total_pnl_krw || 0) >= 0 ? (
+                      <TrendingUp size={18} className="text-emerald-400" />
                     ) : (
-                      <span className="text-gray-400">-</span>
+                      <TrendingDown size={18} className="text-rose-400" />
                     )}
-                  </td>
-                  <td>
-                    <div className="weight-cell">
-                      <span>{(h.weight_pct || 0).toFixed(1)}%</span>
-                      <div className="mini-weight-bar">
-                        <div
-                          className={`mini-bar-fill bg-${h.symbol.toLowerCase()}`}
-                          style={{ width: `${h.weight_pct || 0}%` }}
-                        ></div>
-                      </div>
+                  </div>
+                </div>
+                <div className={`asset-card-main-val ${(status?.assets?.total_pnl_krw || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                  {(status?.assets?.total_pnl_krw || 0) >= 0 ? '+' : ''}₩ {(status?.assets?.total_pnl_krw || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                </div>
+                <div className="asset-card-sub-info">
+                  <span className={(status?.assets?.total_pnl_pct || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                    수익률: {(status?.assets?.total_pnl_pct || 0) >= 0 ? '+' : ''}{(status?.assets?.total_pnl_pct || 0).toFixed(2)}%
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Visual Asset Allocation Bar */}
+            <div className="asset-allocation-box">
+              <div className="allocation-header">
+                <div className="alloc-title">
+                  <Percent size={15} />
+                  <span>자산 포트폴리오 비중 구성</span>
+                </div>
+                <div className="alloc-legend">
+                  <div className="legend-item">
+                    <span className="legend-dot dot-krw"></span>
+                    <span>원화(KRW) {(status?.assets?.krw_weight_pct || 100).toFixed(1)}%</span>
+                  </div>
+                  {status?.assets?.holdings?.map((h) => (
+                    <div key={h.market} className="legend-item">
+                      <span className={`legend-dot dot-${h.symbol.toLowerCase()}`}></span>
+                      <span>{h.symbol} {(h.weight_pct || 0).toFixed(1)}%</span>
                     </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                  ))}
+                </div>
+              </div>
+              <div className="allocation-progress-bar">
+                <div
+                  className="bar-segment bar-krw"
+                  style={{ width: `${Math.max(status?.assets?.krw_weight_pct ?? 100, (status?.assets?.holdings?.some(h => h.weight_pct > 0) ? 0 : 100))}%` }}
+                  title={`KRW: ${(status?.assets?.krw_weight_pct || 100).toFixed(1)}%`}
+                />
+                {status?.assets?.holdings?.map((h) => (
+                  (h.weight_pct || 0) > 0 ? (
+                    <div
+                      key={h.market}
+                      className={`bar-segment bar-${h.symbol.toLowerCase()}`}
+                      style={{ width: `${h.weight_pct}%` }}
+                      title={`${h.symbol}: ${h.weight_pct.toFixed(1)}%`}
+                    />
+                  ) : null
+                ))}
+              </div>
+            </div>
+
+            {/* Holdings Breakdown Table */}
+            <div className="holdings-table-wrapper">
+              <table className="holdings-table">
+                <thead>
+                  <tr>
+                    <th>자산 종목</th>
+                    <th>보유 수량</th>
+                    <th>매수 평균가</th>
+                    <th>현재가</th>
+                    <th>매수 금액</th>
+                    <th>평가 금액</th>
+                    <th>평가 손익 (수익률)</th>
+                    <th>포트폴리오 비중</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {/* KRW Row */}
+                  <tr className="krw-row">
+                    <td>
+                      <div className="asset-name-cell">
+                        <span className="asset-circle circle-krw">₩</span>
+                        <div>
+                          <strong>대한민국 원화</strong>
+                          <span className="asset-symbol">KRW</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td>{(status?.assets?.krw_balance || (status?.is_dry_run ? 1000000 : 0)).toLocaleString()} KRW</td>
+                    <td>-</td>
+                    <td>1 KRW</td>
+                    <td>₩ {(status?.assets?.krw_balance || (status?.is_dry_run ? 1000000 : 0)).toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                    <td>₩ {(status?.assets?.krw_balance || (status?.is_dry_run ? 1000000 : 0)).toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                    <td><span className="text-gray-400">-</span></td>
+                    <td>
+                      <div className="weight-cell">
+                        <span>{(status?.assets?.krw_weight_pct || 100).toFixed(1)}%</span>
+                        <div className="mini-weight-bar">
+                          <div className="mini-bar-fill bg-blue-500" style={{ width: `${status?.assets?.krw_weight_pct || 100}%` }}></div>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+
+                  {/* Crypto Holdings Rows */}
+                  {status?.assets?.holdings?.map((h) => (
+                    <tr key={h.market}>
+                      <td>
+                        <div className="asset-name-cell">
+                          <span className={`asset-circle circle-${h.symbol.toLowerCase()}`}>{h.symbol.slice(0, 1)}</span>
+                          <div>
+                            <strong>{h.symbol === 'BTC' ? '비트코인' : h.symbol === 'ETH' ? '이더리움' : h.symbol}</strong>
+                            <span className="asset-symbol">{h.market}</span>
+                          </div>
+                        </div>
+                      </td>
+                      <td>{h.volume > 0 ? h.volume.toFixed(6) : '0.000000'} {h.symbol}</td>
+                      <td>{h.avg_price > 0 ? `₩ ${h.avg_price.toLocaleString()}` : '-'}</td>
+                      <td>{h.current_price > 0 ? `₩ ${h.current_price.toLocaleString()}` : '-'}</td>
+                      <td>₩ {h.buy_krw.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                      <td><strong>₩ {h.eval_krw.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong></td>
+                      <td>
+                        {h.volume > 0 ? (
+                          <span className={`pnl-tag ${(h.pnl_krw || 0) >= 0 ? 'tag-profit' : 'tag-loss'}`}>
+                            {(h.pnl_krw || 0) >= 0 ? '+' : ''}₩ {(h.pnl_krw || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                            {' '}({(h.pnl_pct || 0) >= 0 ? '+' : ''}{(h.pnl_pct || 0).toFixed(2)}%)
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </td>
+                      <td>
+                        <div className="weight-cell">
+                          <span>{(h.weight_pct || 0).toFixed(1)}%</span>
+                          <div className="mini-weight-bar">
+                            <div
+                              className={`mini-bar-fill bg-${h.symbol.toLowerCase()}`}
+                              style={{ width: `${h.weight_pct || 0}%` }}
+                            ></div>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
       </div>
 
-      {/* Target Market Live Positions */}
-      {status?.positions && Object.keys(status.positions).length > 0 && (
-        <div className="market-cards-section">
-          <h2 className="section-title">
-            <Activity size={18} />
-            <span>실시간 마켓 현황 & 포지션</span>
-          </h2>
-          <div className="market-cards-grid">
-            {Object.entries(status.positions).map(([mkt, pos]) => {
-              const isHolding = (pos.holding_volume || 0) > 0;
-              const isBeActive = isHolding && (pos.pnl_pct || 0) >= (status?.breakeven_trigger_pct || 1.5);
-              const isPartialTpActive = isHolding && (pos.pnl_pct || 0) >= (status?.partial_take_profit_pct || 3.0);
+      {/* 4. Weekly Performance Summary & Log Cleanup Section (NEW - Foldable) */}
+      <div style={{
+        background: 'var(--bg-glass)',
+        border: '1px solid rgba(139, 92, 246, 0.25)',
+        borderRadius: '16px',
+        padding: '18px 22px',
+        marginBottom: '16px',
+        boxShadow: '0 8px 32px 0 rgba(0,0,0,0.35)'
+      }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            cursor: 'pointer',
+            borderBottom: foldedSections.weekly ? 'none' : '1px solid rgba(255, 255, 255, 0.08)',
+            paddingBottom: foldedSections.weekly ? '0' : '14px',
+            marginBottom: foldedSections.weekly ? '0' : '16px'
+          }}
+          onClick={() => toggleSectionFold('weekly')}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <TrendingUp size={20} className="text-purple-400" />
+            <h2 className="section-title" style={{ margin: 0 }}>
+              최근 7일간 거래 성과 요약 & 로그 정리 (일주일 리포트)
+            </h2>
+            <span style={{
+              fontSize: '11px',
+              padding: '2px 8px',
+              borderRadius: '6px',
+              background: 'rgba(139, 92, 246, 0.15)',
+              color: '#c4b5fd',
+              border: '1px solid rgba(139, 92, 246, 0.3)',
+              fontWeight: 600
+            }}>
+              7 Days Summary
+            </span>
+          </div>
 
-              return (
-                <div key={mkt} className="market-card" style={{ borderColor: isBeActive ? 'rgba(16, 185, 129, 0.4)' : undefined }}>
-                  <div className="market-card-header">
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span className="market-name">{mkt}</span>
-                        {isBeActive && (
-                          <span style={{
-                            fontSize: '10px',
-                            background: 'rgba(16, 185, 129, 0.25)',
-                            color: '#34d399',
-                            padding: '1px 5px',
-                            borderRadius: '4px',
-                            fontWeight: 700,
-                            border: '1px solid rgba(16, 185, 129, 0.4)'
-                          }}>
-                            🛡️ 본전보존(Risk-Free)
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }} onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              onClick={() => handleCleanupLogs(7, false)}
+              disabled={cleaningLogs}
+              title="7일 이전의 오래된 상세 로그를 삭제하여 시스템을 최적화합니다"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                padding: '6px 12px',
+                borderRadius: '8px',
+                background: 'rgba(234, 179, 8, 0.15)',
+                border: '1px solid rgba(234, 179, 8, 0.35)',
+                color: '#fde047',
+                fontSize: '12px',
+                fontWeight: 600,
+                cursor: cleaningLogs ? 'not-allowed' : 'pointer',
+                transition: 'all 0.2s'
+              }}
+            >
+              <RefreshCw size={12} className={cleaningLogs ? 'spin-anim' : ''} />
+              <span>7일 이전 로그 정리</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleCleanupLogs(0, true)}
+              disabled={cleaningLogs}
+              title="과거 모든 거래 로그를 초기화합니다"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                padding: '6px 12px',
+                borderRadius: '8px',
+                background: 'rgba(239, 68, 68, 0.12)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                color: '#fca5a5',
+                fontSize: '12px',
+                fontWeight: 600,
+                cursor: cleaningLogs ? 'not-allowed' : 'pointer',
+                transition: 'all 0.2s'
+              }}
+            >
+              <span>전체 로그 초기화</span>
+            </button>
+
+            <button
+              type="button"
+              className="fold-toggle-btn"
+              onClick={() => toggleSectionFold('weekly')}
+              title={foldedSections.weekly ? '펼치기' : '접기'}
+              style={{
+                background: 'rgba(255, 255, 255, 0.06)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                color: '#cbd5e1',
+                padding: '6px',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              {foldedSections.weekly ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
+            </button>
+          </div>
+        </div>
+
+        {!foldedSections.weekly && (
+          <>
+            {/* 7-Day Metric Summary Cards */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+              gap: '12px',
+              marginBottom: '16px'
+            }}>
+              <div style={{
+                background: 'rgba(15, 23, 42, 0.6)',
+                border: '1px solid rgba(255, 255, 255, 0.06)',
+                borderRadius: '10px',
+                padding: '12px 16px'
+              }}>
+                <span style={{ fontSize: '12px', color: '#94a3b8' }}>주간 총 실현 손익</span>
+                <div style={{
+                  fontSize: '18px',
+                  fontWeight: 800,
+                  marginTop: '4px',
+                  color: (weeklySummary?.total_pnl_7d_krw || 0) >= 0 ? '#34d399' : '#f87171'
+                }}>
+                  {(weeklySummary?.total_pnl_7d_krw || 0) >= 0 ? '+' : ''}₩ {(weeklySummary?.total_pnl_7d_krw || 0).toLocaleString()}
+                </div>
+                <span style={{ fontSize: '11px', color: '#64748b' }}>최근 7일 체결 기준</span>
+              </div>
+
+              <div style={{
+                background: 'rgba(15, 23, 42, 0.6)',
+                border: '1px solid rgba(255, 255, 255, 0.06)',
+                borderRadius: '10px',
+                padding: '12px 16px'
+              }}>
+                <span style={{ fontSize: '12px', color: '#94a3b8' }}>주간 승률 (Win Rate)</span>
+                <div style={{ fontSize: '18px', fontWeight: 800, color: '#38bdf8', marginTop: '4px' }}>
+                  {weeklySummary?.win_rate_7d ?? 0}%
+                </div>
+                <span style={{ fontSize: '11px', color: '#64748b' }}>
+                  성공 {weeklySummary?.win_trades_7d || 0}회 / 손실 {weeklySummary?.loss_trades_7d || 0}회
+                </span>
+              </div>
+
+              <div style={{
+                background: 'rgba(15, 23, 42, 0.6)',
+                border: '1px solid rgba(255, 255, 255, 0.06)',
+                borderRadius: '10px',
+                padding: '12px 16px'
+              }}>
+                <span style={{ fontSize: '12px', color: '#94a3b8' }}>주간 매수 / 매도 건수</span>
+                <div style={{ fontSize: '18px', fontWeight: 800, color: '#c084fc', marginTop: '4px' }}>
+                  매수 {weeklySummary?.total_buys_7d || 0}회 / 매도 {weeklySummary?.total_sells_7d || 0}회
+                </div>
+                <span style={{ fontSize: '11px', color: '#64748b' }}>총 체결 횟수</span>
+              </div>
+            </div>
+
+            {/* Daily Breakdown Table */}
+            <div className="holdings-table-wrapper" style={{ maxHeight: '280px', overflowY: 'auto' }}>
+              <table className="holdings-table">
+                <thead>
+                  <tr>
+                    <th>날짜</th>
+                    <th>분석 횟수</th>
+                    <th>매수 (BUY)</th>
+                    <th>매도 (SELL)</th>
+                    <th>관망 (HOLD)</th>
+                    <th>당일 실현 손익</th>
+                    <th>당일 승률</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(!weeklySummary?.daily_summary || weeklySummary.daily_summary.length === 0) ? (
+                    <tr>
+                      <td colSpan="7" style={{ textAlign: 'center', padding: '20px', color: '#64748b' }}>
+                        {weeklyLoading ? '주간 통계를 집계하고 있습니다...' : '최근 7일간의 기록된 데이터가 없습니다.'}
+                      </td>
+                    </tr>
+                  ) : (
+                    weeklySummary.daily_summary.map((day) => (
+                      <tr key={day.date}>
+                        <td><strong>{day.date}</strong></td>
+                        <td>{day.total_cycles} 회</td>
+                        <td><span className="text-emerald-400 font-bold">{day.buys}</span></td>
+                        <td><span className="text-rose-400 font-bold">{day.sells}</span></td>
+                        <td><span className="text-gray-400">{day.holds}</span></td>
+                        <td>
+                          <span className={`font-mono font-bold ${day.realized_pnl_krw >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                            {day.realized_pnl_krw >= 0 ? '+' : ''}₩ {day.realized_pnl_krw.toLocaleString()}
                           </span>
-                        )}
-                        {isPartialTpActive && (
+                        </td>
+                        <td>
                           <span style={{
-                            fontSize: '10px',
-                            background: 'rgba(59, 130, 246, 0.25)',
-                            color: '#60a5fa',
-                            padding: '1px 5px',
+                            padding: '2px 6px',
                             borderRadius: '4px',
+                            background: day.win_rate >= 50 ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                            color: day.win_rate >= 50 ? '#34d399' : '#94a3b8',
                             fontWeight: 700,
-                            border: '1px solid rgba(59, 130, 246, 0.4)'
+                            fontSize: '11px'
                           }}>
-                            ✨ 분할익절권
+                            {day.win_rate}% ({day.win_trades}승 {day.loss_trades}패)
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* 5. Target Market Live Positions (Foldable) */}
+      {status?.positions && Object.keys(status.positions).length > 0 && (
+        <div className="market-cards-section" style={{ marginBottom: '16px' }}>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              cursor: 'pointer',
+              marginBottom: foldedSections.marketCards ? '0' : '12px'
+            }}
+            onClick={() => toggleSectionFold('marketCards')}
+          >
+            <h2 className="section-title" style={{ margin: 0 }}>
+              <Activity size={18} />
+              <span>실시간 마켓 현황 & 포지션</span>
+            </h2>
+            <button
+              type="button"
+              className="fold-toggle-btn"
+              onClick={() => toggleSectionFold('marketCards')}
+              title={foldedSections.marketCards ? '펼치기' : '접기'}
+              style={{
+                background: 'rgba(255, 255, 255, 0.06)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                color: '#cbd5e1',
+                padding: '6px',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              {foldedSections.marketCards ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
+            </button>
+          </div>
+
+          {!foldedSections.marketCards && (
+            <div className="market-cards-grid">
+              {Object.entries(status.positions).map(([mkt, pos]) => {
+                const isHolding = (pos.holding_volume || 0) > 0;
+                const isBeActive = isHolding && (pos.pnl_pct || 0) >= (status?.breakeven_trigger_pct || 1.5);
+                const isPartialTpActive = isHolding && (pos.pnl_pct || 0) >= (status?.partial_take_profit_pct || 3.0);
+
+                return (
+                  <div key={mkt} className="market-card" style={{ borderColor: isBeActive ? 'rgba(16, 185, 129, 0.4)' : undefined }}>
+                    <div className="market-card-header">
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span className="market-name">{mkt}</span>
+                          {isBeActive && (
+                            <span style={{
+                              fontSize: '10px',
+                              background: 'rgba(16, 185, 129, 0.25)',
+                              color: '#34d399',
+                              padding: '1px 5px',
+                              borderRadius: '4px',
+                              fontWeight: 700,
+                              border: '1px solid rgba(16, 185, 129, 0.4)'
+                            }}>
+                              🛡️ 본전보존(Risk-Free)
+                            </span>
+                          )}
+                          {isPartialTpActive && (
+                            <span style={{
+                              fontSize: '10px',
+                              background: 'rgba(59, 130, 246, 0.25)',
+                              color: '#60a5fa',
+                              padding: '1px 5px',
+                              borderRadius: '4px',
+                              fontWeight: 700,
+                              border: '1px solid rgba(59, 130, 246, 0.4)'
+                            }}>
+                              ✨ 분할익절권
+                            </span>
+                          )}
+                        </div>
+                        <span className="market-last-update">최근 갱신: {pos.last_updated ? new Date(pos.last_updated).toLocaleTimeString() : '-'}</span>
+                      </div>
+                      {getTrendBadge(pos.trend)}
+                    </div>
+
+                    <div className="market-price-row">
+                      <span className="price-label">현재가</span>
+                      <div className="flex items-center gap-2">
+                        <span className="price-value">{pos.current_price > 0 ? `${pos.current_price.toLocaleString()} KRW` : '-'}</span>
+                        {pos.change_rate_24h !== undefined && pos.change_rate_24h !== null && (
+                          <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${pos.change_rate_24h >= 0 ? 'text-emerald-400 bg-emerald-950/50' : 'text-rose-400 bg-rose-950/50'}`}>
+                            {pos.change_rate_24h >= 0 ? '+' : ''}{pos.change_rate_24h.toFixed(2)}%
                           </span>
                         )}
                       </div>
-                      <span className="market-last-update">최근 갱신: {pos.last_updated ? new Date(pos.last_updated).toLocaleTimeString() : '-'}</span>
                     </div>
-                    {getTrendBadge(pos.trend)}
-                  </div>
 
-                  <div className="market-price-row">
-                    <span className="price-label">현재가</span>
-                    <div className="flex items-center gap-2">
-                      <span className="price-value">{pos.current_price > 0 ? `${pos.current_price.toLocaleString()} KRW` : '-'}</span>
-                      {pos.change_rate_24h !== undefined && pos.change_rate_24h !== null && (
-                        <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${pos.change_rate_24h >= 0 ? 'text-emerald-400 bg-emerald-950/50' : 'text-rose-400 bg-rose-950/50'}`}>
-                          {pos.change_rate_24h >= 0 ? '+' : ''}{pos.change_rate_24h.toFixed(2)}%
+                    <div className="indicator-mini-grid">
+                      <div className="mini-stat">
+                        <span className="mini-stat-label">RSI (14)</span>
+                        <span className={`mini-stat-val ${pos.rsi > 68 ? 'text-red-400 font-bold' : pos.rsi < 38 ? 'text-blue-400 font-bold' : 'text-emerald-400'}`}>
+                          {pos.rsi !== null && pos.rsi !== undefined ? pos.rsi : '-'}
                         </span>
-                      )}
+                      </div>
+                      <div className="mini-stat">
+                        <span className="mini-stat-label">MACD Hist</span>
+                        <span className={`mini-stat-val ${pos.macd_hist > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {pos.macd_hist !== null && pos.macd_hist !== undefined ? pos.macd_hist : '-'}
+                        </span>
+                      </div>
+                      <div className="mini-stat">
+                        <span className="mini-stat-label">보유 수량</span>
+                        <span className="mini-stat-val">{pos.holding_volume || 0}</span>
+                      </div>
+                      <div className="mini-stat">
+                        <span className="mini-stat-label">수익률</span>
+                        <span className={`mini-stat-val font-bold ${(pos.pnl_pct || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          {(pos.pnl_pct || 0) >= 0 ? '+' : ''}{(pos.pnl_pct || 0).toFixed(2)}%
+                        </span>
+                      </div>
                     </div>
                   </div>
-
-                  <div className="indicator-mini-grid">
-                    <div className="mini-stat">
-                      <span className="mini-stat-label">RSI (14)</span>
-                      <span className={`mini-stat-val ${pos.rsi > 68 ? 'text-red-400 font-bold' : pos.rsi < 38 ? 'text-blue-400 font-bold' : 'text-emerald-400'}`}>
-                        {pos.rsi !== null && pos.rsi !== undefined ? pos.rsi : '-'}
-                      </span>
-                    </div>
-                    <div className="mini-stat">
-                      <span className="mini-stat-label">MACD Hist</span>
-                      <span className={`mini-stat-val ${pos.macd_hist > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                        {pos.macd_hist !== null && pos.macd_hist !== undefined ? pos.macd_hist : '-'}
-                      </span>
-                    </div>
-                    <div className="mini-stat">
-                      <span className="mini-stat-label">보유 수량</span>
-                      <span className="mini-stat-val">{pos.holding_volume || 0}</span>
-                    </div>
-                    <div className="mini-stat">
-                      <span className="mini-stat-label">수익률</span>
-                      <span className={`mini-stat-val font-bold ${(pos.pnl_pct || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        {(pos.pnl_pct || 0) >= 0 ? '+' : ''}{(pos.pnl_pct || 0).toFixed(2)}%
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
-      {/* Logs Table Section */}
+      {/* 6. Logs Table Section (Foldable) */}
       <div className="trading-logs-section">
-        <div className="logs-header-row">
+        <div className="logs-header-row" style={{ cursor: 'pointer' }} onClick={() => toggleSectionFold('logs')}>
           <div className="logs-title-area">
-            <h2 className="section-title">
+            <h2 className="section-title" style={{ margin: 0 }}>
               <Clock size={18} />
               <span>실시간 처리 및 시장 분석 로그 ({totalCount}건)</span>
             </h2>
           </div>
 
-          {/* Filters */}
-          <div className="filter-controls">
+          {/* Filters & Actions */}
+          <div className="filter-controls" onClick={(e) => e.stopPropagation()}>
             <div className="filter-group">
               <select
                 className="trading-select"
@@ -1671,11 +2092,33 @@ const FALLBACK_BITHUMB_MARKETS = [
                 <option value="HOLD">HOLD (관망)</option>
               </select>
             </div>
+
+            <button
+              type="button"
+              className="fold-toggle-btn"
+              onClick={() => toggleSectionFold('logs')}
+              title={foldedSections.logs ? '펼치기' : '접기'}
+              style={{
+                background: 'rgba(255, 255, 255, 0.06)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                color: '#cbd5e1',
+                padding: '6px',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              {foldedSections.logs ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
+            </button>
           </div>
         </div>
 
-        {/* Logs Table */}
-        <div className="table-responsive-container">
+        {!foldedSections.logs && (
+          <>
+            {/* Logs Table */}
+            <div className="table-responsive-container">
           <table className="trading-logs-table">
             <thead>
               <tr>
@@ -1836,6 +2279,8 @@ const FALLBACK_BITHUMB_MARKETS = [
               다음
             </button>
           </div>
+        )}
+          </>
         )}
       </div>
 
