@@ -1980,7 +1980,7 @@ const FALLBACK_BITHUMB_MARKETS = [
                 <div className="form-grid-2">
                   <div className="form-group">
                     <label className="form-label">
-                      <span className="text-emerald-400 font-bold">1회 최대 거래(주문) 한도 (KRW)</span>
+                      <span className="text-emerald-400 font-bold">1회 주문 한도 (KRW)</span>
                     </label>
                     <input
                       type="number"
@@ -2002,12 +2002,12 @@ const FALLBACK_BITHUMB_MARKETS = [
                         </button>
                       ))}
                     </div>
-                    <span className="input-hint">1회 매수 실행 시 투입되는 최대 주문 금액 제한</span>
+                    <span className="input-hint">1회 매수 실행 시 투입되는 최대 주문 금액</span>
                   </div>
 
                   <div className="form-group">
                     <label className="form-label">
-                      <span className="text-purple-400 font-bold">동시 보유 품목 수 제한 (0 = 제한 없음)</span>
+                      <span className="text-purple-400 font-bold">동시 보유 품목 수 (0 = 무제한)</span>
                     </label>
                     <input
                       type="number"
@@ -2027,241 +2027,78 @@ const FALLBACK_BITHUMB_MARKETS = [
                           className={`amt-chip ${Number(limitsForm.max_holding_coins) === count ? 'active font-bold text-purple-300' : ''}`}
                           onClick={() => setLimitsForm({ ...limitsForm, max_holding_coins: count })}
                         >
-                          {count === 0 ? '♾️ 제한 없음 (0)' : count === 1 ? '🎯 1개 (단일 집중)' : `${count}개`}
+                          {count === 0 ? '♾️ 무제한' : count === 1 ? '🎯 1개 (단일)' : `${count}개`}
                         </button>
                       ))}
                     </div>
-                    <span className="input-hint">0 입력 시 품목 수 제한 없이 무제한 매수 허용. 동일 품목 이미 보유 중이어도 추가 매수 및 분할 매도 지원.</span>
+                    <span className="input-hint">동시에 보유할 수 있는 최대 코인 개수</span>
                   </div>
                 </div>
 
-                <div className="form-grid-2 mt-2">
-                  <div className="form-group">
-                    <label className="form-label">
-                      <span>1회 최소 주문 금액 (KRW)</span>
-                    </label>
-                    <input
-                      type="number"
-                      className="trading-input font-mono"
-                      min="1000"
-                      step="1000"
-                      value={limitsForm.min_order_krw}
-                      onChange={(e) => setLimitsForm({ ...limitsForm, min_order_krw: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
-                    />
-                    <span className="input-hint">빗썸 최소 주문액 기준 5,000원 이상 권장</span>
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">
-                      <span className="text-emerald-400 font-bold">품목별 포트폴리오 상한 비중: <strong>{((limitsForm.max_portfolio_ratio_per_coin || 0.3) * 100).toFixed(0)}%</strong></span>
-                    </label>
-                    <input
-                      type="range"
-                      min="0.1"
-                      max="1.0"
-                      step="0.05"
-                      className="trading-range"
-                      value={limitsForm.max_portfolio_ratio_per_coin}
-                      onChange={(e) => setLimitsForm({ ...limitsForm, max_portfolio_ratio_per_coin: parseFloat(e.target.value) })}
-                    />
-                    <span className="input-hint">단일 코인 평가액이 총 자산에서 차지할 수 있는 상한선. 추가 매수 시에도 이 비율을 초과하지 않도록 자동 제한됩니다.</span>
-                  </div>
-                </div>
-
-                <div className="form-grid-2 mt-2">
-                  <div className="form-group">
-                    <label className="form-label">
-                      <span className="text-rose-400 font-bold">손절 기준 (Stop Loss %)</span>
-                    </label>
-                    <div className="input-with-suffix">
-                      <input
-                        type="number"
-                        className="trading-input font-mono text-rose-400"
-                        min="0.5"
-                        max="30"
-                        step="0.5"
-                        value={limitsForm.stop_loss_pct}
-                        onChange={(e) => setLimitsForm({ ...limitsForm, stop_loss_pct: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
-                      />
-                      <span className="suffix">%</span>
-                    </div>
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">
-                      <span className="text-emerald-400 font-bold">익절 기준 (Take Profit %)</span>
-                    </label>
-                    <div className="input-with-suffix">
-                      <input
-                        type="number"
-                        className="trading-input font-mono text-emerald-400"
-                        min="1"
-                        max="100"
-                        step="0.5"
-                        value={limitsForm.take_profit_pct}
-                        onChange={(e) => setLimitsForm({ ...limitsForm, take_profit_pct: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
-                      />
-                      <span className="suffix">%</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="form-grid-2 mt-2">
-                  <div className="form-group">
-                    <label className="form-label">
-                      <span>일일 최대 손실 서킷브레이커 (%)</span>
-                    </label>
-                    <div className="input-with-suffix">
-                      <input
-                        type="number"
-                        className="trading-input font-mono text-amber-400"
-                        min="1"
-                        max="30"
-                        step="0.5"
-                        value={limitsForm.daily_max_loss_pct}
-                        onChange={(e) => setLimitsForm({ ...limitsForm, daily_max_loss_pct: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
-                      />
-                      <span className="suffix">%</span>
-                    </div>
-                    <span className="input-hint">당일 누적 손실 도달 시 거래 즉시 중단</span>
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">
-                      <span>매도 후 재진입 쿨다운 (분)</span>
-                    </label>
-                    <div className="input-with-suffix">
-                      <input
-                        type="number"
-                        className="trading-input font-mono"
-                        min="1"
-                        max="180"
-                        step="1"
-                        value={limitsForm.cooldown_minutes_after_sell}
-                        onChange={(e) => setLimitsForm({ ...limitsForm, cooldown_minutes_after_sell: e.target.value === '' ? '' : parseInt(e.target.value, 10) || 1 })}
-                      />
-                      <span className="suffix">분</span>
-                    </div>
-                    <span className="input-hint">포지션 청산 후 성급한 재진입 방지</span>
-                  </div>
-                </div>
-                {/* Advanced Strategy & Profit Defense Section */}
+                {/* 손익 & 트레일링 스탑 설정 */}
                 <div style={{
-                  background: 'rgba(30, 41, 59, 0.6)',
-                  border: '1px solid rgba(59, 130, 246, 0.25)',
+                  background: 'rgba(30, 41, 59, 0.5)',
+                  border: '1px solid rgba(59, 130, 246, 0.2)',
                   borderRadius: '10px',
                   padding: '14px',
                   marginTop: '12px'
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
                     <ShieldCheck size={18} className="text-blue-400" />
                     <span style={{ fontWeight: 700, fontSize: '14px', color: '#93c5fd' }}>
-                      수익성 보호 & 스마트 거래 판단 전략 (Profit & Risk Engine)
+                      익절 & 손절 & 트레일링 스탑 설정
                     </span>
                   </div>
 
-                  {/* Strategy 1: Trend Filter */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                    <div>
-                      <span style={{ fontWeight: 600, fontSize: '13px', color: '#e2e8f0' }}>📈 상위 추세 필터 (Trend Filter)</span>
-                      <p style={{ fontSize: '11px', color: '#94a3b8', margin: '2px 0 0 0' }}>
-                        15분/1시간봉 이평선 정배열(EMA20 &gt; EMA50) 시에만 매수 허용 (역추세/하락장 진입 차단)
-                      </p>
-                    </div>
-                    <label className="switch-label">
-                      <input
-                        type="checkbox"
-                        checked={Boolean(limitsForm.enable_trend_filter)}
-                        onChange={(e) => setLimitsForm({ ...limitsForm, enable_trend_filter: e.target.checked })}
-                      />
-                      <span className="switch-slider"></span>
-                    </label>
-                  </div>
-
-                  {/* Strategy 2: Break-Even Stop */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span style={{ fontWeight: 600, fontSize: '13px', color: '#e2e8f0' }}>🛡️ 본전 보존 스탑 (Break-Even Stop)</span>
-                        <span style={{ fontSize: '10px', background: 'rgba(16, 185, 129, 0.2)', color: '#34d399', padding: '1px 5px', borderRadius: '4px', fontWeight: 600 }}>무위험 전환</span>
-                      </div>
-                      <p style={{ fontSize: '11px', color: '#94a3b8', margin: '2px 0 0 0' }}>
-                        수익률 +{limitsForm.breakeven_trigger_pct || 1.5}% 도달 시 손절 라인을 매수가+수수료로 상향하여 원금 손실 0% 방어
-                      </p>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      {limitsForm.enable_breakeven_stop && (
-                        <div className="input-with-suffix" style={{ width: '80px' }}>
-                          <input
-                            type="number"
-                            className="trading-input font-mono text-xs"
-                            min="0.5"
-                            max="10"
-                            step="0.5"
-                            value={limitsForm.breakeven_trigger_pct}
-                            onChange={(e) => setLimitsForm({ ...limitsForm, breakeven_trigger_pct: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
-                          />
-                          <span className="suffix">%</span>
-                        </div>
-                      )}
-                      <label className="switch-label">
-                        <input
-                          type="checkbox"
-                          checked={Boolean(limitsForm.enable_breakeven_stop)}
-                          onChange={(e) => setLimitsForm({ ...limitsForm, enable_breakeven_stop: e.target.checked })}
-                        />
-                        <span className="switch-slider"></span>
-                      </label>
-                    </div>
-                  </div>
-
-                  {/* Strategy 3: Partial Take-Profit */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span style={{ fontWeight: 600, fontSize: '13px', color: '#e2e8f0' }}>✨ 다단계 분할 익절 (Partial Take Profit)</span>
-                        <span style={{ fontSize: '10px', background: 'rgba(59, 130, 246, 0.2)', color: '#60a5fa', padding: '1px 5px', borderRadius: '4px', fontWeight: 600 }}>수익 확정</span>
-                      </div>
-                      <p style={{ fontSize: '11px', color: '#94a3b8', margin: '2px 0 0 0' }}>
-                        목표 수익(+{limitsForm.partial_take_profit_pct || 3.0}%) 도달 시 보유 물량의 50% 분할 매도, 잔여 50%는 트레일링 스탑
-                      </p>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      {limitsForm.enable_partial_take_profit && (
-                        <div className="input-with-suffix" style={{ width: '80px' }}>
-                          <input
-                            type="number"
-                            className="trading-input font-mono text-xs"
-                            min="1.0"
-                            max="30"
-                            step="0.5"
-                            value={limitsForm.partial_take_profit_pct}
-                            onChange={(e) => setLimitsForm({ ...limitsForm, partial_take_profit_pct: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
-                          />
-                          <span className="suffix">%</span>
-                        </div>
-                      )}
-                      <label className="switch-label">
-                        <input
-                          type="checkbox"
-                          checked={Boolean(limitsForm.enable_partial_take_profit)}
-                          onChange={(e) => setLimitsForm({ ...limitsForm, enable_partial_take_profit: e.target.checked })}
-                        />
-                        <span className="switch-slider"></span>
-                      </label>
-                    </div>
-                  </div>
-
-                  {/* Strategy 4 & 5: Trailing Stop & Max RSI for BUY */}
-                  <div className="form-grid-2 mt-2">
-                    <div className="form-group mb-0">
+                  <div className="form-grid-2">
+                    <div className="form-group mb-2">
                       <label className="form-label">
-                        <span className="text-blue-300 font-bold">트레일링 스탑 폭 (Trailing Stop %)</span>
+                        <span className="text-rose-400 font-bold">손절 기준 (Stop Loss %)</span>
                       </label>
                       <div className="input-with-suffix">
                         <input
                           type="number"
-                          className="trading-input font-mono"
+                          className="trading-input font-mono text-rose-400"
+                          min="0.5"
+                          max="30"
+                          step="0.5"
+                          value={limitsForm.stop_loss_pct}
+                          onChange={(e) => setLimitsForm({ ...limitsForm, stop_loss_pct: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
+                        />
+                        <span className="suffix">%</span>
+                      </div>
+                      <span className="input-hint">진입가 대비 하락 시 즉시 시장가 손절</span>
+                    </div>
+
+                    <div className="form-group mb-2">
+                      <label className="form-label">
+                        <span className="text-emerald-400 font-bold">최종 목표 익절 (Take Profit %)</span>
+                      </label>
+                      <div className="input-with-suffix">
+                        <input
+                          type="number"
+                          className="trading-input font-mono text-emerald-400"
+                          min="1"
+                          max="100"
+                          step="0.5"
+                          value={limitsForm.take_profit_pct}
+                          onChange={(e) => setLimitsForm({ ...limitsForm, take_profit_pct: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
+                        />
+                        <span className="suffix">%</span>
+                      </div>
+                      <span className="input-hint">목표 수익률 도달 시 전량 청산</span>
+                    </div>
+                  </div>
+
+                  <div className="form-grid-2 mt-2">
+                    <div className="form-group mb-0">
+                      <label className="form-label">
+                        <span className="text-blue-300 font-bold">트레일링 스탑 (Trailing Stop %)</span>
+                      </label>
+                      <div className="input-with-suffix">
+                        <input
+                          type="number"
+                          className="trading-input font-mono text-blue-300"
                           min="0.5"
                           max="15"
                           step="0.5"
@@ -2270,23 +2107,26 @@ const FALLBACK_BITHUMB_MARKETS = [
                         />
                         <span className="suffix">%</span>
                       </div>
-                      <span className="input-hint">수익 달성 후 최고점 대비 하락 시 청산 폭</span>
+                      <span className="input-hint">최고점 대비 하락 꺾임 감지 시 익절</span>
                     </div>
 
                     <div className="form-group mb-0">
                       <label className="form-label">
-                        <span className="text-amber-300 font-bold">과매수 진입 차단 (RSI 상한선)</span>
+                        <span className="text-indigo-300 font-bold">1차 50% 분할 익절 기준 (%)</span>
                       </label>
-                      <input
-                        type="number"
-                        className="trading-input font-mono font-bold text-amber-300"
-                        min="50"
-                        max="85"
-                        step="1"
-                        value={limitsForm.max_rsi_for_buy}
-                        onChange={(e) => setLimitsForm({ ...limitsForm, max_rsi_for_buy: e.target.value === '' ? '' : parseFloat(e.target.value) || 68 })}
-                      />
-                      <span className="input-hint">RSI {limitsForm.max_rsi_for_buy || 68} 초과 시 상투 매수(FOMO) 차단</span>
+                      <div className="input-with-suffix">
+                        <input
+                          type="number"
+                          className="trading-input font-mono text-indigo-300"
+                          min="1.0"
+                          max="30"
+                          step="0.5"
+                          value={limitsForm.partial_take_profit_pct}
+                          onChange={(e) => setLimitsForm({ ...limitsForm, partial_take_profit_pct: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
+                        />
+                        <span className="suffix">%</span>
+                      </div>
+                      <span className="input-hint">도달 시 50% 분할 매도 & 본전 방어</span>
                     </div>
                   </div>
                 </div>
@@ -2305,7 +2145,7 @@ const FALLBACK_BITHUMB_MARKETS = [
                   className="modal-btn btn-save"
                   disabled={savingLimits}
                 >
-                  {savingLimits ? '저장 중...' : '거래 한도 및 전략 설정 저장'}
+                  {savingLimits ? '저장 중...' : '설정 저장'}
                 </button>
               </div>
             </form>
