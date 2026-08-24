@@ -40,6 +40,7 @@ export default function AutoTradingDashboard() {
   const [modeFilter, setModeFilter] = useState('ALL'); // 'ALL' | 'DRY_RUN' | 'LIVE'
   const [resettingVirtual, setResettingVirtual] = useState(false);
   const [resettingLive, setResettingLive] = useState(false);
+  const [quickSavingHolding, setQuickSavingHolding] = useState(false);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
