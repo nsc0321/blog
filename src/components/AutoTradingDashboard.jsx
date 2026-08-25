@@ -77,7 +77,7 @@ export default function AutoTradingDashboard() {
     profit_reversal_threshold_pct: 1.0,
     profit_reversal_drop_pct: 1.0,
     enable_profit_stagnation_exit: true,
-    profit_stagnation_minutes: 60
+    profit_stagnation_minutes: 30
   });
   const [savingLimits, setSavingLimits] = useState(false);
 
@@ -282,7 +282,7 @@ export default function AutoTradingDashboard() {
         profit_reversal_threshold_pct: status.profit_reversal_threshold_pct ?? 1.0,
         profit_reversal_drop_pct: status.profit_reversal_drop_pct ?? 1.0,
         enable_profit_stagnation_exit: status.enable_profit_stagnation_exit ?? true,
-        profit_stagnation_minutes: status.profit_stagnation_minutes ?? 60
+        profit_stagnation_minutes: status.profit_stagnation_minutes ?? 30
       });
     }
     setShowLimitsModal(true);
@@ -609,7 +609,7 @@ const FALLBACK_BITHUMB_MARKETS = [
       profit_reversal_threshold_pct: Number(limitsForm.profit_reversal_threshold_pct) || 1.0,
       profit_reversal_drop_pct: Number(limitsForm.profit_reversal_drop_pct) || 1.0,
       enable_profit_stagnation_exit: Boolean(limitsForm.enable_profit_stagnation_exit),
-      profit_stagnation_minutes: Number(limitsForm.profit_stagnation_minutes) || 60
+      profit_stagnation_minutes: Number(limitsForm.profit_stagnation_minutes) || 30
     };
 
     // Optimistic UI state sync
@@ -1303,7 +1303,7 @@ const FALLBACK_BITHUMB_MARKETS = [
                   <span className="kpi-value text-amber-300">
                     손절 -{status?.stop_loss_pct || 10.0}% / 꺾임 및 체류 자동정리
                   </span>
-                  <span className="kpi-sub">고점 대비 꺾임(-1.0%p) 및 이익 상태 장기 체류(60분) 감지 시 안전 익절</span>
+                  <span className="kpi-sub">고점 대비 꺾임(-1.0%p) 및 이익 상태 장기 체류(30분) 감지 시 안전 익절</span>
                 </div>
               </div>
 
