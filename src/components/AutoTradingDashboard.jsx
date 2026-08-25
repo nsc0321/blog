@@ -72,7 +72,12 @@ export default function AutoTradingDashboard() {
     partial_take_profit_ratio: 0.0,
     trailing_stop_pct: 0.0,
     max_rsi_for_buy: 68.0,
-    min_rsi_for_buy: 38.0
+    min_rsi_for_buy: 38.0,
+    enable_profit_reversal_exit: true,
+    profit_reversal_threshold_pct: 1.0,
+    profit_reversal_drop_pct: 1.0,
+    enable_profit_stagnation_exit: true,
+    profit_stagnation_minutes: 60
   });
   const [savingLimits, setSavingLimits] = useState(false);
 
@@ -272,7 +277,12 @@ export default function AutoTradingDashboard() {
         partial_take_profit_ratio: status.partial_take_profit_ratio ?? 0.0,
         trailing_stop_pct: status.trailing_stop_pct ?? 0.0,
         max_rsi_for_buy: status.max_rsi_for_buy ?? 68.0,
-        min_rsi_for_buy: status.min_rsi_for_buy ?? 38.0
+        min_rsi_for_buy: status.min_rsi_for_buy ?? 38.0,
+        enable_profit_reversal_exit: status.enable_profit_reversal_exit ?? true,
+        profit_reversal_threshold_pct: status.profit_reversal_threshold_pct ?? 1.0,
+        profit_reversal_drop_pct: status.profit_reversal_drop_pct ?? 1.0,
+        enable_profit_stagnation_exit: status.enable_profit_stagnation_exit ?? true,
+        profit_stagnation_minutes: status.profit_stagnation_minutes ?? 60
       });
     }
     setShowLimitsModal(true);
@@ -594,7 +604,12 @@ const FALLBACK_BITHUMB_MARKETS = [
       partial_take_profit_ratio: 0.0,
       trailing_stop_pct: 0.0,
       max_rsi_for_buy: Number(limitsForm.max_rsi_for_buy) || 68.0,
-      min_rsi_for_buy: Number(limitsForm.min_rsi_for_buy) || 38.0
+      min_rsi_for_buy: Number(limitsForm.min_rsi_for_buy) || 38.0,
+      enable_profit_reversal_exit: Boolean(limitsForm.enable_profit_reversal_exit),
+      profit_reversal_threshold_pct: Number(limitsForm.profit_reversal_threshold_pct) || 1.0,
+      profit_reversal_drop_pct: Number(limitsForm.profit_reversal_drop_pct) || 1.0,
+      enable_profit_stagnation_exit: Boolean(limitsForm.enable_profit_stagnation_exit),
+      profit_stagnation_minutes: Number(limitsForm.profit_stagnation_minutes) || 60
     };
 
     // Optimistic UI state sync
@@ -1284,11 +1299,11 @@ const FALLBACK_BITHUMB_MARKETS = [
                   <ShieldAlert size={20} className="text-amber-400" />
                 </div>
                 <div className="kpi-content">
-                  <span className="kpi-label">리스크 가드레일 ⚙️</span>
+                  <span className="kpi-label">리스크 & 익절 관리 ⚙️</span>
                   <span className="kpi-value text-amber-300">
-                    손절 -{status?.stop_loss_pct || 10.0}% / 익절 (AI 판단)
+                    손절 -{status?.stop_loss_pct || 10.0}% / 꺾임&체류 자동정리
                   </span>
-                  <span className="kpi-sub">하드 손절(-10%) 외 모든 익절 및 청산은 AI 모델이 실시간 판단</span>
+                  <span className="kpi-sub">고점 대비 꺾임(-1.0%p) 및 이익 상태 장기 체류(60분) 감지 시 안전 익절</span>
                 </div>
               </div>
 
@@ -2717,6 +2732,78 @@ const FALLBACK_BITHUMB_MARKETS = [
                       ))}
                     </div>
                     <span className="input-hint mt-1">진입가 대비 해당 손실률에 도달하면 2초 이내 즉시 시장가로 전량 손절합니다.</span>
+                  </div>
+                </div>
+
+                {/* 이익 상태 하락 꺾임 & 장기 체류 정리 설정 */}
+                <div style={{
+                  background: 'rgba(30, 41, 59, 0.5)',
+                  border: '1px solid rgba(16, 185, 129, 0.3)',
+                  borderRadius: '10px',
+                  padding: '14px',
+                  marginTop: '12px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                    <TrendingUp size={18} className="text-emerald-400" />
+                    <span style={{ fontWeight: 700, fontSize: '14px', color: '#6ee7b7' }}>
+                      수익 보존: 하락 반전 꺾임 & 장기 체류 정리
+                    </span>
+                  </div>
+
+                  <div className="form-grid-2">
+                    <div className="form-group mb-2">
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                        <label className="form-label mb-0">
+                          <span className="text-emerald-400 font-bold">고점 대비 꺾임 되밀림 폭 (%)</span>
+                        </label>
+                        <input
+                          type="checkbox"
+                          checked={limitsForm.enable_profit_reversal_exit}
+                          onChange={(e) => setLimitsForm({ ...limitsForm, enable_profit_reversal_exit: e.target.checked })}
+                        />
+                      </div>
+                      <div className="input-with-suffix">
+                        <input
+                          type="number"
+                          className="trading-input font-mono text-emerald-400"
+                          min="0.5"
+                          max="10.0"
+                          step="0.5"
+                          disabled={!limitsForm.enable_profit_reversal_exit}
+                          value={limitsForm.profit_reversal_drop_pct}
+                          onChange={(e) => setLimitsForm({ ...limitsForm, profit_reversal_drop_pct: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
+                        />
+                        <span className="suffix">%p</span>
+                      </div>
+                      <span className="input-hint">수익 중 최고 수익률 대비 해당 수치 이상 되밀릴 시 즉시 익절</span>
+                    </div>
+
+                    <div className="form-group mb-2">
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                        <label className="form-label mb-0">
+                          <span className="text-blue-300 font-bold">수익 상태 장기 체류 한도 (분)</span>
+                        </label>
+                        <input
+                          type="checkbox"
+                          checked={limitsForm.enable_profit_stagnation_exit}
+                          onChange={(e) => setLimitsForm({ ...limitsForm, enable_profit_stagnation_exit: e.target.checked })}
+                        />
+                      </div>
+                      <div className="input-with-suffix">
+                        <input
+                          type="number"
+                          className="trading-input font-mono text-blue-300"
+                          min="10"
+                          max="360"
+                          step="10"
+                          disabled={!limitsForm.enable_profit_stagnation_exit}
+                          value={limitsForm.profit_stagnation_minutes}
+                          onChange={(e) => setLimitsForm({ ...limitsForm, profit_stagnation_minutes: e.target.value === '' ? '' : parseInt(e.target.value, 10) || 0 })}
+                        />
+                        <span className="suffix">분</span>
+                      </div>
+                      <span className="input-hint">수익 상태에서 추가 고점 돌파 없이 횡보 지속 시 익절 청산</span>
+                    </div>
                   </div>
                 </div>
 
