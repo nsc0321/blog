@@ -2194,32 +2194,6 @@ const FALLBACK_BITHUMB_MARKETS = [
                                 🎯 보유 중
                               </span>
                             )}
-                            {isBeActive && (
-                              <span style={{
-                                fontSize: '10px',
-                                background: 'rgba(16, 185, 129, 0.25)',
-                                color: '#34d399',
-                                padding: '2px 6px',
-                                borderRadius: '4px',
-                                fontWeight: 700,
-                                border: '1px solid rgba(16, 185, 129, 0.4)'
-                              }}>
-                                🛡️ 본전보존
-                              </span>
-                            )}
-                            {isPartialTpActive && (
-                              <span style={{
-                                fontSize: '10px',
-                                background: 'rgba(59, 130, 246, 0.25)',
-                                color: '#60a5fa',
-                                padding: '2px 6px',
-                                borderRadius: '4px',
-                                fontWeight: 700,
-                                border: '1px solid rgba(59, 130, 246, 0.4)'
-                              }}>
-                                ✨ 분할익절권
-                              </span>
-                            )}
                           </div>
                           <span className="market-last-update">최근 갱신: {pos.last_updated ? new Date(pos.last_updated).toLocaleTimeString() : '-'}</span>
                         </div>
