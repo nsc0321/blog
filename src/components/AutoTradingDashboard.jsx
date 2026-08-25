@@ -83,12 +83,21 @@ export default function AutoTradingDashboard() {
 
   // Market / Item Management Modal State
   const [showMarketModal, setShowMarketModal] = useState(false);
+  const [marketModalTab, setMarketModalTab] = useState('auto'); // 'auto' | 'manual'
   const [selectedMarkets, setSelectedMarkets] = useState(['KRW-BTC', 'KRW-ETH']);
   const [candleUnit, setCandleUnit] = useState(15);
   const [availableMarkets, setAvailableMarkets] = useState([]);
   const [marketSearchQuery, setMarketSearchQuery] = useState('');
   const [loadingMarkets, setLoadingMarkets] = useState(false);
   const [savingMarkets, setSavingMarkets] = useState(false);
+
+  // Auto Market Selection State
+  const [autoMarketSelection, setAutoMarketSelection] = useState(true);
+  const [autoMarketMode, setAutoMarketMode] = useState('TOP_VOLUME'); // 'TOP_VOLUME' | 'MOMENTUM_SPIKE' | 'TOP_GAINERS'
+  const [autoMarketCount, setAutoMarketCount] = useState(5);
+  const [autoMarketMinTradePrice, setAutoMarketMinTradePrice] = useState(1000000000);
+  const [autoPreviewMarkets, setAutoPreviewMarkets] = useState([]);
+  const [loadingAutoPreview, setLoadingAutoPreview] = useState(false);
   // Weekly Summary & Folding State
   const [weeklySummary, setWeeklySummary] = useState(null);
   const [weeklyLoading, setWeeklyLoading] = useState(false);
@@ -288,6 +297,24 @@ export default function AutoTradingDashboard() {
     setShowLimitsModal(true);
   };
 
+  // Fetch Realtime Auto Market Selection Preview
+  const fetchAutoPreviewMarkets = async (mode = autoMarketMode, count = autoMarketCount, minTrade = autoMarketMinTradePrice) => {
+    setLoadingAutoPreview(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/trading/markets/auto-preview?mode=${mode}&count=${count}&min_trade_price_24h=${minTrade}`, {
+        headers: getAuthHeaders()
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAutoPreviewMarkets(data.markets || []);
+      }
+    } catch (err) {
+      console.error('Failed to preview auto markets:', err);
+    } finally {
+      setLoadingAutoPreview(false);
+    }
+  };
+
   // Open Market Modal with latest synced status values
   const openMarketModal = () => {
     if (status?.target_markets && status.target_markets.length > 0) {
@@ -296,8 +323,20 @@ export default function AutoTradingDashboard() {
     if (status?.candle_unit_minutes) {
       setCandleUnit(status.candle_unit_minutes);
     }
+    const isAuto = status?.enable_auto_market_selection ?? true;
+    const mode = status?.auto_market_mode ?? 'TOP_VOLUME';
+    const count = status?.auto_market_count ?? 5;
+    const minTrade = status?.auto_market_min_trade_price_24h ?? 1000000000;
+
+    setAutoMarketSelection(isAuto);
+    setAutoMarketMode(mode);
+    setAutoMarketCount(count);
+    setAutoMarketMinTradePrice(minTrade);
+    setMarketModalTab(isAuto ? 'auto' : 'manual');
+
     setShowMarketModal(true);
     fetchAvailableMarkets();
+    fetchAutoPreviewMarkets(mode, count, minTrade);
   };
 
   // Fetch Account Check
@@ -645,20 +684,28 @@ const FALLBACK_BITHUMB_MARKETS = [
     }
   };
 
-  // Save Target Markets and Candle Unit
+  // Save Target Markets and Candle Unit (Auto or Manual)
   const handleSaveMarkets = async () => {
-    if (selectedMarkets.length === 0) {
-      alert('최소 1개 이상의 거래 품목(마켓)을 선택해야 합니다.');
+    if (!autoMarketSelection && selectedMarkets.length === 0) {
+      alert('수동 모드에서는 최소 1개 이상의 거래 품목(마켓)을 선택해야 합니다.');
       return;
     }
     setSavingMarkets(true);
     
+    const payload = {
+      target_markets: selectedMarkets,
+      candle_unit_minutes: candleUnit,
+      max_holding_coins: 0,
+      enable_auto_market_selection: Boolean(autoMarketSelection),
+      auto_market_mode: autoMarketMode,
+      auto_market_count: Number(autoMarketCount) || 5,
+      auto_market_min_trade_price_24h: Number(autoMarketMinTradePrice) || 1000000000
+    };
+
     // Optimistic UI state sync
     setStatus(prev => prev ? {
       ...prev,
-      target_markets: selectedMarkets,
-      candle_unit_minutes: candleUnit,
-      max_holding_coins: 0
+      ...payload
     } : prev);
 
     try {
@@ -667,11 +714,7 @@ const FALLBACK_BITHUMB_MARKETS = [
         headers: getAuthHeaders({
           'Content-Type': 'application/json'
         }),
-        body: JSON.stringify({
-          target_markets: selectedMarkets,
-          candle_unit_minutes: candleUnit,
-          max_holding_coins: 0
-        })
+        body: JSON.stringify(payload)
       });
       if (res.status === 401) {
         handleUnauthorized();
@@ -681,7 +724,9 @@ const FALLBACK_BITHUMB_MARKETS = [
       if (res.ok) {
         setAlertMsg({
           type: 'success',
-          text: `거래 품목(${selectedMarkets.length}개) 및 캔들 주기(${candleUnit}분) 설정이 저장되었습니다.`
+          text: autoMarketSelection
+            ? `AI 품목 자동 선정 모드(Top ${autoMarketCount}종) 및 캔들 주기(${candleUnit}분)가 저장되었습니다.`
+            : `수동 거래 품목(${selectedMarkets.length}개) 및 캔들 주기(${candleUnit}분) 설정이 저장되었습니다.`
         });
         setShowMarketModal(false);
         await fetchStatus();
@@ -1091,12 +1136,16 @@ const FALLBACK_BITHUMB_MARKETS = [
           </button>
 
           <button
-            className="trading-btn btn-settings"
+            className={`trading-btn btn-settings ${status?.enable_auto_market_selection ? 'border-purple-500/40 text-purple-300' : ''}`}
             onClick={openMarketModal}
-            title="거래 대상 코인 및 캔들 주기 관리"
+            title="거래 대상 코인 및 품목 자동 선정/캔들 주기 관리"
           >
             <Layers size={16} />
-            <span>품목 관리 ({selectedMarkets.length})</span>
+            <span>
+              {status?.enable_auto_market_selection
+                ? `🤖 AI 자동선별 (${status?.auto_market_count || 5}종)`
+                : `품목 관리 (${selectedMarkets.length}종)`}
+            </span>
           </button>
 
           <button
@@ -2375,7 +2424,7 @@ const FALLBACK_BITHUMB_MARKETS = [
                 <th>보조지표 (RSI / Trend)</th>
                 <th>LLM 판단 & 신뢰도</th>
                 <th>실행 액션</th>
-                <th>실현 손익 (수익률)</th>
+                <th>실현 손익 (판매가 - 구매가)</th>
                 <th>상세 사유</th>
               </tr>
             </thead>
@@ -2389,12 +2438,18 @@ const FALLBACK_BITHUMB_MARKETS = [
               ) : (
                 logs.map((log) => {
                   const isExpanded = expandedLogId === log.id;
-                  const hasPnl = log.pnl_krw != null && log.pnl_krw !== 0;
                   const isSellAction = log.action_taken && (
                     log.action_taken.includes('SELL') ||
                     log.action_taken.includes('PROFIT') ||
-                    log.action_taken.includes('LOSS')
+                    log.action_taken.includes('LOSS') ||
+                    log.action_taken.includes('TRIGGER')
                   );
+                  const hasPnl = isSellAction && log.pnl_krw != null && (log.pnl_krw !== 0 || log.pnl_pct !== 0);
+                  const sellPrice = log.current_price || 0;
+                  const buyPrice = log.holding_avg_price || 0;
+                  const pnlKrw = log.pnl_krw || 0;
+                  const pnlPct = log.pnl_pct || 0;
+
                   return (
                     <React.Fragment key={log.id}>
                       <tr className={`log-row ${isExpanded ? 'row-expanded' : ''}`} onClick={() => toggleExpandLog(log.id)}>
@@ -2434,16 +2489,16 @@ const FALLBACK_BITHUMB_MARKETS = [
                         </td>
                         <td className="pnl-cell font-mono">
                           {hasPnl ? (
-                            <span className={`pnl-tag ${log.pnl_krw >= 0 ? 'tag-profit' : 'tag-loss'}`}>
-                              {log.pnl_krw >= 0 ? '+' : ''}₩ {Math.round(log.pnl_krw).toLocaleString()}
-                              {' '}({(log.pnl_pct || 0) >= 0 ? '+' : ''}{(log.pnl_pct || 0).toFixed(2)}%)
+                            <span className={`pnl-tag ${pnlKrw >= 0 ? 'tag-profit' : 'tag-loss'}`} title={`판매가: ${sellPrice.toLocaleString()} ₩ | 구매가: ${buyPrice.toLocaleString()} ₩`}>
+                              {pnlKrw >= 0 ? '+' : ''}₩ {Math.round(pnlKrw).toLocaleString()}
+                              {' '}({pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(2)}%)
                             </span>
                           ) : isSellAction ? (
                             <span className="pnl-tag tag-profit" style={{ background: 'rgba(255,255,255,0.06)', color: '#94a3b8' }}>
                               0 ₩ (0.00%)
                             </span>
                           ) : (
-                            <span className="text-gray-500">-</span>
+                            <span className="text-gray-500" style={{ fontSize: '12px' }}>-</span>
                           )}
                         </td>
                         <td className="reason-cell">
@@ -2459,12 +2514,33 @@ const FALLBACK_BITHUMB_MARKETS = [
                             <div className="log-detail-box">
                               <div className="detail-grid">
                                 <div className="detail-item">
-                                  <span className="detail-label">실현 손익 (수익률)</span>
-                                  <span className={`detail-val ${hasPnl ? (log.pnl_krw >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold') : ''}`}>
+                                  <span className="detail-label">실제 실현 손익 (판매가 - 구매가)</span>
+                                  <span className={`detail-val ${hasPnl ? (pnlKrw >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold') : ''}`}>
                                     {hasPnl
-                                      ? `${log.pnl_krw >= 0 ? '+' : ''}${Math.round(log.pnl_krw).toLocaleString()} KRW (${(log.pnl_pct || 0) >= 0 ? '+' : ''}${(log.pnl_pct || 0).toFixed(2)}%)`
-                                      : (isSellAction ? '0 KRW (0.00%)' : '-')}
+                                      ? `${pnlKrw >= 0 ? '+' : ''}${Math.round(pnlKrw).toLocaleString()} KRW (${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%)`
+                                      : (isSellAction ? '0 KRW (0.00%)' : '미실현 (보유/분석 중)')}
                                   </span>
+                                </div>
+                                {isSellAction && buyPrice > 0 && (
+                                  <div className="detail-item">
+                                    <span className="detail-label">판매 가격 vs 구매 가격</span>
+                                    <span className="detail-val font-mono">
+                                      {sellPrice.toLocaleString()} ₩ - {buyPrice.toLocaleString()} ₩
+                                      {sellPrice > buyPrice ? (
+                                        <span className="text-emerald-400 ml-1">(+{(sellPrice - buyPrice).toLocaleString()} ₩/개)</span>
+                                      ) : (
+                                        <span className="text-rose-400 ml-1">({(sellPrice - buyPrice).toLocaleString()} ₩/개)</span>
+                                      )}
+                                    </span>
+                                  </div>
+                                )}
+                                <div className="detail-item">
+                                  <span className="detail-label">주문 실행 금액</span>
+                                  <span className="detail-val">{log.order_amount_krw ? `${log.order_amount_krw.toLocaleString()} KRW` : '0 KRW'}</span>
+                                </div>
+                                <div className="detail-item">
+                                  <span className="detail-label">보유 수량 / 평단가</span>
+                                  <span className="detail-val">{log.holding_volume || 0} / {log.holding_avg_price ? `${log.holding_avg_price.toLocaleString()} KRW` : '-'}</span>
                                 </div>
                                 <div className="detail-item">
                                   <span className="detail-label">MACD Hist</span>
@@ -2481,14 +2557,6 @@ const FALLBACK_BITHUMB_MARKETS = [
                                 <div className="detail-item">
                                   <span className="detail-label">목표 투입 비중</span>
                                   <span className="detail-val">{( (log.target_ratio || 0) * 100).toFixed(0)}%</span>
-                                </div>
-                                <div className="detail-item">
-                                  <span className="detail-label">주문 실행 금액</span>
-                                  <span className="detail-val">{log.order_amount_krw ? `${log.order_amount_krw.toLocaleString()} KRW` : '0 KRW'}</span>
-                                </div>
-                                <div className="detail-item">
-                                  <span className="detail-label">보유 수량 / 평단가</span>
-                                  <span className="detail-val">{log.holding_volume || 0} / {log.holding_avg_price ? `${log.holding_avg_price.toLocaleString()} KRW` : '-'}</span>
                                 </div>
                               </div>
                               <div className="reason-full-box">
@@ -2828,168 +2896,471 @@ const FALLBACK_BITHUMB_MARKETS = [
         </div>
       )}
 
-      {/* ====================================================
-          MODAL 3: Market / Item Management Modal
-          ==================================================== */}
       {showMarketModal && (
         <div className="trading-modal-overlay" onClick={() => setShowMarketModal(false)}>
-          <div className="trading-modal-content market-modal-wide" onClick={(e) => e.stopPropagation()}>
+          <div className="trading-modal-content market-modal-wide" style={{ maxWidth: '820px' }} onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <div className="modal-title-row">
                 <Layers size={20} className="text-purple-400" />
-                <h2>거래 품목(마켓) 및 캔들 주기 관리</h2>
+                <h2>거래 대상 품목(마켓) 및 캔들 주기 설정</h2>
               </div>
               <button className="modal-close-btn" onClick={() => setShowMarketModal(false)}>
                 <X size={18} />
               </button>
             </div>
 
-            <div className="modal-body">
-              {/* Currently Selected Markets */}
-              <div className="selected-markets-box">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="font-bold text-sm text-gray-200">
-                    현재 자동거래 대상 품목 ({selectedMarkets.length}개)
-                  </span>
-                  <span className="text-xs text-gray-400">클릭하여 제외 가능</span>
-                </div>
-                <div className="selected-tags-container">
-                  {selectedMarkets.map(mkt => (
-                    <span key={mkt} className="market-pill-tag">
-                      <strong>{mkt}</strong>
+            {/* Mode Switch Tabs */}
+            <div style={{
+              display: 'flex',
+              gap: '8px',
+              padding: '12px 24px 0 24px',
+              borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+              background: 'rgba(15, 23, 42, 0.4)'
+            }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setMarketModalTab('auto');
+                  setAutoMarketSelection(true);
+                  fetchAutoPreviewMarkets(autoMarketMode, autoMarketCount, autoMarketMinTradePrice);
+                }}
+                style={{
+                  padding: '10px 18px',
+                  borderRadius: '8px 8px 0 0',
+                  fontWeight: 600,
+                  fontSize: '13px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  cursor: 'pointer',
+                  border: 'none',
+                  borderBottom: marketModalTab === 'auto' ? '2px solid #a855f7' : '2px solid transparent',
+                  background: marketModalTab === 'auto' ? 'rgba(168, 85, 247, 0.15)' : 'transparent',
+                  color: marketModalTab === 'auto' ? '#c084fc' : '#94a3b8'
+                }}
+              >
+                <Sparkles size={16} />
+                <span>🤖 AI 품목 자동 선별 모드 (추천)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setMarketModalTab('manual');
+                  setAutoMarketSelection(false);
+                }}
+                style={{
+                  padding: '10px 18px',
+                  borderRadius: '8px 8px 0 0',
+                  fontWeight: 600,
+                  fontSize: '13px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  cursor: 'pointer',
+                  border: 'none',
+                  borderBottom: marketModalTab === 'manual' ? '2px solid #38bdf8' : '2px solid transparent',
+                  background: marketModalTab === 'manual' ? 'rgba(56, 189, 248, 0.15)' : 'transparent',
+                  color: marketModalTab === 'manual' ? '#38bdf8' : '#94a3b8'
+                }}
+              >
+                <Sliders size={16} />
+                <span>✋ 수동 품목 지정 모드</span>
+              </button>
+            </div>
+
+            <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+              {marketModalTab === 'auto' ? (
+                /* TAB 1: AI Auto Market Selection */
+                <div className="auto-market-container">
+                  <div style={{
+                    padding: '12px 16px',
+                    borderRadius: '8px',
+                    background: 'rgba(168, 85, 247, 0.1)',
+                    border: '1px solid rgba(168, 85, 247, 0.25)',
+                    marginBottom: '16px',
+                    fontSize: '12px',
+                    color: '#e2e8f0',
+                    lineHeight: '1.6'
+                  }}>
+                    <strong style={{ color: '#c084fc', display: 'block', marginBottom: '4px' }}>
+                      💡 빗썸 250+개 전체 마켓 자동 스캔 & 2단계 스마트 스크리너
+                    </strong>
+                    빗썸 전체 코인을 1회 벌크 조회하여 저유동성 잡알트를 배제하고, 실시간 거래대금 및 모멘텀 상위 우량 코인을 AI가 매 주기마다 자동 감시/선정합니다.
+                    <span style={{ display: 'block', marginTop: '4px', color: '#94a3b8' }}>
+                      🛡️ <em>이미 매수하여 보유 중인 코인은 자동 선별 여부와 무관하게 항상 안전하게 감시 및 매도 관리됩니다.</em>
+                    </span>
+                  </div>
+
+                  {/* Strategy Selection Cards */}
+                  <div className="mb-4">
+                    <span className="font-bold text-sm text-gray-200 block mb-2">
+                      1. AI 자동 선별 기준 선택
+                    </span>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+                      {[
+                        {
+                          id: 'TOP_VOLUME',
+                          title: '💎 거래대금 상위',
+                          subtitle: '유동성 최우선',
+                          desc: '빗썸 내 24시간 거래대금이 가장 높은 대장/우량 코인 위주로 안정적인 매매를 진행합니다.'
+                        },
+                        {
+                          id: 'MOMENTUM_SPIKE',
+                          title: '🚀 모멘텀 / 수급 급증',
+                          subtitle: '급등 포착',
+                          desc: '거래량 유입과 상승 탄력이 집중되는 단기 급등 유력 코인을 실시간 포착합니다.'
+                        },
+                        {
+                          id: 'TOP_GAINERS',
+                          title: '📈 당일 상승률 상위',
+                          subtitle: '주도주 집중',
+                          desc: '당일 가장 강한 상승 추세를 보이는 시장 주도 코인을 우선 선정합니다.'
+                        }
+                      ].map((item) => (
+                        <div
+                          key={item.id}
+                          onClick={() => {
+                            setAutoMarketMode(item.id);
+                            fetchAutoPreviewMarkets(item.id, autoMarketCount, autoMarketMinTradePrice);
+                          }}
+                          style={{
+                            padding: '14px',
+                            borderRadius: '10px',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                            background: autoMarketMode === item.id ? 'rgba(168, 85, 247, 0.2)' : 'rgba(30, 41, 59, 0.5)',
+                            border: `1px solid ${autoMarketMode === item.id ? '#a855f7' : 'rgba(255, 255, 255, 0.1)'}`
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                            <strong style={{ fontSize: '13px', color: autoMarketMode === item.id ? '#c084fc' : '#f1f5f9' }}>{item.title}</strong>
+                            <span style={{ fontSize: '10px', padding: '2px 6px', borderRadius: '4px', background: 'rgba(255,255,255,0.08)', color: '#94a3b8' }}>{item.subtitle}</span>
+                          </div>
+                          <p style={{ fontSize: '11px', color: '#94a3b8', margin: 0, lineHeight: '1.4' }}>{item.desc}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Filter & Count Settings */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                    <div>
+                      <span className="font-bold text-sm text-gray-200 block mb-2">
+                        2. 동시 감시 종목 수 (Top N)
+                      </span>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        {[3, 5, 7, 10].map(cnt => (
+                          <button
+                            key={cnt}
+                            type="button"
+                            onClick={() => {
+                              setAutoMarketCount(cnt);
+                              fetchAutoPreviewMarkets(autoMarketMode, cnt, autoMarketMinTradePrice);
+                            }}
+                            style={{
+                              flex: 1,
+                              padding: '8px',
+                              borderRadius: '6px',
+                              fontSize: '12px',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              border: `1px solid ${autoMarketCount === cnt ? '#a855f7' : 'rgba(255, 255, 255, 0.1)'}`,
+                              background: autoMarketCount === cnt ? 'rgba(168, 85, 247, 0.25)' : 'rgba(30, 41, 59, 0.6)',
+                              color: autoMarketCount === cnt ? '#c084fc' : '#cbd5e1'
+                            }}
+                          >
+                            {cnt}개 {cnt === 5 ? '(권장)' : ''}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <span className="font-bold text-sm text-gray-200 block mb-2">
+                        3. 최소 24시간 거래대금 필터
+                      </span>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        {[
+                          { val: 500000000, label: '5억 이상' },
+                          { val: 1000000000, label: '10억 이상 (권장)' },
+                          { val: 3000000000, label: '30억 이상' }
+                        ].map(item => (
+                          <button
+                            key={item.val}
+                            type="button"
+                            onClick={() => {
+                              setAutoMarketMinTradePrice(item.val);
+                              fetchAutoPreviewMarkets(autoMarketMode, autoMarketCount, item.val);
+                            }}
+                            style={{
+                              flex: 1,
+                              padding: '8px',
+                              borderRadius: '6px',
+                              fontSize: '11px',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              border: `1px solid ${autoMarketMinTradePrice === item.val ? '#a855f7' : 'rgba(255, 255, 255, 0.1)'}`,
+                              background: autoMarketMinTradePrice === item.val ? 'rgba(168, 85, 247, 0.25)' : 'rgba(30, 41, 59, 0.6)',
+                              color: autoMarketMinTradePrice === item.val ? '#c084fc' : '#cbd5e1'
+                            }}
+                          >
+                            {item.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Candle Unit Selection */}
+                  <div className="candle-unit-section mb-4">
+                    <span className="font-bold text-sm text-gray-200 block mb-2">
+                      4. 분석 캔들 주기 선택
+                    </span>
+                    <div className="candle-buttons-grid">
+                      {[1, 3, 5, 15, 30, 60, 240].map(unit => (
+                        <button
+                          key={unit}
+                          type="button"
+                          className={`candle-btn ${candleUnit === unit ? 'active' : ''}`}
+                          onClick={() => setCandleUnit(unit)}
+                        >
+                          {unit >= 60 ? `${unit / 60}시간봉` : `${unit}분봉`}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Live Auto Selection Preview */}
+                  <div style={{
+                    padding: '14px',
+                    borderRadius: '10px',
+                    background: 'rgba(15, 23, 42, 0.6)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                      <span style={{ fontSize: '13px', fontWeight: 700, color: '#f1f5f9', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Sparkles size={15} className="text-amber-400" />
+                        현재 시장 실시간 자동 선정 미리보기 ({autoPreviewMarkets.length}종)
+                      </span>
                       <button
                         type="button"
-                        className="pill-remove-btn"
-                        onClick={() => toggleMarketSelection(mkt)}
-                        title="제거"
+                        onClick={() => fetchAutoPreviewMarkets(autoMarketMode, autoMarketCount, autoMarketMinTradePrice)}
+                        style={{
+                          background: 'rgba(255, 255, 255, 0.08)',
+                          border: '1px solid rgba(255, 255, 255, 0.15)',
+                          color: '#94a3b8',
+                          padding: '4px 10px',
+                          borderRadius: '6px',
+                          fontSize: '11px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}
                       >
-                        <X size={12} />
+                        <RefreshCw size={12} className={loadingAutoPreview ? 'spin-anim' : ''} />
+                        <span>새로고침</span>
                       </button>
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-              {/* Candle Unit Selection */}
-              <div className="candle-unit-section mt-3">
-                <span className="font-bold text-sm text-gray-200 block mb-2">
-                  분석 캔들 주기 선택
-                </span>
-                <div className="candle-buttons-grid">
-                  {[1, 3, 5, 15, 30, 60, 240].map(unit => (
-                    <button
-                      key={unit}
-                      type="button"
-                      className={`candle-btn ${candleUnit === unit ? 'active' : ''}`}
-                      onClick={() => setCandleUnit(unit)}
-                    >
-                      {unit >= 60 ? `${unit / 60}시간봉` : `${unit}분봉`}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Presets */}
-              <div className="presets-box mt-3">
-                <span className="text-xs text-gray-400 font-bold block mb-1">빠른 추천 프리셋:</span>
-                <div className="preset-buttons-row">
-                  <button
-                    type="button"
-                    className="preset-btn"
-                    onClick={() => applyPreset(['KRW-BTC'])}
-                  >
-                    🎯 단일 1종 (BTC 전용)
-                  </button>
-                  <button
-                    type="button"
-                    className="preset-btn"
-                    onClick={() => applyPreset(['KRW-BTC', 'KRW-ETH'])}
-                  >
-                    💎 메이저 2종 (BTC + ETH)
-                  </button>
-                  <button
-                    type="button"
-                    className="preset-btn"
-                    onClick={() => applyPreset(['KRW-BTC', 'KRW-ETH', 'KRW-XRP', 'KRW-SOL'])}
-                  >
-                    🚀 메이저 4종 (+XRP, SOL)
-                  </button>
-                  <button
-                    type="button"
-                    className="preset-btn"
-                    onClick={() => applyPreset(['KRW-BTC', 'KRW-ETH', 'KRW-XRP', 'KRW-DOGE', 'KRW-SOL'])}
-                  >
-                    ⚡ 인기 5종 (+DOGE)
-                  </button>
-                </div>
-              </div>
-
-              {/* Market Search and Add */}
-              <div className="market-search-section mt-4">
-                <span className="font-bold text-sm text-gray-200 block mb-2">
-                  빗썸 원화 마켓 검색 및 추가 (400+ 종목)
-                </span>
-                <div className="search-input-wrapper">
-                  <Search size={16} className="search-icon" />
-                  <input
-                    type="text"
-                    className="trading-input pl-9"
-                    placeholder="코인명 (예: 리플, 솔라나, 도지) 또는 심볼 (XRP, SOL, DOGE) 검색..."
-                    value={marketSearchQuery}
-                    onChange={(e) => {
-                      setMarketSearchQuery(e.target.value);
-                      fetchAvailableMarkets(e.target.value);
-                    }}
-                  />
-                </div>
-
-                <div className="available-markets-list">
-                  {loadingMarkets ? (
-                    <div className="text-center py-6 text-gray-400 text-xs">
-                      마켓 목록을 검색하는 중...
                     </div>
-                  ) : availableMarkets.length === 0 ? (
-                    <div className="text-center py-6 text-gray-400 text-xs">
-                      일치하는 빗썸 원화 마켓이 없습니다.
-                    </div>
-                  ) : (
-                    availableMarkets.slice(0, 30).map(m => {
-                      const isSelected = selectedMarkets.includes(m.market);
-                      return (
-                        <div
-                          key={m.market}
-                          className={`available-market-item ${isSelected ? 'selected' : ''}`}
-                          onClick={() => toggleMarketSelection(m.market)}
-                        >
-                          <div className="market-item-left">
-                            <span className="coin-symbol">{m.symbol}</span>
-                            <div className="coin-names">
-                              <strong>{m.korean_name}</strong>
-                              <span className="text-xs text-gray-400">{m.market}</span>
+
+                    {loadingAutoPreview ? (
+                      <div style={{ textAlign: 'center', padding: '20px', color: '#94a3b8', fontSize: '12px' }}>
+                        실시간 빗썸 마켓 시세를 스캔하는 중...
+                      </div>
+                    ) : autoPreviewMarkets.length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '20px', color: '#94a3b8', fontSize: '12px' }}>
+                        조건에 일치하는 종목을 불러오지 못했습니다.
+                      </div>
+                    ) : (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '8px' }}>
+                        {autoPreviewMarkets.map((m, idx) => (
+                          <div
+                            key={m.market}
+                            style={{
+                              padding: '10px',
+                              borderRadius: '8px',
+                              background: 'rgba(30, 41, 59, 0.8)',
+                              border: '1px solid rgba(168, 85, 247, 0.3)'
+                            }}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                              <span style={{ fontSize: '11px', fontWeight: 700, color: '#f8fafc' }}>
+                                #{idx + 1} {m.symbol}
+                              </span>
+                              <span style={{
+                                fontSize: '10px',
+                                fontWeight: 700,
+                                color: (m.change_rate_24h || 0) >= 0 ? '#34d399' : '#f87171'
+                              }}>
+                                {(m.change_rate_24h || 0) >= 0 ? '+' : ''}{(m.change_rate_24h || 0).toFixed(2)}%
+                              </span>
+                            </div>
+                            <div style={{ fontSize: '10px', color: '#94a3b8', marginBottom: '2px' }}>
+                              {m.korean_name}
+                            </div>
+                            <div style={{ fontSize: '11px', fontWeight: 600, color: '#e2e8f0', fontFamily: 'monospace' }}>
+                              {(m.trade_price || 0).toLocaleString()} ₩
+                            </div>
+                            <div style={{ fontSize: '9px', color: '#64748b', marginTop: '2px' }}>
+                              거래대금: {((m.acc_trade_price_24h || 0) / 100000000).toFixed(0)}억 ₩
                             </div>
                           </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                /* TAB 2: Manual Market Selection */
+                <div className="manual-market-container">
+                  {/* Currently Selected Markets */}
+                  <div className="selected-markets-box">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="font-bold text-sm text-gray-200">
+                        현재 수동 지정 품목 ({selectedMarkets.length}개)
+                      </span>
+                      <span className="text-xs text-gray-400">클릭하여 제외 가능</span>
+                    </div>
+                    <div className="selected-tags-container">
+                      {selectedMarkets.map(mkt => (
+                        <span key={mkt} className="market-pill-tag">
+                          <strong>{mkt}</strong>
                           <button
                             type="button"
-                            className={`market-action-btn ${isSelected ? 'btn-remove' : 'btn-add'}`}
+                            className="pill-remove-btn"
+                            onClick={() => toggleMarketSelection(mkt)}
+                            title="제거"
                           >
-                            {isSelected ? (
-                              <>
-                                <Check size={12} />
-                                <span>선택됨</span>
-                              </>
-                            ) : (
-                              <>
-                                <Plus size={12} />
-                                <span>추가</span>
-                              </>
-                            )}
+                            <X size={12} />
                           </button>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Candle Unit Selection */}
+                  <div className="candle-unit-section mt-3">
+                    <span className="font-bold text-sm text-gray-200 block mb-2">
+                      분석 캔들 주기 선택
+                    </span>
+                    <div className="candle-buttons-grid">
+                      {[1, 3, 5, 15, 30, 60, 240].map(unit => (
+                        <button
+                          key={unit}
+                          type="button"
+                          className={`candle-btn ${candleUnit === unit ? 'active' : ''}`}
+                          onClick={() => setCandleUnit(unit)}
+                        >
+                          {unit >= 60 ? `${unit / 60}시간봉` : `${unit}분봉`}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Presets */}
+                  <div className="presets-box mt-3">
+                    <span className="text-xs text-gray-400 font-bold block mb-1">빠른 추천 프리셋:</span>
+                    <div className="preset-buttons-row">
+                      <button
+                        type="button"
+                        className="preset-btn"
+                        onClick={() => applyPreset(['KRW-BTC'])}
+                      >
+                        🎯 단일 1종 (BTC 전용)
+                      </button>
+                      <button
+                        type="button"
+                        className="preset-btn"
+                        onClick={() => applyPreset(['KRW-BTC', 'KRW-ETH'])}
+                      >
+                        💎 메이저 2종 (BTC + ETH)
+                      </button>
+                      <button
+                        type="button"
+                        className="preset-btn"
+                        onClick={() => applyPreset(['KRW-BTC', 'KRW-ETH', 'KRW-XRP', 'KRW-SOL'])}
+                      >
+                        🚀 메이저 4종 (+XRP, SOL)
+                      </button>
+                      <button
+                        type="button"
+                        className="preset-btn"
+                        onClick={() => applyPreset(['KRW-BTC', 'KRW-ETH', 'KRW-XRP', 'KRW-DOGE', 'KRW-SOL'])}
+                      >
+                        ⚡ 인기 5종 (+DOGE)
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Market Search and Add */}
+                  <div className="market-search-section mt-4">
+                    <span className="font-bold text-sm text-gray-200 block mb-2">
+                      빗썸 원화 마켓 검색 및 추가 (400+ 종목)
+                    </span>
+                    <div className="search-input-wrapper">
+                      <Search size={16} className="search-icon" />
+                      <input
+                        type="text"
+                        className="trading-input pl-9"
+                        placeholder="코인명 (예: 리플, 솔라나, 도지) 또는 심볼 (XRP, SOL, DOGE) 검색..."
+                        value={marketSearchQuery}
+                        onChange={(e) => {
+                          setMarketSearchQuery(e.target.value);
+                          fetchAvailableMarkets(e.target.value);
+                        }}
+                      />
+                    </div>
+
+                    <div className="available-markets-list">
+                      {loadingMarkets ? (
+                        <div className="text-center py-6 text-gray-400 text-xs">
+                          마켓 목록을 검색하는 중...
                         </div>
-                      );
-                    })
-                  )}
+                      ) : availableMarkets.length === 0 ? (
+                        <div className="text-center py-6 text-gray-400 text-xs">
+                          일치하는 빗썸 원화 마켓이 없습니다.
+                        </div>
+                      ) : (
+                        availableMarkets.slice(0, 30).map(m => {
+                          const isSelected = selectedMarkets.includes(m.market);
+                          return (
+                            <div
+                              key={m.market}
+                              className={`available-market-item ${isSelected ? 'selected' : ''}`}
+                              onClick={() => toggleMarketSelection(m.market)}
+                            >
+                              <div className="market-item-left">
+                                <span className="coin-symbol">{m.symbol}</span>
+                                <div className="coin-names">
+                                  <strong>{m.korean_name}</strong>
+                                  <span className="text-xs text-gray-400">{m.market}</span>
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                className={`market-action-btn ${isSelected ? 'btn-remove' : 'btn-add'}`}
+                              >
+                                {isSelected ? (
+                                  <>
+                                    <Check size={12} />
+                                    <span>선택됨</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Plus size={12} />
+                                    <span>추가</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
 
             <div className="modal-footer">
@@ -3005,8 +3376,13 @@ const FALLBACK_BITHUMB_MARKETS = [
                 className="modal-btn btn-save"
                 onClick={handleSaveMarkets}
                 disabled={savingMarkets}
+                style={{ background: autoMarketSelection ? 'linear-gradient(135deg, #a855f7, #6366f1)' : undefined }}
               >
-                {savingMarkets ? '저장 중...' : `설정 저장 (${selectedMarkets.length}개 마켓)`}
+                {savingMarkets
+                  ? '저장 중...'
+                  : autoMarketSelection
+                    ? `🤖 AI 자동선별 모드 저장 (Top ${autoMarketCount}종)`
+                    : `수동 품목 설정 저장 (${selectedMarkets.length}개 마켓)`}
               </button>
             </div>
           </div>
