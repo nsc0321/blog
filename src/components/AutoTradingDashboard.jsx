@@ -1299,9 +1299,9 @@ const FALLBACK_BITHUMB_MARKETS = [
                   <ShieldAlert size={20} className="text-amber-400" />
                 </div>
                 <div className="kpi-content">
-                  <span className="kpi-label">리스크 & 익절 관리 ⚙️</span>
+                  <span className="kpi-label">리스크 및 익절 관리 ⚙️</span>
                   <span className="kpi-value text-amber-300">
-                    손절 -{status?.stop_loss_pct || 10.0}% / 꺾임&체류 자동정리
+                    손절 -{status?.stop_loss_pct || 10.0}% / 꺾임 및 체류 자동정리
                   </span>
                   <span className="kpi-sub">고점 대비 꺾임(-1.0%p) 및 이익 상태 장기 체류(60분) 감지 시 안전 익절</span>
                 </div>
@@ -1404,9 +1404,9 @@ const FALLBACK_BITHUMB_MARKETS = [
             )}
 
             {status?.assets?.total_return_pct !== undefined && status?.assets?.total_return_pct !== null && (
-              <div className={`total-return-badge ${(status.assets.total_return_pct || 0) >= 0 ? 'badge-profit' : 'badge-loss'}`}>
+              <div className={`total-return-badge ${(status?.assets?.total_return_pct || 0) >= 0 ? 'badge-profit' : 'badge-loss'}`}>
                 <span>총 누적 수익률:</span>
-                <strong>{(status.assets.total_return_pct || 0) >= 0 ? '+' : ''}{(status.assets.total_return_pct || 0).toFixed(2)}%</strong>
+                <strong>{(status?.assets?.total_return_pct || 0) >= 0 ? '+' : ''}{(status?.assets?.total_return_pct || 0).toFixed(2)}%</strong>
               </div>
             )}
 
@@ -1706,7 +1706,7 @@ const FALLBACK_BITHUMB_MARKETS = [
                       key={h.market}
                       className="bar-segment"
                       style={{ width: `${h.weight_pct}%`, background: getCoinBgColor(h.symbol) }}
-                      title={`${h.korean_name || h.symbol}: ${h.weight_pct.toFixed(1)}%`}
+                      title={`${h.korean_name || h.symbol}: ${(h.weight_pct || 0).toFixed(1)}%`}
                     />
                   ) : null
                 ))}
@@ -1817,11 +1817,11 @@ const FALLBACK_BITHUMB_MARKETS = [
                             </span>
                           )}
                         </td>
-                        <td>{isHeld ? `${h.volume.toFixed(6)} ${h.symbol}` : '0.000000'}</td>
-                        <td>{h.avg_price > 0 ? `₩ ${h.avg_price.toLocaleString()}` : '-'}</td>
+                        <td>{isHeld ? `${(h.volume || 0).toFixed(6)} ${h.symbol}` : '0.000000'}</td>
+                        <td>{(h.avg_price || 0) > 0 ? `₩ ${(h.avg_price || 0).toLocaleString()}` : '-'}</td>
                         <td>
                           <div>
-                            <span>{h.current_price > 0 ? `₩ ${h.current_price.toLocaleString()}` : '-'}</span>
+                            <span>{(h.current_price || 0) > 0 ? `₩ ${(h.current_price || 0).toLocaleString()}` : '-'}</span>
                             {h.change_rate_24h !== undefined && (
                               <span style={{
                                 fontSize: '10px',
@@ -1834,8 +1834,8 @@ const FALLBACK_BITHUMB_MARKETS = [
                             )}
                           </div>
                         </td>
-                        <td>{isHeld ? `₩ ${h.buy_krw.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : '-'}</td>
-                        <td>{isHeld ? <strong>₩ {h.eval_krw.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong> : '-'}</td>
+                        <td>{isHeld ? `₩ ${(h.buy_krw || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}` : '-'}</td>
+                        <td>{isHeld ? <strong>₩ ${(h.eval_krw || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong> : '-'}</td>
                         <td>
                           {isHeld ? (
                             <span className={`pnl-tag ${isProfit ? 'tag-profit' : 'tag-loss'}`}>
@@ -2054,32 +2054,37 @@ const FALLBACK_BITHUMB_MARKETS = [
                       </td>
                     </tr>
                   ) : (
-                    weeklySummary.daily_summary.map((day) => (
-                      <tr key={day.date}>
-                        <td><strong>{day.date}</strong></td>
-                        <td>{day.total_cycles} 회</td>
-                        <td><span className="text-emerald-400 font-bold">{day.buys}</span></td>
-                        <td><span className="text-rose-400 font-bold">{day.sells}</span></td>
-                        <td><span className="text-gray-400">{day.holds}</span></td>
-                        <td>
-                          <span className={`font-mono font-bold ${day.realized_pnl_krw >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                            {day.realized_pnl_krw >= 0 ? '+' : ''}₩ {day.realized_pnl_krw.toLocaleString()}
-                          </span>
-                        </td>
-                        <td>
-                          <span style={{
-                            padding: '2px 6px',
-                            borderRadius: '4px',
-                            background: day.win_rate >= 50 ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 255, 255, 0.05)',
-                            color: day.win_rate >= 50 ? '#34d399' : '#94a3b8',
-                            fontWeight: 700,
-                            fontSize: '11px'
-                          }}>
-                            {day.win_rate}% ({day.win_trades}승 {day.loss_trades}패)
-                          </span>
-                        </td>
-                      </tr>
-                    ))
+                    (weeklySummary?.daily_summary || []).map((day) => {
+                      if (!day) return null;
+                      const pnl = Number(day.realized_pnl_krw) || 0;
+                      const winRate = Number(day.win_rate) || 0;
+                      return (
+                        <tr key={day.date || Math.random()}>
+                          <td><strong>{day.date || '-'}</strong></td>
+                          <td>{day.total_cycles ?? 0} 회</td>
+                          <td><span className="text-emerald-400 font-bold">{day.buys ?? 0}</span></td>
+                          <td><span className="text-rose-400 font-bold">{day.sells ?? 0}</span></td>
+                          <td><span className="text-gray-400">{day.holds ?? 0}</span></td>
+                          <td>
+                            <span className={`font-mono font-bold ${pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                              {pnl >= 0 ? '+' : ''}₩ {pnl.toLocaleString()}
+                            </span>
+                          </td>
+                          <td>
+                            <span style={{
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              background: winRate >= 50 ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                              color: winRate >= 50 ? '#34d399' : '#94a3b8',
+                              fontWeight: 700,
+                              fontSize: '11px'
+                            }}>
+                              {winRate}% ({day.win_trades ?? 0}승 {day.loss_trades ?? 0}패)
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -2131,9 +2136,10 @@ const FALLBACK_BITHUMB_MARKETS = [
 
           {!foldedSections.marketCards && (
             <div className="market-cards-grid">
-              {Object.entries(status.positions)
-                .sort(([m1, p1], [m2, p2]) => ((p2.holding_volume || 0) > 0 ? 1 : 0) - ((p1.holding_volume || 0) > 0 ? 1 : 0))
+              {Object.entries(status?.positions || {})
+                .sort(([m1, p1], [m2, p2]) => (((p2?.holding_volume) || 0) > 0 ? 1 : 0) - (((p1?.holding_volume) || 0) > 0 ? 1 : 0))
                 .map(([mkt, pos]) => {
+                  if (!pos) return null;
                   const sym = pos.symbol || mkt.replace('KRW-', '');
                   const korName = pos.korean_name || getMarketKoreanName(mkt, sym);
                   const isHolding = (pos.holding_volume || 0) > 0;
@@ -2223,10 +2229,10 @@ const FALLBACK_BITHUMB_MARKETS = [
                       <div className="market-price-row">
                         <span className="price-label">현재가</span>
                         <div className="flex items-center gap-2">
-                          <span className="price-value">{pos.current_price > 0 ? `${pos.current_price.toLocaleString()} KRW` : '-'}</span>
+                          <span className="price-value">{(pos.current_price || 0) > 0 ? `${(pos.current_price || 0).toLocaleString()} KRW` : '-'}</span>
                           {pos.change_rate_24h !== undefined && pos.change_rate_24h !== null && (
-                            <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${pos.change_rate_24h >= 0 ? 'text-emerald-400 bg-emerald-950/50' : 'text-rose-400 bg-rose-950/50'}`}>
-                              {pos.change_rate_24h >= 0 ? '+' : ''}{pos.change_rate_24h.toFixed(2)}%
+                            <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${(pos.change_rate_24h || 0) >= 0 ? 'text-emerald-400 bg-emerald-950/50' : 'text-rose-400 bg-rose-950/50'}`}>
+                              {(pos.change_rate_24h || 0) >= 0 ? '+' : ''}{(pos.change_rate_24h || 0).toFixed(2)}%
                             </span>
                           )}
                         </div>
