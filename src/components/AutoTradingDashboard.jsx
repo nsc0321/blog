@@ -1361,11 +1361,32 @@ const FALLBACK_BITHUMB_MARKETS = [
                   <Layers size={20} className="text-purple-400" />
                 </div>
                 <div className="kpi-content">
-                  <span className="kpi-label">대상 마켓 & 캔들 주기 ⚙️</span>
-                  <span className="kpi-value text-purple-300">
-                    {status?.target_markets?.join(', ') || 'KRW-BTC'}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2px' }}>
+                    <span className="kpi-label">대상 마켓 & 캔들 주기 ⚙️</span>
+                    {status?.enable_auto_market_selection && (
+                      <span style={{
+                        fontSize: '10px',
+                        padding: '1px 6px',
+                        borderRadius: '4px',
+                        background: 'rgba(168, 85, 247, 0.2)',
+                        color: '#c084fc',
+                        border: '1px solid rgba(168, 85, 247, 0.35)',
+                        fontWeight: 600
+                      }}>
+                        AI 스마트 스크리너
+                      </span>
+                    )}
+                  </div>
+                  <span className="kpi-value text-purple-300" style={{ fontSize: '15px' }}>
+                    {status?.enable_auto_market_selection
+                      ? `🤖 Top ${status?.target_markets?.length || status?.auto_market_count || 5}종 (${status?.auto_market_mode === 'TOP_VOLUME' ? '거래대금 상위' : (status?.auto_market_mode === 'MOMENTUM_SPIKE' ? '모멘텀 급증' : '상승률 상위')})`
+                      : (status?.target_markets?.map(m => m.replace('KRW-', '')).join(', ') || 'BTC, ETH')}
                   </span>
-                  <span className="kpi-sub">{status?.candle_unit_minutes || 15}분봉 기준 분석 (총 {status?.target_markets?.length || 0}개 마켓)</span>
+                  <span className="kpi-sub" style={{ display: 'block', marginTop: '2px' }}>
+                    {status?.enable_auto_market_selection
+                      ? `${status?.candle_unit_minutes || 15}분봉 · [${status?.target_markets?.map(m => m.replace('KRW-', '')).join(', ') || '스캔 중'}]`
+                      : `수동 지정 ${status?.target_markets?.length || 0}개 마켓 · ${status?.candle_unit_minutes || 15}분봉 분석`}
+                  </span>
                 </div>
               </div>
             </div>
