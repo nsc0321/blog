@@ -2443,7 +2443,7 @@ const FALLBACK_BITHUMB_MARKETS = [
                 <th>마켓 / 모드</th>
                 <th>현재가</th>
                 <th>보조지표 (RSI / Trend)</th>
-                <th>LLM 판단 & 신뢰도</th>
+                <th>판단 & 방향성 벡터</th>
                 <th>실행 액션</th>
                 <th>실현 손익 (판매가 - 구매가)</th>
                 <th>상세 사유</th>
@@ -2470,6 +2470,20 @@ const FALLBACK_BITHUMB_MARKETS = [
                   const buyPrice = log.holding_avg_price || 0;
                   const pnlKrw = log.pnl_krw || 0;
                   const pnlPct = log.pnl_pct || 0;
+
+                  // Parse Directional Vector from raw_decision if available
+                  const rawDec = (() => {
+                    if (!log.raw_decision) return null;
+                    if (typeof log.raw_decision === 'object') return log.raw_decision;
+                    try {
+                      return JSON.parse(log.raw_decision);
+                    } catch (e) {
+                      return null;
+                    }
+                  })();
+                  const vector = rawDec?.vector;
+                  const probs = rawDec?.directional_probability || rawDec?.probabilities;
+                  const netScore = rawDec?.net_directional_score;
 
                   return (
                     <React.Fragment key={log.id}>
@@ -2500,9 +2514,25 @@ const FALLBACK_BITHUMB_MARKETS = [
                           <span className="text-xs text-gray-400">({log.trend || 'NEUTRAL'})</span>
                         </td>
                         <td className="decision-cell">
-                          <div className="decision-wrapper">
-                            {getDecisionBadge(log.decision)}
-                            <span className="confidence-pill">{( (log.confidence || 0) * 100).toFixed(0)}%</span>
+                          <div className="decision-wrapper" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '2px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              {getDecisionBadge(log.decision)}
+                              <span className="confidence-pill">{((log.confidence || 0) * 100).toFixed(0)}%</span>
+                            </div>
+                            {probs && (
+                              <span style={{
+                                fontSize: '10px',
+                                fontFamily: 'monospace',
+                                color: probs.bullish >= 0.5 ? '#34d399' : (probs.bearish >= 0.5 ? '#fb7185' : '#94a3b8'),
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '3px'
+                              }}>
+                                <span>▲{(probs.bullish * 100).toFixed(0)}%</span>
+                                <span style={{ color: '#64748b' }}>/</span>
+                                <span>▼{(probs.bearish * 100).toFixed(0)}%</span>
+                              </span>
+                            )}
                           </div>
                         </td>
                         <td className="action-cell">
@@ -2533,6 +2563,72 @@ const FALLBACK_BITHUMB_MARKETS = [
                         <tr className="expanded-details-row">
                           <td colSpan="8">
                             <div className="log-detail-box">
+                              {/* 7-Dimensional Directional Vector Card */}
+                              {probs && (
+                                <div className="directional-vector-box" style={{
+                                  background: 'rgba(15, 23, 42, 0.75)',
+                                  border: '1px solid rgba(56, 189, 248, 0.3)',
+                                  borderRadius: '10px',
+                                  padding: '12px 14px',
+                                  marginBottom: '14px'
+                                }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '6px' }}>
+                                    <span style={{ fontSize: '12px', fontWeight: 700, color: '#38bdf8', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                      🧭 7차원 방향성 추측치 벡터 & 확률 분포
+                                    </span>
+                                    <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+                                      종합 순방향 지수: <strong style={{ color: (netScore || 0) >= 0 ? '#34d399' : '#fb7185' }}>{(netScore || 0) >= 0 ? '+' : ''}{(netScore || 0).toFixed(3)}</strong>
+                                    </span>
+                                  </div>
+
+                                  {/* Probabilities 3-way progress bar */}
+                                  <div style={{ display: 'flex', height: '8px', borderRadius: '4px', overflow: 'hidden', background: '#334155', marginBottom: '8px' }}>
+                                    <div style={{ width: `${(probs.bullish * 100).toFixed(1)}%`, background: '#10b981' }} title={`상승 확률: ${(probs.bullish * 100).toFixed(1)}%`} />
+                                    <div style={{ width: `${(probs.neutral * 100).toFixed(1)}%`, background: '#64748b' }} title={`횡보 확률: ${(probs.neutral * 100).toFixed(1)}%`} />
+                                    <div style={{ width: `${(probs.bearish * 100).toFixed(1)}%`, background: '#ef4444' }} title={`하락 확률: ${(probs.bearish * 100).toFixed(1)}%`} />
+                                  </div>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#cbd5e1', marginBottom: '10px' }}>
+                                    <span style={{ color: '#34d399', fontWeight: 600 }}>🟢 상승(Bull): {(probs.bullish * 100).toFixed(1)}%</span>
+                                    <span style={{ color: '#94a3b8' }}>⚪ 횡보(Neu): {(probs.neutral * 100).toFixed(1)}%</span>
+                                    <span style={{ color: '#f87171', fontWeight: 600 }}>🔴 하락(Bear): {(probs.bearish * 100).toFixed(1)}%</span>
+                                  </div>
+
+                                  {/* 7 Feature Dimension Tags */}
+                                  {vector && (
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '6px' }}>
+                                      <div style={{ background: 'rgba(0,0,0,0.3)', padding: '4px 8px', borderRadius: '6px', fontSize: '11px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                                        <span style={{ color: '#94a3b8' }}>EMA 추세: </span>
+                                        <strong style={{ color: vector.trend_momentum >= 0 ? '#34d399' : '#f87171' }}>{vector.trend_momentum >= 0 ? '+' : ''}{vector.trend_momentum}</strong>
+                                      </div>
+                                      <div style={{ background: 'rgba(0,0,0,0.3)', padding: '4px 8px', borderRadius: '6px', fontSize: '11px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                                        <span style={{ color: '#94a3b8' }}>변동성/박스: </span>
+                                        <strong style={{ color: vector.volatility_expansion >= 0 ? '#34d399' : '#f87171' }}>{vector.volatility_expansion >= 0 ? '+' : ''}{vector.volatility_expansion}</strong>
+                                      </div>
+                                      <div style={{ background: 'rgba(0,0,0,0.3)', padding: '4px 8px', borderRadius: '6px', fontSize: '11px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                                        <span style={{ color: '#94a3b8' }}>유동성/거래: </span>
+                                        <strong style={{ color: vector.volume_liquidity >= 0 ? '#34d399' : '#f87171' }}>{vector.volume_liquidity >= 0 ? '+' : ''}{vector.volume_liquidity}</strong>
+                                      </div>
+                                      <div style={{ background: 'rgba(0,0,0,0.3)', padding: '4px 8px', borderRadius: '6px', fontSize: '11px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                                        <span style={{ color: '#94a3b8' }}>캔들 지지: </span>
+                                        <strong style={{ color: vector.candle_price_action >= 0 ? '#34d399' : '#f87171' }}>{vector.candle_price_action >= 0 ? '+' : ''}{vector.candle_price_action}</strong>
+                                      </div>
+                                      <div style={{ background: 'rgba(0,0,0,0.3)', padding: '4px 8px', borderRadius: '6px', fontSize: '11px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                                        <span style={{ color: '#94a3b8' }}>RSI 모멘텀: </span>
+                                        <strong style={{ color: vector.rsi_momentum >= 0 ? '#34d399' : '#f87171' }}>{vector.rsi_momentum >= 0 ? '+' : ''}{vector.rsi_momentum}</strong>
+                                      </div>
+                                      <div style={{ background: 'rgba(0,0,0,0.3)', padding: '4px 8px', borderRadius: '6px', fontSize: '11px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                                        <span style={{ color: '#94a3b8' }}>MACD 가속: </span>
+                                        <strong style={{ color: vector.macd_acceleration >= 0 ? '#34d399' : '#f87171' }}>{vector.macd_acceleration >= 0 ? '+' : ''}{vector.macd_acceleration}</strong>
+                                      </div>
+                                      <div style={{ background: 'rgba(0,0,0,0.3)', padding: '4px 8px', borderRadius: '6px', fontSize: '11px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                                        <span style={{ color: '#94a3b8' }}>순방향 지수: </span>
+                                        <strong style={{ color: (vector.net_directional_score ?? 0) >= 0 ? '#34d399' : '#f87171' }}>{(vector.net_directional_score ?? 0) >= 0 ? '+' : ''}{vector.net_directional_score}</strong>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
                               <div className="detail-grid">
                                 <div className="detail-item">
                                   <span className="detail-label">실제 실현 손익 (판매가 - 구매가)</span>
@@ -2577,11 +2673,11 @@ const FALLBACK_BITHUMB_MARKETS = [
                                 </div>
                                 <div className="detail-item">
                                   <span className="detail-label">목표 투입 비중</span>
-                                  <span className="detail-val">{( (log.target_ratio || 0) * 100).toFixed(0)}%</span>
+                                  <span className="detail-val">{((log.target_ratio || 0) * 100).toFixed(0)}%</span>
                                 </div>
                               </div>
                               <div className="reason-full-box">
-                                <span className="reason-full-title"><Sparkles size={14} className="text-amber-300 inline mr-1" /> LLM 상세 분석 근거:</span>
+                                <span className="reason-full-title"><Sparkles size={14} className="text-cyan-300 inline mr-1" /> 차트 변동성 알고리즘 상세 분석 근거:</span>
                                 <p className="reason-full-text">{log.reason}</p>
                               </div>
                             </div>
