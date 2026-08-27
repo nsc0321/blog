@@ -2931,16 +2931,16 @@ const FALLBACK_BITHUMB_MARKETS = [
                         <input
                           type="number"
                           className="trading-input font-mono text-emerald-400"
-                          min="0.5"
+                          min="0.01"
                           max="10.0"
-                          step="0.5"
+                          step="0.01"
                           disabled={!limitsForm.enable_profit_reversal_exit}
                           value={limitsForm.profit_reversal_drop_pct}
                           onChange={(e) => setLimitsForm({ ...limitsForm, profit_reversal_drop_pct: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
                         />
                         <span className="suffix">%p</span>
                       </div>
-                      <span className="input-hint">수익 중 최고 수익률 대비 해당 수치 이상 되밀릴 시 즉시 익절</span>
+                      <span className="input-hint">수익 중 최고 수익률 대비 해당 수치(기본 0.05%) 이상 되밀릴 시 즉시 익절</span>
                     </div>
 
                     <div className="form-group mb-2">
@@ -2972,7 +2972,35 @@ const FALLBACK_BITHUMB_MARKETS = [
                   </div>
                 </div>
 
-                {/* AI 자율 익절 및 청산 안내 카드 */}
+                {/* 거래 수수료 설정 카드 */}
+                <div style={{
+                  background: 'rgba(30, 41, 59, 0.5)',
+                  border: '1px solid rgba(148, 163, 184, 0.25)',
+                  borderRadius: '10px',
+                  padding: '14px',
+                  marginTop: '12px'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <label className="form-label mb-0">
+                      <span className="text-cyan-300 font-bold">빗썸 거래 수수료율 (편도 %)</span>
+                    </label>
+                  </div>
+                  <div className="input-with-suffix">
+                    <input
+                      type="number"
+                      className="trading-input font-mono text-cyan-300"
+                      min="0.0"
+                      max="1.0"
+                      step="0.01"
+                      value={limitsForm.fee_rate_pct ?? 0.04}
+                      onChange={(e) => setLimitsForm({ ...limitsForm, fee_rate_pct: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
+                    />
+                    <span className="suffix">%</span>
+                  </div>
+                  <span className="input-hint">매수 0.04% + 매도 0.04% (왕복 0.08% 손익분기점 자동 계산)</span>
+                </div>
+
+                {/* 차트 변동성 자율 익절 및 청산 안내 카드 */}
                 <div style={{
                   background: 'rgba(16, 185, 129, 0.08)',
                   border: '1px solid rgba(16, 185, 129, 0.25)',
@@ -2983,11 +3011,11 @@ const FALLBACK_BITHUMB_MARKETS = [
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                     <ShieldCheck size={18} className="text-emerald-400" />
                     <span style={{ fontWeight: 700, fontSize: '14px', color: '#6ee7b7' }}>
-                      AI 실시간 자율 익절 & 분할 매도
+                      차트 변동성 기반 실시간 자율 익절 & 고점 반락 보호
                     </span>
                   </div>
                   <p style={{ fontSize: '12px', color: '#cbd5e1', lineHeight: '1.6', margin: 0 }}>
-                    기계적인 고정 익절선 대신 <strong>LLM 인공지능</strong>이 실시간 캔들 프라이스 액션, 저항/지지 레벨, 유동성 수급 흐름을 분석하여 <strong>최적의 타이밍에 전량 익절 및 50% 분할 매도</strong>를 자율적으로 집행합니다.
+                    수익 상태에서 <strong>고점 대비 -0.05% 하락 시 즉시 익절</strong>하며, <strong>0.02ms 차트 변동성 알고리즘</strong>이 실시간 캔들 프라이스 액션, 저항/지지 레벨, 유동성 수급 흐름을 분석하여 최적의 타이밍에 전량 매도 및 분할 매도를 자율적으로 집행합니다.
                   </p>
                 </div>
               </div>
