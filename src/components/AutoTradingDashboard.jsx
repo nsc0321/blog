@@ -60,9 +60,11 @@ export default function AutoTradingDashboard() {
   const [limitsForm, setLimitsForm] = useState({
     dry_run: true,
     min_order_krw: 5000,
+    max_portfolio_ratio_per_coin: 0.3,
     stop_loss_pct: 10.0,
     take_profit_pct: 0.0,
     daily_max_loss_pct: 0.0,
+    fee_rate_pct: 0.04,
     cooldown_minutes_after_sell: 0,
     enable_trend_filter: true,
     enable_breakeven_stop: false,
@@ -268,15 +270,54 @@ export default function AutoTradingDashboard() {
     }
   };
 
-  // Open Limits Modal with latest synced status values
-  const openLimitsModal = () => {
+  // Open Limits Modal with latest synced values from server config
+  const openLimitsModal = async () => {
+    setShowLimitsModal(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/trading/config`, {
+        headers: getAuthHeaders()
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const cfg = data.config || {};
+        setLimitsForm({
+          dry_run: cfg.dry_run ?? (status?.is_dry_run ?? true),
+          min_order_krw: cfg.min_order_krw ?? (status?.min_order_krw ?? 5000),
+          max_portfolio_ratio_per_coin: cfg.max_portfolio_ratio_per_coin ?? (status?.max_portfolio_ratio_per_coin ?? 0.3),
+          stop_loss_pct: cfg.stop_loss_pct ?? (status?.stop_loss_pct ?? 10.0),
+          take_profit_pct: cfg.take_profit_pct ?? (status?.take_profit_pct ?? 0.0),
+          daily_max_loss_pct: cfg.daily_max_loss_pct ?? (status?.daily_max_loss_pct ?? 0.0),
+          fee_rate_pct: cfg.fee_rate_pct ?? 0.04,
+          cooldown_minutes_after_sell: cfg.cooldown_minutes_after_sell ?? (status?.cooldown_minutes_after_sell ?? 0),
+          enable_trend_filter: cfg.enable_trend_filter ?? (status?.enable_trend_filter ?? true),
+          enable_breakeven_stop: cfg.enable_breakeven_stop ?? (status?.enable_breakeven_stop ?? false),
+          breakeven_trigger_pct: cfg.breakeven_trigger_pct ?? (status?.breakeven_trigger_pct ?? 0.0),
+          enable_partial_take_profit: cfg.enable_partial_take_profit ?? (status?.enable_partial_take_profit ?? false),
+          partial_take_profit_pct: cfg.partial_take_profit_pct ?? (status?.partial_take_profit_pct ?? 0.0),
+          partial_take_profit_ratio: cfg.partial_take_profit_ratio ?? (status?.partial_take_profit_ratio ?? 0.0),
+          trailing_stop_pct: cfg.trailing_stop_pct ?? (status?.trailing_stop_pct ?? 0.0),
+          max_rsi_for_buy: cfg.max_rsi_for_buy ?? (status?.max_rsi_for_buy ?? 68.0),
+          min_rsi_for_buy: cfg.min_rsi_for_buy ?? (status?.min_rsi_for_buy ?? 38.0),
+          enable_profit_reversal_exit: cfg.enable_profit_reversal_exit ?? (status?.enable_profit_reversal_exit ?? true),
+          profit_reversal_threshold_pct: cfg.profit_reversal_threshold_pct ?? (status?.profit_reversal_threshold_pct ?? 1.0),
+          profit_reversal_drop_pct: cfg.profit_reversal_drop_pct ?? (status?.profit_reversal_drop_pct ?? 1.0),
+          enable_profit_stagnation_exit: cfg.enable_profit_stagnation_exit ?? (status?.enable_profit_stagnation_exit ?? true),
+          profit_stagnation_minutes: cfg.profit_stagnation_minutes ?? (status?.profit_stagnation_minutes ?? 30)
+        });
+        return;
+      }
+    } catch (e) {
+      console.error('Failed to fetch trading config on modal open:', e);
+    }
     if (status) {
       setLimitsForm({
         dry_run: status.is_dry_run ?? true,
         min_order_krw: status.min_order_krw ?? 5000,
+        max_portfolio_ratio_per_coin: status.max_portfolio_ratio_per_coin ?? 0.3,
         stop_loss_pct: status.stop_loss_pct ?? 10.0,
         take_profit_pct: status.take_profit_pct ?? 0.0,
         daily_max_loss_pct: status.daily_max_loss_pct ?? 0.0,
+        fee_rate_pct: 0.04,
         cooldown_minutes_after_sell: status.cooldown_minutes_after_sell ?? 0,
         enable_trend_filter: status.enable_trend_filter ?? true,
         enable_breakeven_stop: status.enable_breakeven_stop ?? false,
@@ -294,7 +335,6 @@ export default function AutoTradingDashboard() {
         profit_stagnation_minutes: status.profit_stagnation_minutes ?? 30
       });
     }
-    setShowLimitsModal(true);
   };
 
   // Fetch Realtime Auto Market Selection Preview
@@ -316,7 +356,39 @@ export default function AutoTradingDashboard() {
   };
 
   // Open Market Modal with latest synced status values
-  const openMarketModal = () => {
+  const openMarketModal = async () => {
+    setShowMarketModal(true);
+    fetchAvailableMarkets();
+    try {
+      const res = await fetch(`${API_BASE}/api/trading/config`, {
+        headers: getAuthHeaders()
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const cfg = data.config || {};
+        if (cfg.target_markets && cfg.target_markets.length > 0) {
+          setSelectedMarkets(cfg.target_markets);
+        }
+        if (cfg.candle_unit_minutes) {
+          setCandleUnit(cfg.candle_unit_minutes);
+        }
+        const isAuto = cfg.enable_auto_market_selection ?? true;
+        const mode = cfg.auto_market_mode ?? 'TOP_VOLUME';
+        const count = cfg.auto_market_count ?? 5;
+        const minTrade = cfg.auto_market_min_trade_price_24h ?? 1000000000;
+
+        setAutoMarketSelection(isAuto);
+        setAutoMarketMode(mode);
+        setAutoMarketCount(count);
+        setAutoMarketMinTradePrice(minTrade);
+        setMarketModalTab(isAuto ? 'auto' : 'manual');
+        fetchAutoPreviewMarkets(mode, count, minTrade);
+        return;
+      }
+    } catch (e) {
+      console.error('Failed to fetch market config on modal open:', e);
+    }
+
     if (status?.target_markets && status.target_markets.length > 0) {
       setSelectedMarkets(status.target_markets);
     }
@@ -333,9 +405,6 @@ export default function AutoTradingDashboard() {
     setAutoMarketCount(count);
     setAutoMarketMinTradePrice(minTrade);
     setMarketModalTab(isAuto ? 'auto' : 'manual');
-
-    setShowMarketModal(true);
-    fetchAvailableMarkets();
     fetchAutoPreviewMarkets(mode, count, minTrade);
   };
 
@@ -630,10 +699,11 @@ const FALLBACK_BITHUMB_MARKETS = [
       min_order_krw: Number(limitsForm.min_order_krw) || 5000,
       max_order_krw_per_trade: 0,
       max_holding_coins: 0,
-      max_portfolio_ratio_per_coin: 1.0,
+      max_portfolio_ratio_per_coin: Number(limitsForm.max_portfolio_ratio_per_coin) || 0.3,
       stop_loss_pct: Number(limitsForm.stop_loss_pct) || 10.0,
       take_profit_pct: 0.0,
       daily_max_loss_pct: 0.0,
+      fee_rate_pct: Number(limitsForm.fee_rate_pct) || 0.04,
       cooldown_minutes_after_sell: 0,
       enable_trend_filter: Boolean(limitsForm.enable_trend_filter),
       enable_breakeven_stop: false,
@@ -670,6 +740,9 @@ const FALLBACK_BITHUMB_MARKETS = [
       if (res.ok) {
         setAlertMsg({ type: 'success', text: '자동매매 전략 및 리스크 관리 설정이 저장되었습니다.' });
         setShowLimitsModal(false);
+        if (data.config) {
+          setLimitsForm(prev => ({ ...prev, ...data.config }));
+        }
         await fetchStatus();
       } else {
         setAlertMsg({ type: 'error', text: data.message || '설정 저장 실패' });
@@ -2861,6 +2934,62 @@ const FALLBACK_BITHUMB_MARKETS = [
                     />
                     <span className="switch-slider"></span>
                   </label>
+                </div>
+
+                {/* 품목별 자산 한도 설정 */}
+                <div style={{
+                  background: 'rgba(30, 41, 59, 0.5)',
+                  border: '1px solid rgba(56, 189, 248, 0.3)',
+                  borderRadius: '10px',
+                  padding: '14px',
+                  marginTop: '12px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                    <PieChart size={18} className="text-sky-400" />
+                    <span style={{ fontWeight: 700, fontSize: '14px', color: '#7dd3fc' }}>
+                      품목별 자산 배분 및 주문 한도 설정
+                    </span>
+                  </div>
+
+                  <div className="form-group mb-0">
+                    <label className="form-label">
+                      <span className="text-sky-300 font-bold">품목(코인)별 최대 보유 한도 (%)</span>
+                    </label>
+                    <div className="input-with-suffix">
+                      <input
+                        type="number"
+                        className="trading-input font-mono text-sky-300"
+                        min="5"
+                        max="100"
+                        step="5"
+                        value={limitsForm.max_portfolio_ratio_per_coin !== undefined ? Math.round((Number(limitsForm.max_portfolio_ratio_per_coin) <= 1.0 ? Number(limitsForm.max_portfolio_ratio_per_coin) * 100 : Number(limitsForm.max_portfolio_ratio_per_coin))) : 30}
+                        onChange={(e) => {
+                          const val = e.target.value === '' ? '' : Math.max(5, Math.min(100, parseFloat(e.target.value) || 0));
+                          setLimitsForm({
+                            ...limitsForm,
+                            max_portfolio_ratio_per_coin: val === '' ? '' : (val / 100.0)
+                          });
+                        }}
+                      />
+                      <span className="suffix">%</span>
+                    </div>
+                    <div className="amt-chips mt-2">
+                      {[10, 20, 30, 50, 80, 100].map((pct) => {
+                        const currentPct = limitsForm.max_portfolio_ratio_per_coin !== undefined ? Math.round((Number(limitsForm.max_portfolio_ratio_per_coin) <= 1.0 ? Number(limitsForm.max_portfolio_ratio_per_coin) * 100 : Number(limitsForm.max_portfolio_ratio_per_coin))) : 30;
+                        return (
+                          <button
+                            key={pct}
+                            type="button"
+                            className={`amt-chip ${currentPct === pct ? 'active font-bold text-sky-300' : ''}`}
+                            onClick={() => setLimitsForm({ ...limitsForm, max_portfolio_ratio_per_coin: pct / 100.0 })}
+                          >
+                            {pct}% {pct === 30 ? '(기본 30%)' : ''}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <span className="input-hint mt-1">총 자산 중 단일 코인이 차지할 수 있는 최대 평가액 비중입니다. (초과 시 추가 매수 자동 차단)</span>
+                  </div>
                 </div>
 
                 {/* 비상 손절 및 AI 자율 익절 설정 */}
