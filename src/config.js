@@ -1,15 +1,15 @@
 ﻿// Central API Configuration & Connection Helper
-export const DEFAULT_FALLBACK_API = 'https://ragweed-blighted-skylight.ngrok-free.dev';
+export const DEFAULT_FALLBACK_API = 'https://missouri-sodium-marc-arrivals.trycloudflare.com';
 
 export function getApiBase() {
   if (typeof window !== 'undefined') {
     const custom = localStorage.getItem('custom_api_url');
-    if (custom && custom.trim()) {
+    if (custom && custom.trim() && !custom.includes('ragweed-blighted-skylight.ngrok-free.dev')) {
       return custom.trim().replace(/\/+$/, '');
     }
   }
   
-  if (import.meta.env.VITE_API_URL) {
+  if (import.meta.env.VITE_API_URL && !import.meta.env.VITE_API_URL.includes('ragweed-blighted-skylight.ngrok-free.dev')) {
     return import.meta.env.VITE_API_URL.replace(/\/+$/, '');
   }
 
@@ -21,7 +21,7 @@ export function getApiBase() {
     return DEFAULT_FALLBACK_API;
   }
 
-  return '';
+  return DEFAULT_FALLBACK_API;
 }
 
 export function setCustomApiBase(url) {

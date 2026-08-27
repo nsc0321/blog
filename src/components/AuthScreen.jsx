@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { Sparkles, Lock, User, KeyRound, Shield, CheckCircle, AlertCircle, ArrowRight, Eye, EyeOff, ShieldCheck, Cpu, Database, Activity, Wifi } from 'lucide-react';
 import { getApiBase } from '../config';
 
@@ -46,10 +46,11 @@ export default function AuthScreen({ onLoginSuccess }) {
 
     setLoading(true);
     try {
+      const activeBase = getApiBase();
       const endpoint = isRegisterMode ? '/api/auth/register' : '/api/auth/login';
       const payload = { username: cleanUsername, password };
 
-      const resp = await fetch(`${API_BASE}${endpoint}`, {
+      const resp = await fetch(`${activeBase}${endpoint}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -58,7 +59,13 @@ export default function AuthScreen({ onLoginSuccess }) {
         body: JSON.stringify(payload)
       });
 
-      const data = await resp.json();
+      let data = {};
+      try {
+        data = await resp.json();
+      } catch (e) {
+        const text = await resp.text().catch(() => '');
+        data = { detail: text || resp.statusText };
+      }
 
       if (!resp.ok) {
         setErrorMessage(data.detail || data.message || '인증 처리에 실패했습니다.');
@@ -69,19 +76,24 @@ export default function AuthScreen({ onLoginSuccess }) {
         localStorage.setItem('agent_auth_token', data.token);
         localStorage.setItem('agent_auth_username', data.username);
         localStorage.setItem('agent_auth_role', data.role || 'user');
+        
+        // Auto-clean stale ngrok url from localStorage
+        if (localStorage.getItem('custom_api_url')?.includes('ngrok-free.dev')) {
+          localStorage.removeItem('custom_api_url');
+        }
 
         if (isRegisterMode) {
           setSuccessMessage('회원가입이 완료되었습니다! 로그인 중...');
           setTimeout(() => {
             onLoginSuccess(data);
-          }, 800);
+          }, 600);
         } else {
           onLoginSuccess(data);
         }
       }
     } catch (err) {
       console.error('Auth request error:', err);
-      setErrorMessage('서버와 통신할 수 없습니다. 상단에서 API 서버 연결 주소를 확인해 주세요.');
+      setErrorMessage('서버와 통신할 수 없습니다. 백엔드 서버 상태를 확인해 주세요.');
     } finally {
       setLoading(false);
     }
