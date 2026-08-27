@@ -477,39 +477,7 @@ const FALLBACK_BITHUMB_MARKETS = [
       if (res.ok) {
         const data = await res.json();
         if (data.markets && data.markets.length > 0) {
-          setAvailableMarkets(data.markets);
-          return;
-        }
-      }
-
-      // Fallback 1: Query Bithumb Public Market API directly
-      try {
-        const bRes = await fetch('https://api.bithumb.com/v1/market/all');
-        if (bRes.ok) {
-          const raw = await bRes.json();
-          const krwMarkets = (raw || [])
-            .filter(m => m.market?.startsWith('KRW-'))
-            .map(m => ({
-              market: m.market,
-              symbol: m.market.replace('KRW-', ''),
-              korean_name: m.korean_name || m.market,
-              english_name: m.english_name || m.market
-            }));
-          const filtered = query
-            ? krwMarkets.filter(m =>
-                m.market.toUpperCase().includes(query.toUpperCase()) ||
-                m.symbol.toUpperCase().includes(query.toUpperCase()) ||
-                m.korean_name.includes(query)
-              )
-            : krwMarkets;
-          if (filtered.length > 0) {
-            setAvailableMarkets(filtered);
-            return;
-          }
-        }
-      } catch (_) {}
-
-      // Fallback 2: Local Built-in Popular Markets List
+      // Fallback: Local Built-in Popular Markets List
       const staticFiltered = query
         ? FALLBACK_BITHUMB_MARKETS.filter(m =>
             m.market.toUpperCase().includes(query.toUpperCase()) ||
@@ -518,9 +486,15 @@ const FALLBACK_BITHUMB_MARKETS = [
           )
         : FALLBACK_BITHUMB_MARKETS;
       setAvailableMarkets(staticFiltered);
-    } catch (err) {
-      console.error('Failed to fetch available markets, using fallback list:', err);
-      setAvailableMarkets(FALLBACK_BITHUMB_MARKETS);
+    } catch (_) {
+      const staticFiltered = query
+        ? FALLBACK_BITHUMB_MARKETS.filter(m =>
+            m.market.toUpperCase().includes(query.toUpperCase()) ||
+            m.symbol.toUpperCase().includes(query.toUpperCase()) ||
+            m.korean_name.includes(query)
+          )
+        : FALLBACK_BITHUMB_MARKETS;
+      setAvailableMarkets(staticFiltered);
     } finally {
       setLoadingMarkets(false);
     }
