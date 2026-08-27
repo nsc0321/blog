@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Bot, Database, TrendingUp, Sparkles, Activity, ShieldCheck, Cpu, ArrowRight, Search, FileText, Layers, RefreshCw, Bookmark, Zap, Server } from 'lucide-react';
+import { getApiBase } from '../config';
 
-const API_BASE = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' && (window.location.hostname.includes('github.io') || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'https://ragweed-blighted-skylight.ngrok-free.dev' : '');
+const API_BASE = getApiBase();
 
 export default function MainDashboard({ onNavigate }) {
   const [stats, setStats] = useState({

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Database, Key, Plus, Trash2, Tag, ShieldAlert, Sparkles, Filter, RefreshCw, ChevronRight, ChevronLeft, ExternalLink, Award, User, ShoppingBag, BookOpen, Check, Layers, AlertCircle, FileText, Pin, TrendingUp, X, ArrowRight, ArrowLeft, Info, Zap, Coins, Lock, LogOut } from 'lucide-react';
 import MabiAuctionChart from './MabiAuctionChart';
+import { getApiBase } from '../config';
 
-const API_BASE = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' && window.location.hostname.includes('github.io') ? 'https://ragweed-blighted-skylight.ngrok-free.dev' : '');
+const API_BASE = getApiBase();
 
 // Official Nexon Mabinogi Auction Categories (73 categories)
 const MABI_CATEGORIES = [

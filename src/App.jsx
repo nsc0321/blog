@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, Bot, Database, TrendingUp, Sparkles, Menu, X } from 'lucide-react';
+import { LayoutDashboard, Bot, Database, TrendingUp, Sparkles, Menu, X, Server, Wifi, WifiOff, Settings, CheckCircle2, AlertCircle, RefreshCw, Globe, ExternalLink } from 'lucide-react';
 import MainDashboard from './components/MainDashboard';
 import VoiceAssistant from './components/VoiceAssistant';
 import MabinogiArchive from './components/MabinogiArchive';
 import AutoTradingDashboard from './components/AutoTradingDashboard';
+import { getApiBase, setCustomApiBase, getCustomApiBase, testApiConnection, DEFAULT_FALLBACK_API } from './config';
 
 const getPageFromPath = () => {
   if (typeof window === 'undefined') return 'dashboard';
@@ -90,6 +91,62 @@ class ErrorBoundary extends React.Component {
 export default function App() {
   const [activePage, setActivePage] = useState(getPageFromPath);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  
+  // Server Status & API Configuration State
+  const [serverStatus, setServerStatus] = useState('checking'); // 'checking' | 'online' | 'offline'
+  const [showServerModal, setShowServerModal] = useState(false);
+  const [customUrlInput, setCustomUrlInput] = useState(() => getCustomApiBase());
+  const [testResult, setTestResult] = useState(null); // { testing: boolean, ok: boolean, message: string }
+  const [currentApiUrl, setCurrentApiUrl] = useState(() => getApiBase());
+
+  const checkStatus = async () => {
+    setServerStatus('checking');
+    const res = await testApiConnection();
+    if (res.ok) {
+      setServerStatus('online');
+    } else {
+      setServerStatus('offline');
+    }
+  };
+
+  useEffect(() => {
+    checkStatus();
+    const interval = setInterval(checkStatus, 30000);
+    return () => clearInterval(interval);
+  }, [currentApiUrl]);
+
+  const handleTestConnection = async () => {
+    setTestResult({ testing: true, ok: false, message: '연결 테스트 중...' });
+    const target = customUrlInput ? customUrlInput.trim() : currentApiUrl;
+    const res = await testApiConnection(target);
+    if (res.ok) {
+      setTestResult({ testing: false, ok: true, message: '✅ 백엔드 API 서버에 정상적으로 연결되었습니다!' });
+    } else {
+      setTestResult({ testing: false, ok: false, message: `❌ 연결 실패: ${res.error || '서버가 응답하지 않습니다.'}` });
+    }
+  };
+
+  const handleSaveServerUrl = () => {
+    setCustomApiBase(customUrlInput);
+    const newBase = getApiBase();
+    setCurrentApiUrl(newBase);
+    setShowServerModal(false);
+    setTestResult(null);
+    checkStatus();
+    // Reload page to rebind all static references and components cleanly
+    window.location.reload();
+  };
+
+  const handleResetServerUrl = () => {
+    setCustomApiBase('');
+    setCustomUrlInput('');
+    const newBase = getApiBase();
+    setCurrentApiUrl(newBase);
+    setShowServerModal(false);
+    setTestResult(null);
+    checkStatus();
+    window.location.reload();
+  };
 
   const handleNavigate = (page) => {
     setActivePage(page);
@@ -180,7 +237,20 @@ export default function App() {
           </button>
         </nav>
 
-        <div className="header-right">
+        <div className="header-right" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {/* Server Connection Status & Config Button */}
+          <button
+            className={`server-status-badge ${serverStatus === 'online' ? 'status-online' : serverStatus === 'offline' ? 'status-offline' : 'status-checking'}`}
+            onClick={() => {
+              setCustomUrlInput(getCustomApiBase());
+              setShowServerModal(true);
+            }}
+            title="API 백엔드 서버 연결 상태 및 주소 변경"
+          >
+            {serverStatus === 'online' ? <Wifi size={14} /> : serverStatus === 'offline' ? <WifiOff size={14} /> : <RefreshCw size={14} className="animate-spin" />}
+            <span>{serverStatus === 'online' ? 'API 연결됨' : serverStatus === 'offline' ? 'API 오프라인 (설정)' : '연결 확인중'}</span>
+          </button>
+
           <button className="mobile-toggle-btn" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
             {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
@@ -196,6 +266,95 @@ export default function App() {
           {activePage === 'mabinogi' && <MabinogiArchive />}
         </ErrorBoundary>
       </main>
+
+      {/* Server Settings Modal */}
+      {showServerModal && (
+        <div className="server-modal-overlay" onClick={() => setShowServerModal(false)}>
+          <div className="server-modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="server-modal-header">
+              <h3>
+                <Server size={20} style={{ color: '#8b5cf6' }} />
+                백엔드 API 서버 연결 설정
+              </h3>
+              <button className="server-modal-close" onClick={() => setShowServerModal(false)}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="server-url-box">
+              <div className="server-url-label">현재 적용된 API 주소:</div>
+              <div className="server-url-current">{currentApiUrl || '(기본 상대 경로)'}</div>
+            </div>
+
+            <div className="server-input-group">
+              <label style={{ fontSize: '13px', fontWeight: 600, color: '#e2e8f0' }}>
+                새 API 서버 주소 (ngrok / Cloudflare / OCI IP / 로컬):
+              </label>
+              <input
+                type="text"
+                className="server-input"
+                placeholder="예: https://xxx.ngrok-free.dev 또는 http://localhost:8000"
+                value={customUrlInput}
+                onChange={(e) => setCustomUrlInput(e.target.value)}
+              />
+              <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+                * GitHub Pages에서 터널 주소가 바뀌었을 때 새 주소를 입력하면 즉시 연결됩니다.
+              </span>
+            </div>
+
+            {testResult && (
+              <div style={{
+                padding: '10px 12px',
+                borderRadius: '8px',
+                fontSize: '13px',
+                background: testResult.ok ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                border: `1px solid ${testResult.ok ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+                color: testResult.ok ? '#34d399' : '#f87171'
+              }}>
+                {testResult.message}
+              </div>
+            )}
+
+            <div className="server-modal-actions">
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  className="btn-server-test"
+                  onClick={handleTestConnection}
+                  disabled={testResult?.testing}
+                >
+                  <RefreshCw size={14} className={testResult?.testing ? 'animate-spin' : ''} />
+                  연결 테스트
+                </button>
+                {getCustomApiBase() && (
+                  <button
+                    type="button"
+                    style={{
+                      padding: '9px 12px',
+                      borderRadius: '8px',
+                      background: 'rgba(255, 255, 255, 0.05)',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      color: '#94a3b8',
+                      fontSize: '12px',
+                      cursor: 'pointer'
+                    }}
+                    onClick={handleResetServerUrl}
+                  >
+                    기본값 복원
+                  </button>
+                )}
+              </div>
+              <button
+                type="button"
+                className="btn-server-save"
+                onClick={handleSaveServerUrl}
+              >
+                저장 및 적용
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

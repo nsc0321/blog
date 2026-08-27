@@ -24,7 +24,9 @@ jobs:
       - name: Install & Build
         run: |
           npm install
-          echo "VITE_API_URL=https://ragweed-blighted-skylight.ngrok-free.dev" > .env.production
+          if [ ! -s .env.production ]; then
+            echo "VITE_API_URL=https://ragweed-blighted-skylight.ngrok-free.dev" > .env.production
+          fi
           npm run build
 
       - name: Add 404 handler for SPA routing

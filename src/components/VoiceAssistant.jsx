@@ -3,8 +3,9 @@ import { Mic, MicOff, Send, Volume2, VolumeX, Menu, X, ChevronLeft, ChevronRight
 import AvatarCanvas from './AvatarCanvas';
 import RealtimeMonitor from './RealtimeMonitor';
 import ExecutionHistory from './ExecutionHistory';
+import { getApiBase } from '../config';
 
-const API_BASE = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' && (window.location.hostname.includes('github.io') || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'https://ragweed-blighted-skylight.ngrok-free.dev' : '');
+const API_BASE = getApiBase();
 
 export default function VoiceAssistant() {
   // Show/Hide Avatar State
