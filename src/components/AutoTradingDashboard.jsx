@@ -477,6 +477,11 @@ const FALLBACK_BITHUMB_MARKETS = [
       if (res.ok) {
         const data = await res.json();
         if (data.markets && data.markets.length > 0) {
+          setAvailableMarkets(data.markets);
+          return;
+        }
+      }
+
       // Fallback: Local Built-in Popular Markets List
       const staticFiltered = query
         ? FALLBACK_BITHUMB_MARKETS.filter(m =>
@@ -486,7 +491,7 @@ const FALLBACK_BITHUMB_MARKETS = [
           )
         : FALLBACK_BITHUMB_MARKETS;
       setAvailableMarkets(staticFiltered);
-    } catch (_) {
+    } catch (err) {
       const staticFiltered = query
         ? FALLBACK_BITHUMB_MARKETS.filter(m =>
             m.market.toUpperCase().includes(query.toUpperCase()) ||
