@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, Bot, Database, TrendingUp, Sparkles, Menu, X, Server, Wifi, WifiOff, Settings, CheckCircle2, AlertCircle, RefreshCw, Globe, ExternalLink } from 'lucide-react';
+﻿import React, { useState, useEffect } from 'react';
+import { LayoutDashboard, Bot, Database, TrendingUp, Sparkles, Menu, X, Server, Wifi, WifiOff, Settings, CheckCircle2, AlertCircle, RefreshCw, Globe, ExternalLink, Users, LogOut, User, ShieldCheck } from 'lucide-react';
 import MainDashboard from './components/MainDashboard';
 import VoiceAssistant from './components/VoiceAssistant';
 import MabinogiArchive from './components/MabinogiArchive';
 import AutoTradingDashboard from './components/AutoTradingDashboard';
+import AdminManagement from './components/AdminManagement';
+import AuthScreen from './components/AuthScreen';
 import { getApiBase, setCustomApiBase, getCustomApiBase, testApiConnection, DEFAULT_FALLBACK_API } from './config';
 
 const getPageFromPath = () => {
@@ -11,29 +13,29 @@ const getPageFromPath = () => {
   const path = window.location.pathname.toLowerCase();
   const hash = window.location.hash.toLowerCase();
   
-  // 1. URL search params check (?page=agent, ?page=trading, ?page=mabinogi)
+  // 1. URL search params check (?page=agent, ?page=trading, ?page=mabinogi, ?page=admin)
   try {
     const searchParams = new URLSearchParams(window.location.search);
     const pParam = searchParams.get('page') || searchParams.get('tab');
     if (pParam) {
       const lowerP = pParam.toLowerCase();
+      if (lowerP.includes('admin') || lowerP.includes('user')) return 'admin';
       if (lowerP.includes('trading')) return 'trading';
       if (lowerP.includes('agent') || lowerP.includes('agnet')) return 'agent';
       if (lowerP.includes('mabinogi')) return 'mabinogi';
     }
   } catch (e) {}
 
-  // 2. /blog/trading 또는 #trading 또는 /trading
+  // 2. Paths
+  if (path.includes('admin') || hash.includes('admin')) {
+    return 'admin';
+  }
   if (path.includes('trading') || hash.includes('trading')) {
     return 'trading';
   }
-
-  // 3. /blog/agent 또는 /blog/agnet 또는 #agent 또는 /agent
   if (path.includes('agent') || path.includes('agnet') || hash.includes('agent') || hash.includes('agnet')) {
     return 'agent';
   }
-
-  // 4. /blog/mabinogi 또는 #mabinogi 또는 /mabinogi
   if (path.includes('mabinogi') || hash.includes('mabinogi')) {
     return 'mabinogi';
   }
@@ -91,12 +93,32 @@ class ErrorBoundary extends React.Component {
 export default function App() {
   const [activePage, setActivePage] = useState(getPageFromPath);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Authentication State
+  const [token, setToken] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('agent_auth_token') || '';
+    }
+    return '';
+  });
+  const [username, setUsername] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('agent_auth_username') || '';
+    }
+    return '';
+  });
+  const [userRole, setUserRole] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('agent_auth_role') || 'user';
+    }
+    return 'user';
+  });
   
   // Server Status & API Configuration State
   const [serverStatus, setServerStatus] = useState('checking'); // 'checking' | 'online' | 'offline'
   const [showServerModal, setShowServerModal] = useState(false);
   const [customUrlInput, setCustomUrlInput] = useState(() => getCustomApiBase());
-  const [testResult, setTestResult] = useState(null); // { testing: boolean, ok: boolean, message: string }
+  const [testResult, setTestResult] = useState(null);
   const [currentApiUrl, setCurrentApiUrl] = useState(() => getApiBase());
 
   const checkStatus = async () => {
@@ -109,11 +131,59 @@ export default function App() {
     }
   };
 
+  // Check login validity on load
+  const verifyCurrentToken = async (currentToken) => {
+    if (!currentToken) return;
+    try {
+      const resp = await fetch(`${getApiBase()}/api/auth/me`, {
+        headers: {
+          'Authorization': `Bearer ${currentToken}`,
+          'ngrok-skip-browser-warning': 'true'
+        }
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        setUsername(data.username);
+        setUserRole(data.role || 'user');
+        localStorage.setItem('agent_auth_username', data.username);
+        localStorage.setItem('agent_auth_role', data.role || 'user');
+      } else if (resp.status === 401 || resp.status === 403) {
+        // Expired or invalid token
+        handleLogout(false);
+      }
+    } catch (err) {
+      console.log('Token check deferred or offline:', err);
+    }
+  };
+
   useEffect(() => {
     checkStatus();
+    if (token) {
+      verifyCurrentToken(token);
+    }
     const interval = setInterval(checkStatus, 30000);
     return () => clearInterval(interval);
-  }, [currentApiUrl]);
+  }, [currentApiUrl, token]);
+
+  const handleLoginSuccess = (authData) => {
+    setToken(authData.token);
+    setUsername(authData.username);
+    setUserRole(authData.role || 'user');
+    setActivePage('dashboard');
+  };
+
+  const handleLogout = (askConfirm = true) => {
+    if (askConfirm && !window.confirm('로그아웃 하시겠습니까?')) {
+      return;
+    }
+    localStorage.removeItem('agent_auth_token');
+    localStorage.removeItem('agent_auth_username');
+    localStorage.removeItem('agent_auth_role');
+    setToken('');
+    setUsername('');
+    setUserRole('user');
+    setActivePage('dashboard');
+  };
 
   const handleTestConnection = async () => {
     setTestResult({ testing: true, ok: false, message: '연결 테스트 중...' });
@@ -133,7 +203,6 @@ export default function App() {
     setShowServerModal(false);
     setTestResult(null);
     checkStatus();
-    // Reload page to rebind all static references and components cleanly
     window.location.reload();
   };
 
@@ -164,6 +233,8 @@ export default function App() {
       targetPath = `${basePrefix}/agent`;
     } else if (page === 'mabinogi') {
       targetPath = `${basePrefix}/mabinogi`;
+    } else if (page === 'admin') {
+      targetPath = `${basePrefix}/admin`;
     } else {
       targetPath = basePrefix || '/blog';
     }
@@ -188,6 +259,8 @@ export default function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
+  const isAdmin = userRole === 'admin' || username.toLowerCase() === 'yuha69' || username.toLowerCase() === 'admin';
+
   return (
     <div className="app-container">
       {/* Background Glow Effects */}
@@ -203,41 +276,105 @@ export default function App() {
             <Sparkles className="logo-sparkle" size={20} />
             <span className="brand-name">OCTO<span className="brand-highlight">HUB</span></span>
           </div>
-          <span className="version-pill">v2.5</span>
+          <span className="version-pill">v2.6</span>
         </div>
 
-        <nav className={`header-nav ${mobileMenuOpen ? 'mobile-open' : ''}`}>
-          <button
-            className={`nav-link ${activePage === 'dashboard' ? 'active' : ''}`}
-            onClick={() => handleNavigate('dashboard')}
-          >
-            <LayoutDashboard size={18} />
-            <span>메인 대시보드</span>
-          </button>
-          <button
-            className={`nav-link ${activePage === 'trading' ? 'active' : ''}`}
-            onClick={() => handleNavigate('trading')}
-          >
-            <TrendingUp size={18} />
-            <span>AI 자동거래</span>
-          </button>
-          <button
-            className={`nav-link ${activePage === 'agent' ? 'active' : ''}`}
-            onClick={() => handleNavigate('agent')}
-          >
-            <Bot size={18} />
-            <span>Agent AI</span>
-          </button>
-          <button
-            className={`nav-link ${activePage === 'mabinogi' ? 'active' : ''}`}
-            onClick={() => handleNavigate('mabinogi')}
-          >
-            <Database size={18} />
-            <span>마비노기 아카이브</span>
-          </button>
-        </nav>
+        {/* Show nav menu only when logged in */}
+        {token && (
+          <nav className={`header-nav ${mobileMenuOpen ? 'mobile-open' : ''}`}>
+            <button
+              className={`nav-link ${activePage === 'dashboard' ? 'active' : ''}`}
+              onClick={() => handleNavigate('dashboard')}
+            >
+              <LayoutDashboard size={18} />
+              <span>메인 대시보드</span>
+            </button>
+            <button
+              className={`nav-link ${activePage === 'trading' ? 'active' : ''}`}
+              onClick={() => handleNavigate('trading')}
+            >
+              <TrendingUp size={18} />
+              <span>AI 자동거래</span>
+            </button>
+            <button
+              className={`nav-link ${activePage === 'agent' ? 'active' : ''}`}
+              onClick={() => handleNavigate('agent')}
+            >
+              <Bot size={18} />
+              <span>Agent AI</span>
+            </button>
+            <button
+              className={`nav-link ${activePage === 'mabinogi' ? 'active' : ''}`}
+              onClick={() => handleNavigate('mabinogi')}
+            >
+              <Database size={18} />
+              <span>마비노기 아카이브</span>
+            </button>
+            {isAdmin && (
+              <button
+                className={`nav-link ${activePage === 'admin' ? 'active' : ''}`}
+                onClick={() => handleNavigate('admin')}
+                style={{ color: '#c4b5fd' }}
+              >
+                <Users size={18} />
+                <span>관리자 센터</span>
+              </button>
+            )}
+          </nav>
+        )}
 
         <div className="header-right" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {/* User Profile Pill & Logout (if logged in) */}
+          {token && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '5px 10px',
+                borderRadius: '16px',
+                background: 'rgba(255, 255, 255, 0.06)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                fontSize: '12px',
+                color: '#f8fafc'
+              }}>
+                <User size={13} color="#a78bfa" />
+                <span style={{ fontWeight: 700 }}>{username}</span>
+                <span style={{
+                  fontSize: '10px',
+                  padding: '2px 6px',
+                  borderRadius: '10px',
+                  background: isAdmin ? 'rgba(139, 92, 246, 0.25)' : 'rgba(255, 255, 255, 0.1)',
+                  color: isAdmin ? '#c4b5fd' : '#94a3b8',
+                  fontWeight: 600
+                }}>
+                  {isAdmin ? '👑 관리자' : '👤 회원'}
+                </span>
+              </div>
+
+              <button
+                onClick={() => handleLogout(true)}
+                title="로그아웃"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '6px 10px',
+                  borderRadius: '8px',
+                  background: 'rgba(239, 68, 68, 0.15)',
+                  border: '1px solid rgba(239, 68, 68, 0.25)',
+                  color: '#f87171',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                <LogOut size={13} />
+                <span>로그아웃</span>
+              </button>
+            </div>
+          )}
+
           {/* Server Connection Status & Config Button */}
           <button
             className={`server-status-badge ${serverStatus === 'online' ? 'status-online' : serverStatus === 'offline' ? 'status-offline' : 'status-checking'}`}
@@ -251,19 +388,28 @@ export default function App() {
             <span>{serverStatus === 'online' ? 'API 연결됨' : serverStatus === 'offline' ? 'API 오프라인 (설정)' : '연결 확인중'}</span>
           </button>
 
-          <button className="mobile-toggle-btn" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
-            {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
-          </button>
+          {token && (
+            <button className="mobile-toggle-btn" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
+              {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+            </button>
+          )}
         </div>
       </header>
 
-      {/* Page Content View */}
+      {/* Main Page Content View or Auth Gate */}
       <main className="main-content-view">
         <ErrorBoundary onReset={() => handleNavigate('dashboard')}>
-          {activePage === 'dashboard' && <MainDashboard onNavigate={(page) => handleNavigate(page)} />}
-          {activePage === 'trading' && <AutoTradingDashboard />}
-          {activePage === 'agent' && <VoiceAssistant />}
-          {activePage === 'mabinogi' && <MabinogiArchive />}
+          {!token ? (
+            <AuthScreen onLoginSuccess={handleLoginSuccess} />
+          ) : (
+            <>
+              {activePage === 'dashboard' && <MainDashboard onNavigate={(page) => handleNavigate(page)} />}
+              {activePage === 'trading' && <AutoTradingDashboard />}
+              {activePage === 'agent' && <VoiceAssistant />}
+              {activePage === 'mabinogi' && <MabinogiArchive />}
+              {activePage === 'admin' && <AdminManagement onNavigate={(page) => handleNavigate(page)} />}
+            </>
+          )}
         </ErrorBoundary>
       </main>
 
