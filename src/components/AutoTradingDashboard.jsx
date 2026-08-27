@@ -2600,6 +2600,10 @@ const FALLBACK_BITHUMB_MARKETS = [
                                         <span style={{ color: '#94a3b8' }}>EMA 추세: </span>
                                         <strong style={{ color: vector.trend_momentum >= 0 ? '#34d399' : '#f87171' }}>{vector.trend_momentum >= 0 ? '+' : ''}{vector.trend_momentum}</strong>
                                       </div>
+                                      <div style={{ background: 'rgba(0,0,0,0.3)', padding: '4px 8px', borderRadius: '6px', fontSize: '11px', border: '1px solid rgba(56, 189, 248, 0.2)' }}>
+                                        <span style={{ color: '#38bdf8' }}>가격 등락속도: </span>
+                                        <strong style={{ color: (vector.price_velocity ?? 0) >= 0 ? '#34d399' : '#f87171' }}>{(vector.price_velocity ?? 0) >= 0 ? '+' : ''}{vector.price_velocity ?? '-'}</strong>
+                                      </div>
                                       <div style={{ background: 'rgba(0,0,0,0.3)', padding: '4px 8px', borderRadius: '6px', fontSize: '11px', border: '1px solid rgba(255,255,255,0.06)' }}>
                                         <span style={{ color: '#94a3b8' }}>변동성/박스: </span>
                                         <strong style={{ color: vector.volatility_expansion >= 0 ? '#34d399' : '#f87171' }}>{vector.volatility_expansion >= 0 ? '+' : ''}{vector.volatility_expansion}</strong>
@@ -2620,6 +2624,12 @@ const FALLBACK_BITHUMB_MARKETS = [
                                         <span style={{ color: '#94a3b8' }}>MACD 가속: </span>
                                         <strong style={{ color: vector.macd_acceleration >= 0 ? '#34d399' : '#f87171' }}>{vector.macd_acceleration >= 0 ? '+' : ''}{vector.macd_acceleration}</strong>
                                       </div>
+                                      {vector.estimated_price_change_pct !== undefined && (
+                                        <div style={{ background: 'rgba(0,0,0,0.3)', padding: '4px 8px', borderRadius: '6px', fontSize: '11px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                                          <span style={{ color: '#34d399' }}>예상 변동폭: </span>
+                                          <strong style={{ color: vector.estimated_price_change_pct >= 0 ? '#34d399' : '#f87171' }}>{vector.estimated_price_change_pct >= 0 ? '+' : ''}{vector.estimated_price_change_pct}%</strong>
+                                        </div>
+                                      )}
                                       <div style={{ background: 'rgba(0,0,0,0.3)', padding: '4px 8px', borderRadius: '6px', fontSize: '11px', border: '1px solid rgba(255,255,255,0.06)' }}>
                                         <span style={{ color: '#94a3b8' }}>순방향 지수: </span>
                                         <strong style={{ color: (vector.net_directional_score ?? 0) >= 0 ? '#34d399' : '#f87171' }}>{(vector.net_directional_score ?? 0) >= 0 ? '+' : ''}{vector.net_directional_score}</strong>
