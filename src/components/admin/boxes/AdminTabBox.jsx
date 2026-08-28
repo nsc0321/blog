@@ -1,11 +1,11 @@
 ﻿import React from 'react';
-import { Users, ShieldCheck, Key, ShieldAlert, Layers } from 'lucide-react';
+import { Users, ShieldCheck, LayoutGrid, Layers } from 'lucide-react';
 
 export default function AdminTabBox({ activeTab, onTabChange }) {
   const tabs = [
     { id: 'users', label: '1. User Directory Box', icon: Users, badge: 'Accounts' },
     { id: 'roles', label: '2. RBAC Role Control Box', icon: ShieldCheck, badge: 'Security' },
-    { id: 'audit', label: '3. Security Policy Box', icon: ShieldAlert, badge: 'Firewall' }
+    { id: 'boxes', label: '3. Dynamic Box SDUI Manager', icon: LayoutGrid, badge: 'SDUI Control' }
   ];
 
   return (

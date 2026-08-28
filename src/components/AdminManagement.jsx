@@ -4,11 +4,12 @@ import AdminTabBox from './admin/boxes/AdminTabBox';
 import AdminStatsBox from './admin/boxes/AdminStatsBox';
 import AdminUserListBox from './admin/boxes/AdminUserListBox';
 import AdminRoleControlBox from './admin/boxes/AdminRoleControlBox';
+import AdminBoxControlBox from './admin/boxes/AdminBoxControlBox';
 import BoxGuard from './common/BoxGuard';
 import { getApiBase } from '../config';
 
 export default function AdminManagement({ onNavigate }) {
-  const [activeTab, setActiveTab] = useState('users'); // 'users' | 'roles' | 'audit'
+  const [activeTab, setActiveTab] = useState('users'); // 'users' | 'roles' | 'boxes'
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
 
@@ -98,7 +99,7 @@ export default function AdminManagement({ onNavigate }) {
               통합 계정 & 관리자 센터 (Admin Box)
             </h2>
             <p style={{ fontSize: '13px', color: '#94a3b8', margin: '4px 0 0 0' }}>
-              전체 사용자 권한(RBAC) 및 보안 정책을 실시간 제어합니다.
+              전체 사용자 권한(RBAC) 및 실시간 Box(Server-Driven UI)를 통제합니다.
             </p>
           </div>
 
@@ -155,8 +156,8 @@ export default function AdminManagement({ onNavigate }) {
             <AdminRoleControlBox />
           )}
 
-          {activeTab === 'audit' && (
-            <AdminRoleControlBox />
+          {activeTab === 'boxes' && (
+            <AdminBoxControlBox />
           )}
         </div>
       </div>

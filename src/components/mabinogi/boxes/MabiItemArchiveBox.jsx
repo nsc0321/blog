@@ -1,21 +1,49 @@
 ﻿import React, { useState, useEffect } from 'react';
-import { Layers, Search, RefreshCw, Filter, Sparkles } from 'lucide-react';
+import { Layers, Search, RefreshCw, Filter, Sparkles, ChevronLeft, ChevronRight, Coins } from 'lucide-react';
 import { Box } from '../../common/Box';
 import { getApiBase } from '../../../config';
+
+const MABI_CATEGORIES = [
+  "전체", "검", "양손 장비", "한손 장비", "너클", "랜스", "듀얼건", "수리검", "체인 블레이드",
+  "스태프", "원드", "실린더", "활", "석궁", "아틀라틀", "악기", "마리오네트", "핸들",
+  "경갑옷", "중갑옷", "천옷", "천옷/방직", "로브", "모자/가발", "장갑", "신발", "방패",
+  "액세서리", "에코스톤", "오브", "마도서", "토템", "팔리아스 유물", "인챈트 스크롤", "보석",
+  "개조석", "불타래", "핀즈비즈", "마기그래프", "마기그래프 도안", "포션", "기타 재료", "생활 도구"
+];
 
 export default function MabiItemArchiveBox() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
-  const [category, setCategory] = useState('ALL');
+  const [selectedCategory, setSelectedCategory] = useState('전체');
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [isKoreanGold, setIsKoreanGold] = useState(true);
 
   const API_BASE = getApiBase();
   const token = typeof window !== 'undefined' ? localStorage.getItem('agent_auth_token') || '' : '';
 
+  const formatGold = (val) => {
+    if (!val || isNaN(val)) return '0 Gold';
+    const num = Number(val);
+    if (!isKoreanGold) return `${num.toLocaleString()} Gold`;
+    if (num >= 100000000) {
+      const eok = Math.floor(num / 100000000);
+      const man = Math.floor((num % 100000000) / 10000);
+      return man > 0 ? `${eok}억 ${man.toLocaleString()}만 Gold` : `${eok}억 Gold`;
+    }
+    if (num >= 10000) {
+      return `${Math.floor(num / 10000).toLocaleString()}만 Gold`;
+    }
+    return `${num.toLocaleString()} Gold`;
+  };
+
   const fetchItems = async () => {
     setLoading(true);
     try {
-      const resp = await fetch(`${API_BASE}/api/mabinogi/archives/items?page=1&limit=50`, {
+      const catParam = selectedCategory !== '전체' ? `&category=${encodeURIComponent(selectedCategory)}` : '';
+      const searchParam = search.trim() ? `&search=${encodeURIComponent(search.trim())}` : '';
+      const resp = await fetch(`${API_BASE}/api/mabinogi/archives/items?page=${page}&limit=20${catParam}${searchParam}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'ngrok-skip-browser-warning': 'true'
@@ -24,6 +52,7 @@ export default function MabiItemArchiveBox() {
       const data = await resp.json();
       if (data.items && Array.isArray(data.items)) {
         setItems(data.items);
+        setTotalPages(data.total_pages || Math.ceil((data.total_count || data.items.length) / 20) || 1);
       }
     } catch (err) {
       console.log('Fetch items note:', err);
@@ -34,69 +63,135 @@ export default function MabiItemArchiveBox() {
 
   useEffect(() => {
     fetchItems();
-  }, []);
+  }, [page, selectedCategory]);
 
-  const sampleItems = items.length > 0 ? items : [
-    { id: 1, item_name: '디바인 블레이드', item_category: '양손검', average_price: 450000000, last_updated: '2026-08-28' },
-    { id: 2, item_name: '파멸의 로브 (남성용)', item_category: '천옷/로브', average_price: 1800000000, last_updated: '2026-08-28' },
-    { id: 3, item_name: '켈틱 로열 나이트 소드', item_category: '한손검', average_price: 12000000, last_updated: '2026-08-28' }
-  ];
-
-  const filtered = sampleItems.filter(i =>
-    !search || i.item_name.toLowerCase().includes(search.toLowerCase())
-  );
+  const handleSearchSubmit = (e) => {
+    e.preventDefault();
+    setPage(1);
+    fetchItems();
+  };
 
   return (
     <Box
-      title="2. Item Archive Box (아이템 데이터베이스)"
-      subtitle="수집된 장비, 무기 및 제작 재료 아이템 아카이브"
+      title="2. Item Archive Box (아이템 아카이브 빅데이터)"
+      subtitle="73개 공식 카테고리별 장비, 옵션 범위 및 거래 가격 아카이브"
       icon={Layers}
       badge="Archive DB"
       badgeType="purple"
       actions={
-        <button
-          onClick={fetchItems}
-          disabled={loading}
-          style={{
-            background: 'rgba(255, 255, 255, 0.05)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            color: '#cbd5e1',
-            padding: '6px 10px',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px',
-            fontSize: '12px'
-          }}
-        >
-          <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
-          <span>새로고침</span>
-        </button>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <button
+            onClick={() => setIsKoreanGold(!isKoreanGold)}
+            style={{
+              background: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              color: isKoreanGold ? '#34d399' : '#cbd5e1',
+              padding: '6px 10px',
+              borderRadius: '8px',
+              fontSize: '11px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}
+          >
+            <Coins size={12} />
+            <span>{isKoreanGold ? '만/억 단위 ON' : '숫자 단위'}</span>
+          </button>
+
+          <button
+            onClick={fetchItems}
+            disabled={loading}
+            style={{
+              background: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              color: '#cbd5e1',
+              padding: '6px 10px',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              fontSize: '12px'
+            }}
+          >
+            <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
+            <span>새로고침</span>
+          </button>
+        </div>
       }
     >
-      <div style={{ marginBottom: '14px' }}>
+      {/* Category selector */}
+      <div style={{
+        display: 'flex',
+        gap: '6px',
+        overflowX: 'auto',
+        paddingBottom: '8px',
+        marginBottom: '14px'
+      }}>
+        {MABI_CATEGORIES.map((cat) => {
+          const isActive = selectedCategory === cat;
+          return (
+            <button
+              key={cat}
+              onClick={() => { setSelectedCategory(cat); setPage(1); }}
+              style={{
+                padding: '4px 10px',
+                borderRadius: '6px',
+                border: `1px solid ${isActive ? 'rgba(139, 92, 246, 0.5)' : 'rgba(255, 255, 255, 0.06)'}`,
+                background: isActive ? 'rgba(139, 92, 246, 0.25)' : 'rgba(255, 255, 255, 0.02)',
+                color: isActive ? '#c4b5fd' : '#94a3b8',
+                fontSize: '11px',
+                fontWeight: isActive ? 700 : 500,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              {cat}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Search Input */}
+      <form onSubmit={handleSearchSubmit} style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
         <input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="아이템 이름 검색..."
           style={{
-            width: '100%',
+            flex: 1,
             background: 'rgba(255, 255, 255, 0.05)',
             border: '1px solid rgba(255, 255, 255, 0.12)',
             borderRadius: '8px',
             padding: '8px 12px',
             color: '#fff',
             fontSize: '13px',
-            outline: 'none',
-            boxSizing: 'border-box'
+            outline: 'none'
           }}
         />
-      </div>
+        <button
+          type="submit"
+          style={{
+            padding: '8px 16px',
+            borderRadius: '8px',
+            background: 'linear-gradient(135deg, #8b5cf6, #06b6d4)',
+            border: 'none',
+            color: '#fff',
+            fontWeight: 700,
+            fontSize: '13px',
+            cursor: 'pointer'
+          }}
+        >
+          검색
+        </button>
+      </form>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '10px' }}>
-        {filtered.map(item => (
+      {/* Item Cards Grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '10px', marginBottom: '16px' }}>
+        {items.map(item => (
           <div
             key={item.id}
             style={{
@@ -117,17 +212,53 @@ export default function MabiItemArchiveBox() {
                 background: 'rgba(139, 92, 246, 0.2)',
                 color: '#c4b5fd'
               }}>
-                {item.item_category}
+                {item.category || item.item_category}
               </span>
             </div>
-            <div style={{ fontSize: '13px', color: '#38bdf8', fontWeight: 800, marginTop: '6px' }}>
-              ₩ {Number(item.average_price).toLocaleString()} Gold
+            <div style={{ fontSize: '14px', color: '#38bdf8', fontWeight: 800, marginTop: '6px' }}>
+              {formatGold(item.avg_price || item.average_price)}
             </div>
-            <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>
-              최종 갱신: {item.last_updated}
+            <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px', display: 'flex', justifyContent: 'space-between' }}>
+              <span>수집 샘플: {item.sample_count || item.trade_count || 1}건</span>
+              <span>{item.last_history_collected_at ? new Date(item.last_history_collected_at).toLocaleDateString() : '최신'}</span>
             </div>
           </div>
         ))}
+      </div>
+
+      {/* Pagination */}
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '12px' }}>
+        <button
+          onClick={() => setPage(p => Math.max(1, p - 1))}
+          disabled={page <= 1}
+          style={{
+            padding: '6px 12px',
+            borderRadius: '6px',
+            background: 'rgba(255, 255, 255, 0.06)',
+            border: 'none',
+            color: '#cbd5e1',
+            cursor: page <= 1 ? 'not-allowed' : 'pointer'
+          }}
+        >
+          <ChevronLeft size={14} />
+        </button>
+        <span style={{ fontSize: '12px', color: '#cbd5e1' }}>
+          페이지 <strong>{page}</strong> / {totalPages}
+        </span>
+        <button
+          onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+          disabled={page >= totalPages}
+          style={{
+            padding: '6px 12px',
+            borderRadius: '6px',
+            background: 'rgba(255, 255, 255, 0.06)',
+            border: 'none',
+            color: '#cbd5e1',
+            cursor: page >= totalPages ? 'not-allowed' : 'pointer'
+          }}
+        >
+          <ChevronRight size={14} />
+        </button>
       </div>
     </Box>
   );
