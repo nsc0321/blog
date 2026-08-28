@@ -10,10 +10,20 @@ import SkillTestBox from '../agent/boxes/SkillTestBox';
 import AccountListBox from '../agent/boxes/AccountListBox';
 import HistoryBox from '../agent/boxes/HistoryBox';
 import AgentSettingBox from '../agent/boxes/AgentSettingBox';
-import CallTradingApiBox from '../trading/CallTradingApiBox';
+
+import TradingLiveTickerBox from '../trading/boxes/TradingLiveTickerBox';
+import TradingAiAnalysisBox from '../trading/boxes/TradingAiAnalysisBox';
+import TradingOrderBox from '../trading/boxes/TradingOrderBox';
+import TradingPositionBox from '../trading/boxes/TradingPositionBox';
 import TradingSettingBox from '../trading/TradingSettingBox';
 
+import MabiOpenApiSearchBox from '../mabinogi/boxes/MabiOpenApiSearchBox';
+import MabiItemArchiveBox from '../mabinogi/boxes/MabiItemArchiveBox';
+import MabiEnchantArchiveBox from '../mabinogi/boxes/MabiEnchantArchiveBox';
+import MabiBatchControlBox from '../mabinogi/boxes/MabiBatchControlBox';
+
 const COMPONENT_MAP = {
+  // Agent
   agent_chat: ChatBox,
   agent_call_api: CallAgentApiBox,
   agent_task: TaskBox,
@@ -23,14 +33,25 @@ const COMPONENT_MAP = {
   agent_account_list: AccountListBox,
   agent_history: HistoryBox,
   agent_setting: AgentSettingBox,
-  trading_call_api: CallTradingApiBox,
-  trading_setting: TradingSettingBox
+  
+  // Trading
+  trading_ticker: TradingLiveTickerBox,
+  trading_ai_analysis: TradingAiAnalysisBox,
+  trading_order: TradingOrderBox,
+  trading_positions: TradingPositionBox,
+  trading_setting: TradingSettingBox,
+
+  // Mabinogi
+  mabi_search: MabiOpenApiSearchBox,
+  mabi_items: MabiItemArchiveBox,
+  mabi_enchants: MabiEnchantArchiveBox,
+  mabi_batch: MabiBatchControlBox
 };
 
 export default function CompositeBox({
   title = '맞춤형 조합 Box',
-  boxIds = ['agent_chat', 'trading_call_api'],
-  layout = 'grid', // 'grid' | 'stack'
+  boxIds = ['agent_chat', 'trading_ticker'],
+  layout = 'grid',
   sharedProps = {}
 }) {
   return (
