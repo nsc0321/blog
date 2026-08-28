@@ -1,20 +1,24 @@
 ﻿import React, { useState, useEffect } from 'react';
-import { Settings, Shield, Sliders, Save, CheckCircle2, AlertCircle, ToggleLeft, ToggleRight, DollarSign, Target, Key, Plus, RefreshCw, X } from 'lucide-react';
+import { Settings, Shield, Sliders, Save, CheckCircle2, AlertCircle, ToggleLeft, ToggleRight, DollarSign, Target, Key, Plus, RefreshCw, X, Sparkles, Activity } from 'lucide-react';
 import { Box, SubBoxCard } from '../common/Box';
 import { getApiBase } from '../../config';
 
-export default function TradingSettingBox({
-  settings = {},
-  onSaveSettings,
-  loading = false
-}) {
-  const [targetMarket, setTargetMarket] = useState(settings.targetMarket || 'KRW-BTC');
-  const [dryRun, setDryRun] = useState(settings.dryRun !== undefined ? settings.dryRun : true);
-  const [stopLossPercent, setStopLossPercent] = useState(settings.stopLossPercent || 3.5);
-  const [takeProfitPercent, setTakeProfitPercent] = useState(settings.takeProfitPercent || 5.0);
-  const [trailingStopPercent, setTrailingStopPercent] = useState(settings.trailingStopPercent || 2.5);
-  const [maxOrderAmount, setMaxOrderAmount] = useState(settings.maxOrderAmount || 100000);
-  const [savedFeedback, setSavedFeedback] = useState(false);
+export default function TradingSettingBox({ onSaveSettings }) {
+  const [targetMarket, setTargetMarket] = useState('KRW-BTC');
+  const [dryRun, setDryRun] = useState(true);
+  const [stopLossPercent, setStopLossPercent] = useState(3.5);
+  const [takeProfitPercent, setTakeProfitPercent] = useState(5.0);
+  const [trailingStopPercent, setTrailingStopPercent] = useState(2.5);
+  const [maxOrderAmount, setMaxOrderAmount] = useState(100000);
+  const [candleUnit, setCandleUnit] = useState(15);
+  const [enableAutoMarket, setEnableAutoMarket] = useState(true);
+  const [maxHoldingCoins, setMaxHoldingCoins] = useState(1);
+
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [savedFeedback, setSavedFeedback] = useState(null);
+
+  // Key Modal State
   const [showKeyModal, setShowKeyModal] = useState(false);
   const [apiKey, setApiKey] = useState('');
   const [secretKey, setSecretKey] = useState('');
@@ -29,27 +33,69 @@ export default function TradingSettingBox({
     'ngrok-skip-browser-warning': 'true'
   });
 
+  // Fetch live config from server on mount
+  const fetchConfig = async () => {
+    setLoading(true);
+    try {
+      const resp = await fetch(`${API_BASE}/api/trading/config`, { headers: getHeaders() });
+      if (resp.ok) {
+        const data = await resp.json();
+        const cfg = data.config || {};
+        if (cfg.dry_run !== undefined) setDryRun(cfg.dry_run);
+        if (cfg.target_markets && cfg.target_markets.length > 0) setTargetMarket(cfg.target_markets[0]);
+        if (cfg.stop_loss_pct !== undefined) setStopLossPercent(cfg.stop_loss_pct);
+        if (cfg.take_profit_pct !== undefined) setTakeProfitPercent(cfg.take_profit_pct);
+        if (cfg.trailing_stop_pct !== undefined) setTrailingStopPercent(cfg.trailing_stop_pct);
+        if (cfg.max_order_krw_per_trade !== undefined) setMaxOrderAmount(cfg.max_order_krw_per_trade);
+        if (cfg.enable_auto_market_selection !== undefined) setEnableAutoMarket(cfg.enable_auto_market_selection);
+        if (cfg.candle_unit_minutes !== undefined) setCandleUnit(cfg.candle_unit_minutes);
+        if (cfg.max_holding_coins !== undefined) setMaxHoldingCoins(cfg.max_holding_coins);
+      }
+    } catch (err) {
+      console.log('Error fetching trading config:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchConfig();
+  }, []);
+
   const handleSave = async () => {
-    const newSettings = {
-      dry_run: dryRun,
+    setSaving(true);
+    setSavedFeedback(null);
+
+    const payload = {
+      dry_run: Boolean(dryRun),
       target_markets: [targetMarket],
       stop_loss_pct: parseFloat(stopLossPercent),
       take_profit_pct: parseFloat(takeProfitPercent),
       trailing_stop_pct: parseFloat(trailingStopPercent),
-      max_order_krw_per_trade: parseFloat(maxOrderAmount)
+      max_order_krw_per_trade: parseFloat(maxOrderAmount),
+      candle_unit_minutes: parseInt(candleUnit, 10),
+      enable_auto_market_selection: Boolean(enableAutoMarket),
+      max_holding_coins: parseInt(maxHoldingCoins, 10)
     };
 
     try {
       const resp = await fetch(`${API_BASE}/api/trading/config`, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify(newSettings)
+        body: JSON.stringify(payload)
       });
-      if (onSaveSettings) onSaveSettings(newSettings);
-      setSavedFeedback(true);
-      setTimeout(() => setSavedFeedback(false), 2500);
+      const data = await resp.json();
+      if (resp.ok) {
+        setSavedFeedback({ ok: true, message: data.message || '트레이딩 설정이 성공적으로 저장되었습니다.' });
+        if (onSaveSettings) onSaveSettings(payload);
+        setTimeout(() => setSavedFeedback(null), 3000);
+      } else {
+        setSavedFeedback({ ok: false, message: data.detail || '설정 저장에 실패했습니다.' });
+      }
     } catch (err) {
-      alert('설정 저장 실패: ' + err.message);
+      setSavedFeedback({ ok: false, message: `통신 오류: ${err.message}` });
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -118,48 +164,49 @@ export default function TradingSettingBox({
 
           <button
             onClick={handleSave}
-            disabled={loading}
+            disabled={saving || loading}
             style={{
               background: 'linear-gradient(135deg, #8b5cf6, #3b82f6)',
               border: 'none',
               color: '#fff',
-              padding: '6px 14px',
+              padding: '6px 16px',
               borderRadius: '8px',
               fontSize: '12px',
               fontWeight: 700,
-              cursor: 'pointer',
+              cursor: saving ? 'not-allowed' : 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: '4px'
+              gap: '4px',
+              boxShadow: '0 4px 12px rgba(139, 92, 246, 0.3)'
             }}
           >
-            <Save size={13} />
-            <span>설정 저장</span>
+            {saving ? <RefreshCw size={13} className="animate-spin" /> : <Save size={13} />}
+            <span>{saving ? '저장 중...' : '설정 저장'}</span>
           </button>
         </div>
       }
     >
       {savedFeedback && (
         <div style={{
-          marginBottom: '14px',
-          padding: '8px 12px',
+          marginBottom: '16px',
+          padding: '10px 14px',
           borderRadius: '8px',
-          background: 'rgba(16, 185, 129, 0.15)',
-          border: '1px solid rgba(16, 185, 129, 0.3)',
-          color: '#34d399',
+          background: savedFeedback.ok ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+          border: `1px solid ${savedFeedback.ok ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+          color: savedFeedback.ok ? '#34d399' : '#f87171',
           fontSize: '12px',
           display: 'flex',
           alignItems: 'center',
-          gap: '6px'
+          gap: '8px'
         }}>
-          <CheckCircle2 size={14} />
-          <span>트레이딩 파라미터가 성공적으로 반영되었습니다.</span>
+          {savedFeedback.ok ? <CheckCircle2 size={15} /> : <AlertCircle size={15} />}
+          <span>{savedFeedback.message}</span>
         </div>
       )}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
         
-        {/* Trading Mode */}
+        {/* Trading Mode Toggle */}
         <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '14px', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
           <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#f8fafc', marginBottom: '8px' }}>
             매매 실행 모드:
@@ -175,7 +222,7 @@ export default function TradingSettingBox({
                 border: `1px solid ${dryRun ? '#fbbf24' : 'rgba(255, 255, 255, 0.08)'}`,
                 background: dryRun ? 'rgba(245, 158, 11, 0.2)' : 'rgba(255, 255, 255, 0.02)',
                 color: dryRun ? '#fbbf24' : '#94a3b8',
-                fontWeight: 700,
+                fontWeight: 800,
                 fontSize: '12px',
                 cursor: 'pointer'
               }}
@@ -192,7 +239,7 @@ export default function TradingSettingBox({
                 border: `1px solid ${!dryRun ? '#10b981' : 'rgba(255, 255, 255, 0.08)'}`,
                 background: !dryRun ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.02)',
                 color: !dryRun ? '#34d399' : '#94a3b8',
-                fontWeight: 700,
+                fontWeight: 800,
                 fontSize: '12px',
                 cursor: 'pointer'
               }}
@@ -205,7 +252,7 @@ export default function TradingSettingBox({
         {/* Target Market */}
         <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '14px', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
           <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#f8fafc', marginBottom: '8px' }}>
-            타겟 거래 마켓:
+            기본 타겟 마켓:
           </label>
           <select
             value={targetMarket}
@@ -227,17 +274,20 @@ export default function TradingSettingBox({
             <option value="KRW-SOL" style={{ background: '#121225' }}>솔라나 (SOL/KRW)</option>
             <option value="KRW-XRP" style={{ background: '#121225' }}>리플 (XRP/KRW)</option>
             <option value="KRW-DOGE" style={{ background: '#121225' }}>도지코인 (DOGE/KRW)</option>
+            <option value="KRW-ADA" style={{ background: '#121225' }}>에이다 (ADA/KRW)</option>
+            <option value="KRW-AVAX" style={{ background: '#121225' }}>아발란체 (AVAX/KRW)</option>
+            <option value="KRW-SUI" style={{ background: '#121225' }}>수이 (SUI/KRW)</option>
           </select>
         </div>
 
-        {/* Stop Loss & Take Profit */}
+        {/* Dynamic Risk Stop-Loss & Take-Profit */}
         <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '14px', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
           <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#f8fafc', marginBottom: '8px' }}>
-            동적 손익절 가드레일 (%):
+            손절 & 익절 가드레일 (%):
           </label>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
             <div>
-              <span style={{ fontSize: '11px', color: '#f87171' }}>손절 기준 (%):</span>
+              <span style={{ fontSize: '11px', color: '#f87171', fontWeight: 600 }}>손절 기준 (%):</span>
               <input
                 type="number"
                 step="0.1"
@@ -258,7 +308,7 @@ export default function TradingSettingBox({
               />
             </div>
             <div>
-              <span style={{ fontSize: '11px', color: '#34d399' }}>익절 기준 (%):</span>
+              <span style={{ fontSize: '11px', color: '#34d399', fontWeight: 600 }}>익절 기준 (%):</span>
               <input
                 type="number"
                 step="0.1"
@@ -281,28 +331,54 @@ export default function TradingSettingBox({
           </div>
         </div>
 
-        {/* Max Order Amount */}
+        {/* Trailing Stop & Order Amount */}
         <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '14px', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
           <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#f8fafc', marginBottom: '8px' }}>
-            1회 최대 주문 한도 (KRW):
+            1회 주문 한도 & 트레일링 스탑:
           </label>
-          <input
-            type="number"
-            value={maxOrderAmount}
-            onChange={(e) => setMaxOrderAmount(e.target.value)}
-            style={{
-              width: '100%',
-              background: 'rgba(255, 255, 255, 0.05)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              borderRadius: '8px',
-              padding: '10px 12px',
-              color: '#38bdf8',
-              fontWeight: 800,
-              fontSize: '14px',
-              outline: 'none',
-              boxSizing: 'border-box'
-            }}
-          />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+            <div>
+              <span style={{ fontSize: '11px', color: '#c4b5fd', fontWeight: 600 }}>트레일링 (%):</span>
+              <input
+                type="number"
+                step="0.1"
+                value={trailingStopPercent}
+                onChange={(e) => setTrailingStopPercent(e.target.value)}
+                style={{
+                  width: '100%',
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: '6px',
+                  padding: '8px',
+                  color: '#c4b5fd',
+                  fontWeight: 700,
+                  fontSize: '13px',
+                  outline: 'none',
+                  boxSizing: 'border-box'
+                }}
+              />
+            </div>
+            <div>
+              <span style={{ fontSize: '11px', color: '#38bdf8', fontWeight: 600 }}>주문 한도 (KRW):</span>
+              <input
+                type="number"
+                value={maxOrderAmount}
+                onChange={(e) => setMaxOrderAmount(e.target.value)}
+                style={{
+                  width: '100%',
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: '6px',
+                  padding: '8px',
+                  color: '#38bdf8',
+                  fontWeight: 700,
+                  fontSize: '13px',
+                  outline: 'none',
+                  boxSizing: 'border-box'
+                }}
+              />
+            </div>
+          </div>
         </div>
 
       </div>

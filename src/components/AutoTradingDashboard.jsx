@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { TrendingUp, RefreshCw, Layers } from 'lucide-react';
 import TradingTabBox from './trading/boxes/TradingTabBox';
 import TradingStatusBox from './trading/boxes/TradingStatusBox';
@@ -12,7 +12,7 @@ import { getApiBase } from '../config';
 
 export default function AutoTradingDashboard() {
   const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'orders' | 'positions' | 'settings' | 'logs'
-  const [market, setMarket] = useState('BTC_KRW');
+  const [market, setMarket] = useState('KRW-BTC');
   const [tradingStatus, setTradingStatus] = useState(null);
   const [loading, setLoading] = useState(false);
   const [lastSignal, setLastSignal] = useState('HOLD');
@@ -35,6 +35,9 @@ export default function AutoTradingDashboard() {
         if (data.analysis?.decision) {
           setLastSignal(data.analysis.decision);
         }
+        if (data.target_markets && data.target_markets.length > 0) {
+          setMarket(data.target_markets[0]);
+        }
       }
     } catch (err) {
       console.log('Trading status fetch note:', err);
@@ -47,10 +50,11 @@ export default function AutoTradingDashboard() {
     fetchStatus();
     const timer = setInterval(fetchStatus, 15000);
     return () => clearInterval(timer);
-  }, [market]);
+  }, []);
 
   const currentPrice = tradingStatus?.current_price || tradingStatus?.ticker?.closing_price || 144250000;
   const changeRate = tradingStatus?.change_rate || tradingStatus?.ticker?.fluctate_rate_24H || '1.85';
+  const isDryRun = tradingStatus?.dry_run !== undefined ? tradingStatus.dry_run : true;
 
   return (
     <div className="trading-container-box" style={{ padding: '24px 20px', maxWidth: '1200px', margin: '0 auto' }}>
@@ -59,7 +63,7 @@ export default function AutoTradingDashboard() {
       <TradingStatusBox
         currentPrice={currentPrice}
         changeRate={changeRate}
-        isDryRun={true}
+        isDryRun={isDryRun}
         lastSignal={lastSignal}
         market={market}
       />
