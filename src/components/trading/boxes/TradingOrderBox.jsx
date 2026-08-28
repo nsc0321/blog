@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ShoppingCart, DollarSign, CheckCircle2, AlertTriangle, RefreshCw, Zap, Shield, AlertCircle, ArrowRightLeft } from 'lucide-react';
 import { Box } from '../../common/Box';
 import { getApiBase } from '../../../config';
@@ -90,7 +90,7 @@ export default function TradingOrderBox({
 
   return (
     <Box
-      title={`2. Order Execution Box (${market})`}
+      title={`Order Execution Box (${market})`}
       subtitle={localDryRun ? "가상 잔고를 이용한 안전한 모의 주문 집행" : "빗썸 실제 계좌 연동 즉시 주문 집행 콘솔"}
       icon={ShoppingCart}
       badge={localDryRun ? '🛡️ 모의투자 모드 (Dry-Run)' : '⚡ 실전 거래 모드 (Live Execution)'}

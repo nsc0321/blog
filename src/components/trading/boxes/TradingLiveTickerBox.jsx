@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { Activity, RefreshCw, BarChart2, Zap } from 'lucide-react';
 import { Box, SubBoxCard } from '../../common/Box';
 
@@ -15,7 +15,7 @@ export default function TradingLiveTickerBox({
 
   return (
     <Box
-      title={`1. Live Ticker & Indicators (${market})`}
+      title={`Live Ticker & Indicators (${market})`}
       subtitle="실시간 빗썸 호가 및 기술적 보조지표 복합 연산"
       icon={Activity}
       badge="Live Ticker"

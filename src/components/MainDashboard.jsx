@@ -149,7 +149,7 @@ export default function MainDashboard({ onNavigate }) {
             }
             footer={
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
-                <span style={{ color: '#94a3b8' }}>포함된 하위 Box: 9개 캡슐 (Chat, Task, Skill 등)</span>
+                <span style={{ color: '#94a3b8' }}>포함된 하위 Box: Chat, Skill, Account, History, Setting</span>
                 <span style={{ color: '#c4b5fd', fontWeight: 700 }}>클릭하여 열기 &rarr;</span>
               </div>
             }
@@ -158,33 +158,33 @@ export default function MainDashboard({ onNavigate }) {
               <div style={{ background: 'rgba(255, 255, 255, 0.04)', padding: '10px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, color: '#f8fafc' }}>
                   <MessageSquare size={14} color="#a78bfa" />
-                  <span>1. Chat Box</span>
+                  <span>Chat Box</span>
                 </div>
                 <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>실시간 음성/텍스트 대화</div>
               </div>
 
               <div style={{ background: 'rgba(255, 255, 255, 0.04)', padding: '10px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, color: '#f8fafc' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, color: '#38bdf8' }}>
                   <Cpu size={14} color="#38bdf8" />
-                  <span>2. Call API Box</span>
+                  <span>Call API Box</span>
                 </div>
                 <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>스킬/프롬프트 직접 호출</div>
               </div>
 
               <div style={{ background: 'rgba(255, 255, 255, 0.04)', padding: '10px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, color: '#f8fafc' }}>
-                  <Layers size={14} color="#34d399" />
-                  <span>6. Dashboard Box</span>
+                  <Wrench size={14} color="#34d399" />
+                  <span>Skill Workshop Box</span>
                 </div>
-                <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>Task Box + Log Box</div>
+                <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>Edit + Info + Test</div>
               </div>
 
               <div style={{ background: 'rgba(255, 255, 255, 0.04)', padding: '10px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, color: '#f8fafc' }}>
-                  <Zap size={14} color="#fbbf24" />
-                  <span>7. Skill Box</span>
+                  <History size={14} color="#fbbf24" />
+                  <span>Agent History Box</span>
                 </div>
-                <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>Edit + Info + Test</div>
+                <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>실행 이력 & 감사 로그</div>
               </div>
             </div>
           </Box>
