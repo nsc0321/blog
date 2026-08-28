@@ -9,13 +9,15 @@ export default function AdminBoxControlBox() {
   const [feedback, setFeedback] = useState(null);
 
   const API_BASE = getApiBase();
-  const token = typeof window !== 'undefined' ? localStorage.getItem('agent_auth_token') || '' : '';
 
-  const getHeaders = () => ({
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${token}`,
-    'ngrok-skip-browser-warning': 'true'
-  });
+  const getHeaders = () => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('agent_auth_token') || '' : '';
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+      'ngrok-skip-browser-warning': 'true'
+    };
+  };
 
   const fetchBoxes = async () => {
     setLoading(true);
@@ -43,30 +45,46 @@ export default function AdminBoxControlBox() {
         headers: getHeaders(),
         body: JSON.stringify({ is_active: !currentActive })
       });
+      const data = await resp.json().catch(() => ({}));
       if (resp.ok) {
-        setFeedback({ ok: true, message: `Box 상태가 성공적으로 변경되었습니다.` });
+        setFeedback({ ok: true, message: data.message || `Box 상태가 성공적으로 변경되었습니다.` });
         fetchBoxes();
         setTimeout(() => setFeedback(null), 3000);
+      } else {
+        setFeedback({ ok: false, message: data.detail || data.message || `상태 변경 실패 (HTTP ${resp.status})` });
       }
     } catch (err) {
-      setFeedback({ ok: false, message: '상태 변경 실패' });
+      setFeedback({ ok: false, message: `상태 변경 실패: ${err.message}` });
     }
   };
 
   const handleRoleChange = async (boxId, newRole) => {
     try {
-      const resp = await fetch(`${API_BASE}/api/admin/boxes/${boxId}`, {
+      let resp = await fetch(`${API_BASE}/api/admin/boxes/${boxId}`, {
         method: 'PATCH',
         headers: getHeaders(),
         body: JSON.stringify({ min_role: newRole })
       });
+      
+      // Fallback to PUT if PATCH is rejected by proxy
+      if (!resp.ok && resp.status === 405) {
+        resp = await fetch(`${API_BASE}/api/admin/boxes/${boxId}`, {
+          method: 'PUT',
+          headers: getHeaders(),
+          body: JSON.stringify({ min_role: newRole })
+        });
+      }
+
+      const data = await resp.json().catch(() => ({}));
       if (resp.ok) {
-        setFeedback({ ok: true, message: `Box 최소 권한이 '${newRole}'(으)로 변경되었습니다.` });
+        setFeedback({ ok: true, message: data.message || `Box 최소 권한이 '${newRole}'(으)로 변경되었습니다.` });
         fetchBoxes();
         setTimeout(() => setFeedback(null), 3000);
+      } else {
+        setFeedback({ ok: false, message: data.detail || data.message || `권한 변경 실패: 관리자 로그인이 필요하거나 권한이 부족합니다 (HTTP ${resp.status})` });
       }
     } catch (err) {
-      setFeedback({ ok: false, message: '권한 변경 실패' });
+      setFeedback({ ok: false, message: `권한 변경 요청 오류: ${err.message}` });
     }
   };
 
@@ -78,13 +96,16 @@ export default function AdminBoxControlBox() {
         method: 'POST',
         headers: getHeaders()
       });
+      const data = await resp.json().catch(() => ({}));
       if (resp.ok) {
-        setFeedback({ ok: true, message: '표준 Box가 DB에 성공적으로 동기화되었습니다.' });
+        setFeedback({ ok: true, message: data.message || '표준 Box가 DB에 성공적으로 동기화되었습니다.' });
         fetchBoxes();
         setTimeout(() => setFeedback(null), 3000);
+      } else {
+        setFeedback({ ok: false, message: data.detail || data.message || `동기화 실패 (HTTP ${resp.status})` });
       }
     } catch (err) {
-      setFeedback({ ok: false, message: '동기화 실패' });
+      setFeedback({ ok: false, message: `동기화 오류: ${err.message}` });
     } finally {
       setLoading(false);
     }
