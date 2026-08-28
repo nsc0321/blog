@@ -1,6 +1,7 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Code, Save, CheckCircle2, AlertTriangle, RefreshCw, FileText } from 'lucide-react';
 import { Box } from '../../common/Box';
+import BoxGuard from '../../common/BoxGuard';
 import { getApiBase } from '../../../config';
 
 export default function SkillEditBox({
@@ -44,12 +45,13 @@ export default function SkillEditBox({
   }
 
   return (
-    <Box
-      title={`7-1. Skill Edit Box: ${selectedSkill.name}`}
-      subtitle="파이썬(Python 3.11) 스킬 비즈니스 로직 구현 및 수정"
-      icon={Code}
-      badge="Python Editor"
-      badgeType="purple"
+    <BoxGuard minRole="admin" boxTitle={`스킬 코드 수정 (${selectedSkill.name})`}>
+      <Box
+        title={`7-1. Skill Edit Box: ${selectedSkill.name}`}
+        subtitle="파이썬(Python 3.11) 스킬 비즈니스 로직 구현 및 수정"
+        icon={Code}
+        badge="Python Editor"
+        badgeType="purple"
       actions={
         <button
           onClick={handleSave}
@@ -137,5 +139,6 @@ export default function SkillEditBox({
         </div>
       )}
     </Box>
+    </BoxGuard>
   );
 }

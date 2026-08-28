@@ -1,6 +1,7 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { Plus, Key, Save, CheckCircle2, AlertTriangle, ShieldCheck } from 'lucide-react';
 import { Box } from '../../common/Box';
+import BoxGuard from '../../common/BoxGuard';
 
 export default function AccountEditBox({ onAddCredential, loading = false }) {
   const [serviceName, setServiceName] = useState('');
@@ -23,13 +24,14 @@ export default function AccountEditBox({ onAddCredential, loading = false }) {
   };
 
   return (
-    <Box
-      title="8-2. Account Edit Box (신규 키 등록)"
-      subtitle="새로운 외부 API Key / 자격증명 등록 및 암호화 저장"
-      icon={Plus}
-      badge="Register"
-      badgeType="info"
-    >
+    <BoxGuard minRole="admin" boxTitle="자격증명 등록 (Account Edit)">
+      <Box
+        title="8-2. Account Edit Box (신규 키 등록)"
+        subtitle="새로운 외부 API Key / 자격증명 등록 및 암호화 저장"
+        icon={Plus}
+        badge="Register"
+        badgeType="info"
+      >
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
         <div>
           <label style={{ display: 'block', fontSize: '11px', color: '#cbd5e1', marginBottom: '4px', fontWeight: 600 }}>
@@ -119,5 +121,6 @@ export default function AccountEditBox({ onAddCredential, loading = false }) {
         </div>
       )}
     </Box>
+    </BoxGuard>
   );
 }
