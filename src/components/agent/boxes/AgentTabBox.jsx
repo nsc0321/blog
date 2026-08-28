@@ -1,14 +1,13 @@
-﻿import React from 'react';
+import React from 'react';
 import { MessageSquare, LayoutDashboard, Wrench, Key, History, Settings, Layers } from 'lucide-react';
 
 export default function AgentTabBox({ activeTab, onTabChange }) {
   const tabs = [
     { id: 'chat', label: '1. Chat & API Box', icon: MessageSquare, badge: 'Interactive' },
-    { id: 'dashboard', label: '6. Dashboard Box', icon: LayoutDashboard, badge: 'Tasks & Logs' },
-    { id: 'skills', label: '7. Skill Workshop Box', icon: Wrench, badge: 'Code & Test' },
-    { id: 'accounts', label: '8. Account Box', icon: Key, badge: 'Credentials' },
-    { id: 'history', label: '9. History Box', icon: History, badge: 'Audits' },
-    { id: 'settings', label: '3. Setting Box', icon: Settings, badge: 'Config' }
+    { id: 'skills', label: '2. Skill Workshop Box', icon: Wrench, badge: 'Code & Test' },
+    { id: 'accounts', label: '3. Account Box', icon: Key, badge: 'Credentials' },
+    { id: 'history', label: '4. Agent History Box', icon: History, badge: 'Tasks & Logs' },
+    { id: 'settings', label: '5. Setting Box', icon: Settings, badge: 'Config' }
   ];
 
   return (

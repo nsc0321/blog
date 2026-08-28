@@ -1,11 +1,10 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Bot, Sparkles, MessageSquare, Cpu, LayoutDashboard, Wrench, Key, History, Settings } from 'lucide-react';
 import AgentTabBox from './agent/boxes/AgentTabBox';
 import AgentStatusBox from './agent/boxes/AgentStatusBox';
 import AgentSettingBox from './agent/boxes/AgentSettingBox';
 import ChatBox from './agent/ChatBox';
 import CallAgentApiBox from './agent/CallAgentApiBox';
-import DashboardBox from './agent/boxes/DashboardBox';
 import SkillWorkshopBox from './agent/boxes/SkillWorkshopBox';
 import AccountManageBox from './agent/boxes/AccountManageBox';
 import HistoryBox from './agent/boxes/HistoryBox';
@@ -13,7 +12,7 @@ import AvatarCanvas from './AvatarCanvas';
 import { getApiBase } from '../config';
 
 export default function VoiceAssistant() {
-  const [activeTab, setActiveTab] = useState('chat'); // 'chat' | 'dashboard' | 'skills' | 'accounts' | 'history' | 'settings'
+  const [activeTab, setActiveTab] = useState('chat'); // 'chat' | 'skills' | 'accounts' | 'history' | 'settings'
   
   // Chat State
   const [messages, setMessages] = useState([
@@ -273,12 +272,7 @@ export default function VoiceAssistant() {
           </div>
         )}
 
-        {/* 6. Dashboard Box (6-1. Task Box + 6-2. Log Box) */}
-        {activeTab === 'dashboard' && (
-          <DashboardBox />
-        )}
-
-        {/* 7. Skill Workshop Box (7-1. Edit + 7-2. Info + 7-3. Test) */}
+        {/* 2. Skill Workshop Box (2-1. Edit + 2-2. Info + 2-3. Test) */}
         {activeTab === 'skills' && (
           <SkillWorkshopBox
             skills={skills}
