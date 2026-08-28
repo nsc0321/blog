@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { TrendingUp, RefreshCw, Layers } from 'lucide-react';
 import TradingTabBox from './trading/boxes/TradingTabBox';
 import TradingStatusBox from './trading/boxes/TradingStatusBox';
@@ -35,7 +35,7 @@ export default function AutoTradingDashboard() {
         if (data.analysis?.decision) {
           setLastSignal(data.analysis.decision);
         }
-        if (data.target_markets && data.target_markets.length > 0) {
+        if (data.target_markets && data.target_markets.length > 0 && !market) {
           setMarket(data.target_markets[0]);
         }
       }
@@ -48,13 +48,15 @@ export default function AutoTradingDashboard() {
 
   useEffect(() => {
     fetchStatus();
-    const timer = setInterval(fetchStatus, 15000);
+    const timer = setInterval(fetchStatus, 10000);
     return () => clearInterval(timer);
   }, []);
 
-  const currentPrice = tradingStatus?.current_price || tradingStatus?.ticker?.closing_price || 144250000;
-  const changeRate = tradingStatus?.change_rate || tradingStatus?.ticker?.fluctate_rate_24H || '1.85';
-  const isDryRun = tradingStatus?.dry_run !== undefined ? tradingStatus.dry_run : true;
+  const currentPrice = tradingStatus?.current_price || tradingStatus?.ticker?.closing_price || 111455000;
+  const changeRate = tradingStatus?.change_rate || tradingStatus?.ticker?.fluctate_rate_24H || '0.56';
+  const isDryRun = tradingStatus?.is_dry_run !== undefined 
+    ? tradingStatus.is_dry_run 
+    : (tradingStatus?.dry_run !== undefined ? tradingStatus.dry_run : false);
 
   return (
     <div className="trading-container-box" style={{ padding: '24px 20px', maxWidth: '1200px', margin: '0 auto' }}>
@@ -100,10 +102,14 @@ export default function AutoTradingDashboard() {
             <TradingOrderBox
               market={market}
               isDryRun={isDryRun}
-              onOrderComplete={fetchStatus}
+              onMarketChange={(newM) => setMarket(newM)}
+              onModeChange={() => fetchStatus()}
+              onOrderComplete={() => fetchStatus()}
             />
             <TradingPositionBox
               isDryRun={isDryRun}
+              selectedMarket={market}
+              onSelectMarket={(newM) => setMarket(newM)}
               onRefresh={fetchStatus}
               loading={loading}
             />
@@ -114,6 +120,11 @@ export default function AutoTradingDashboard() {
         {activeTab === 'positions' && (
           <TradingPositionBox
             isDryRun={isDryRun}
+            selectedMarket={market}
+            onSelectMarket={(newM) => {
+              setMarket(newM);
+              setActiveTab('orders');
+            }}
             onRefresh={fetchStatus}
             loading={loading}
           />
@@ -128,10 +139,7 @@ export default function AutoTradingDashboard() {
 
         {/* 5. Trading Log View */}
         {activeTab === 'logs' && (
-          <TradingLogBox
-            onRefresh={fetchStatus}
-            loading={loading}
-          />
+          <TradingLogBox />
         )}
 
       </div>

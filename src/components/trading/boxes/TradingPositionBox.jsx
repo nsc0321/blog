@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect } from 'react';
-import { PieChart, Wallet, DollarSign, RefreshCw, ArrowUpRight, ShieldCheck, AlertCircle, TrendingUp, TrendingDown, Coins, CheckCircle2 } from 'lucide-react';
+import { PieChart, Wallet, DollarSign, RefreshCw, ArrowUpRight, ShieldCheck, AlertCircle, TrendingUp, TrendingDown, Coins, CheckCircle2, Target } from 'lucide-react';
 import { Box, SubBoxCard } from '../../common/Box';
 import { getApiBase } from '../../../config';
 
@@ -21,7 +21,11 @@ const COIN_NAME_MAP = {
   'NEAR': '니어프로토콜'
 };
 
-export default function TradingPositionBox({ isDryRun: parentDryRun }) {
+export default function TradingPositionBox({
+  isDryRun: parentDryRun,
+  selectedMarket = 'KRW-BTC',
+  onSelectMarket
+}) {
   const [account, setAccount] = useState({
     krw_balance: 0,
     total_eval: 0,
@@ -51,7 +55,6 @@ export default function TradingPositionBox({ isDryRun: parentDryRun }) {
       if (resp.ok) {
         const data = await resp.json();
         
-        // Extract held items from positions or holdings
         let rawPositions = data.positions && data.positions.length > 0 ? data.positions : [];
         if (rawPositions.length === 0 && data.holdings) {
           rawPositions = data.holdings.filter(h => h.is_held && (h.volume > 0 || h.eval_krw > 0));
@@ -59,9 +62,11 @@ export default function TradingPositionBox({ isDryRun: parentDryRun }) {
 
         const formattedPositions = rawPositions.map(pos => {
           const sym = (pos.symbol || pos.market?.replace('KRW-', '') || '').toUpperCase();
+          const mCode = pos.market || `KRW-${sym}`;
           const kName = COIN_NAME_MAP[sym] || pos.korean_name || sym;
           return {
             ...pos,
+            market: mCode,
             symbol: sym,
             korean_name: kName,
             volume: typeof pos.volume === 'number' ? pos.volume : parseFloat(pos.volume || 0),
@@ -106,7 +111,7 @@ export default function TradingPositionBox({ isDryRun: parentDryRun }) {
   return (
     <Box
       title="3. Positions & Assets Box (보유 자산 & 포지션 잔고)"
-      subtitle="원화(KRW) 주문 가능 잔고, 보유 코인 수량 및 실시간 평가금액"
+      subtitle="원화(KRW) 주문 가능 잔고, 보유 코인 수량 및 실시간 평가금액 (클릭 시 주문 대상 변경)"
       icon={PieChart}
       badge={isDryRun ? '🛡️ 모의투자 자산 (Paper)' : '⚡ 빗썸 실전 자산 (Live)'}
       badgeType={isDryRun ? 'warning' : 'success'}
@@ -191,16 +196,27 @@ export default function TradingPositionBox({ isDryRun: parentDryRun }) {
                 <th style={{ padding: '8px 10px' }}>평가 금액 (KRW)</th>
                 <th style={{ padding: '8px 10px' }}>손익률 (%)</th>
                 <th style={{ padding: '8px 10px' }}>비중 (%)</th>
+                <th style={{ padding: '8px 10px', textAlign: 'center' }}>주문 연동</th>
               </tr>
             </thead>
             <tbody>
               {account.positions.map((pos, idx) => {
                 const isPosPnl = (pos.pnl_krw || 0) >= 0;
+                const isSelected = selectedMarket === pos.market;
                 return (
-                  <tr key={idx} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.04)' }}>
+                  <tr
+                    key={idx}
+                    onClick={() => onSelectMarket && onSelectMarket(pos.market)}
+                    style={{
+                      borderBottom: '1px solid rgba(255, 255, 255, 0.04)',
+                      background: isSelected ? 'rgba(56, 189, 248, 0.12)' : 'transparent',
+                      cursor: 'pointer',
+                      transition: 'background 0.2s'
+                    }}
+                  >
                     <td style={{ padding: '10px', fontWeight: 700, color: '#f8fafc' }}>
-                      <span style={{ color: '#38bdf8' }}>{pos.symbol || pos.market}</span>
-                      <span style={{ fontSize: '11px', color: '#94a3b8', marginLeft: '6px' }}>({pos.korean_name || pos.symbol})</span>
+                      <span style={{ color: isSelected ? '#38bdf8' : '#f8fafc' }}>{pos.symbol}</span>
+                      <span style={{ fontSize: '11px', color: '#94a3b8', marginLeft: '6px' }}>({pos.korean_name})</span>
                     </td>
                     <td style={{ padding: '10px', color: '#e2e8f0', fontFamily: 'monospace' }}>
                       {pos.volume}
@@ -219,6 +235,31 @@ export default function TradingPositionBox({ isDryRun: parentDryRun }) {
                     </td>
                     <td style={{ padding: '10px', color: '#c4b5fd' }}>
                       {(pos.weight_pct || 0).toFixed(1)}%
+                    </td>
+                    <td style={{ padding: '10px', textAlign: 'center' }}>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (onSelectMarket) onSelectMarket(pos.market);
+                        }}
+                        style={{
+                          padding: '4px 10px',
+                          borderRadius: '6px',
+                          border: `1px solid ${isSelected ? '#38bdf8' : 'rgba(255, 255, 255, 0.1)'}`,
+                          background: isSelected ? 'rgba(56, 189, 248, 0.25)' : 'rgba(255, 255, 255, 0.04)',
+                          color: isSelected ? '#38bdf8' : '#cbd5e1',
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}
+                      >
+                        <Target size={11} />
+                        <span>{isSelected ? '선택됨' : '선택'}</span>
+                      </button>
                     </td>
                   </tr>
                 );
