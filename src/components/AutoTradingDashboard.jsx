@@ -99,9 +99,11 @@ export default function AutoTradingDashboard() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '20px' }}>
             <TradingOrderBox
               market={market}
+              isDryRun={isDryRun}
               onOrderComplete={fetchStatus}
             />
             <TradingPositionBox
+              isDryRun={isDryRun}
               onRefresh={fetchStatus}
               loading={loading}
             />
@@ -111,6 +113,7 @@ export default function AutoTradingDashboard() {
         {/* 3. Positions & Assets View */}
         {activeTab === 'positions' && (
           <TradingPositionBox
+            isDryRun={isDryRun}
             onRefresh={fetchStatus}
             loading={loading}
           />
