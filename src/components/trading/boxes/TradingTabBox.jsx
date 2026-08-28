@@ -1,12 +1,11 @@
 ﻿import React from 'react';
-import { Sparkles, PieChart, Settings, Terminal, Layers } from 'lucide-react';
+import { PieChart, Settings, Terminal, Layers } from 'lucide-react';
 
 export default function TradingTabBox({ activeTab, onTabChange }) {
   const tabs = [
-    { id: 'overview', label: '1. AI Market Analysis', icon: Sparkles, badge: 'Quant' },
-    { id: 'positions', label: '2. Positions & Assets', icon: PieChart, badge: 'Wallet' },
-    { id: 'settings', label: '3. Trading Setting Box', icon: Settings, badge: 'Guardrails' },
-    { id: 'logs', label: '4. Trading Log Box', icon: Terminal, badge: 'Audits' }
+    { id: 'positions', label: '1. Positions & Assets', icon: PieChart, badge: 'Wallet' },
+    { id: 'settings', label: '2. Trading Setting Box', icon: Settings, badge: 'Guardrails' },
+    { id: 'logs', label: '3. Trading Log Box', icon: Terminal, badge: 'Audits' }
   ];
 
   return (
