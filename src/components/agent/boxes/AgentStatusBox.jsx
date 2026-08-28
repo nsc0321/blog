@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { Activity, Cpu, Sparkles, CheckCircle2, ShieldCheck, Zap } from 'lucide-react';
 import { Box } from '../../common/Box';
 
@@ -7,7 +7,7 @@ export default function AgentStatusBox({
   skillsCount = 40,
   activeTasksCount = 0,
   latency = '24ms',
-  currentModel = 'Gemini 2.5 Pro / GPT-4o'
+  currentModel = 'openai/gpt-oss-120b'
 }) {
   return (
     <div style={{

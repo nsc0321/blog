@@ -43,6 +43,12 @@ export default function VoiceAssistant() {
   const [skillsLoading, setSkillsLoading] = useState(false);
   const [credentials, setCredentials] = useState([]);
   const [credentialsLoading, setCredentialsLoading] = useState(false);
+  const [currentModel, setCurrentModel] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('agent_llm_model') || 'openai/gpt-oss-120b';
+    }
+    return 'openai/gpt-oss-120b';
+  });
 
   const API_BASE = getApiBase();
   const token = typeof window !== 'undefined' ? localStorage.getItem('agent_auth_token') || '' : '';
@@ -52,6 +58,24 @@ export default function VoiceAssistant() {
     'Authorization': `Bearer ${token}`,
     'ngrok-skip-browser-warning': 'true'
   });
+
+  // Fetch Status
+  const fetchStatus = async () => {
+    try {
+      const resp = await fetch(`${API_BASE}/api/status`, { headers: getHeaders() });
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data.llm_model) {
+          setCurrentModel(data.llm_model);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('agent_llm_model', data.llm_model);
+          }
+        }
+      }
+    } catch (e) {
+      console.log('Fetch status note:', e);
+    }
+  };
 
   // Fetch Skills
   const fetchSkills = async () => {
@@ -88,6 +112,7 @@ export default function VoiceAssistant() {
   useEffect(() => {
     fetchSkills();
     fetchCredentials();
+    fetchStatus();
   }, []);
 
   // Web Speech STT setup
@@ -150,15 +175,66 @@ export default function VoiceAssistant() {
     setChatStatusText('Agent AI가 응답을 생성하고 있습니다...');
 
     try {
-      const resp = await fetch(`${API_BASE}/api/agent/prompt`, {
+      // 1. Send to /api/chat with streaming or /api/agent/prompt fallback
+      const resp = await fetch(`${API_BASE}/api/chat`, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify({ prompt: userText, stream: false })
+        body: JSON.stringify({ message: userText })
       });
-      const data = await resp.json();
-      const reply = data.reply || data.response || (typeof data === 'string' ? data : JSON.stringify(data));
-      setMessages(prev => [...prev, { sender: 'assistant', text: reply }]);
-      speakText(reply);
+
+      if (!resp.ok) {
+        const fallbackResp = await fetch(`${API_BASE}/api/agent/prompt`, {
+          method: 'POST',
+          headers: getHeaders(),
+          body: JSON.stringify({ prompt: userText })
+        });
+        const fallbackData = await fallbackResp.json();
+        const reply = fallbackData.reply || fallbackData.response || '응답을 생성하지 못했습니다.';
+        setMessages(prev => [...prev, { sender: 'assistant', text: reply }]);
+        speakText(reply);
+        return;
+      }
+
+      const contentType = resp.headers.get('content-type') || '';
+      if (contentType.includes('application/x-ndjson') && resp.body) {
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let finalAnswer = '';
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop();
+
+          for (const line of lines) {
+            if (!line.trim()) continue;
+            try {
+              const parsed = JSON.parse(line);
+              if (parsed.type === 'log') {
+                setChatStatusText(parsed.content);
+              } else if (parsed.type === 'answer') {
+                finalAnswer = parsed.content;
+              } else if (parsed.type === 'error') {
+                finalAnswer = `⚠️ ${parsed.content}`;
+              }
+            } catch (e) {
+              if (line.trim()) finalAnswer = line.trim();
+            }
+          }
+        }
+
+        const reply = finalAnswer || '응답이 완료되었습니다.';
+        setMessages(prev => [...prev, { sender: 'assistant', text: reply }]);
+        speakText(reply);
+      } else {
+        const data = await resp.json();
+        const reply = data.reply || data.response || (typeof data === 'string' ? data : JSON.stringify(data));
+        setMessages(prev => [...prev, { sender: 'assistant', text: reply }]);
+        speakText(reply);
+      }
     } catch (err) {
       setMessages(prev => [...prev, { sender: 'assistant', text: `⚠️ 응답 실패: ${err.message || '서버 통신 오류'}` }]);
     } finally {
@@ -218,11 +294,12 @@ export default function VoiceAssistant() {
   return (
     <div className="agent-container-box" style={{ padding: '24px 20px', maxWidth: '1200px', margin: '0 auto' }}>
       
-      {/* 4. Status Box */}
+      {/* Status Box */}
       <AgentStatusBox
         status="ONLINE"
         skillsCount={skills.length}
-        activeTasksCount={1}
+        activeTasksCount={0}
+        currentModel={currentModel}
       />
 
       {/* 5. Tab Box: Dynamic Box Group Switcher */}
