@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { LayoutGrid, CheckCircle2, XCircle, Shield, RefreshCw, Layers, Sparkles, AlertTriangle } from 'lucide-react';
 import { Box } from '../../common/Box';
 import { getApiBase } from '../../../config';
@@ -92,7 +92,7 @@ export default function AdminBoxControlBox() {
 
   return (
     <Box
-      title="3. Dynamic Box SDUI Manager (실시간 Box 통제 콘솔)"
+      title="Dynamic Box SDUI Manager (실시간 Box 통제 콘솔)"
       subtitle="DB 기반 실시간 Box 활성화/비활성화, 권한(RBAC) 변경 및 화면 동적 통제 (Server-Driven UI)"
       icon={LayoutGrid}
       badge="SDUI Control"

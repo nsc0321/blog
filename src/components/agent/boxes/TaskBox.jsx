@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { PlayCircle, PauseCircle, RefreshCw, Trash2, CheckCircle2, Clock, Activity, Zap } from 'lucide-react';
 import { Box, SubBoxCard } from '../../common/Box';
 
@@ -15,7 +15,7 @@ export default function TaskBox({
 
   return (
     <Box
-      title="6-1. Task Box (백그라운드 태스크)"
+      title="Task Box (백그라운드 태스크)"
       subtitle="비동기 실행 프로세스, 스케줄러 및 실시간 데몬 제어"
       icon={Zap}
       badge="Daemon Monitor"

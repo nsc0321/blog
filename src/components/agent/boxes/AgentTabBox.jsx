@@ -3,11 +3,11 @@ import { MessageSquare, LayoutDashboard, Wrench, Key, History, Settings, Layers 
 
 export default function AgentTabBox({ activeTab, onTabChange }) {
   const tabs = [
-    { id: 'chat', label: '1. Chat & API Box', icon: MessageSquare, badge: 'Interactive' },
-    { id: 'skills', label: '2. Skill Workshop Box', icon: Wrench, badge: 'Code & Test' },
-    { id: 'accounts', label: '3. Account Box', icon: Key, badge: 'Credentials' },
-    { id: 'history', label: '4. Agent History Box', icon: History, badge: 'Tasks & Logs' },
-    { id: 'settings', label: '5. Setting Box', icon: Settings, badge: 'Config' }
+    { id: 'chat', label: 'Chat & API Box', icon: MessageSquare, badge: 'Interactive' },
+    { id: 'skills', label: 'Skill Workshop Box', icon: Wrench, badge: 'Code & Test' },
+    { id: 'accounts', label: 'Account Box', icon: Key, badge: 'Credentials' },
+    { id: 'history', label: 'Agent History Box', icon: History, badge: 'Tasks & Logs' },
+    { id: 'settings', label: 'Setting Box', icon: Settings, badge: 'Config' }
   ];
 
   return (

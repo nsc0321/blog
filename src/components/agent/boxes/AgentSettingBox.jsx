@@ -67,7 +67,7 @@ export default function AgentSettingBox({
 
   return (
     <Box
-      title="5. Setting Box (Agent 환경 설정)"
+      title="Setting Box (Agent 환경 설정)"
       subtitle="음성(TTS/STT), AI 모델 및 아바타 렌더링 옵션 제어"
       icon={Settings}
       badge="Configuration"

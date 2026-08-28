@@ -72,7 +72,7 @@ export default function MabiEnchantArchiveBox() {
 
   return (
     <Box
-      title="3. Enchant Archive Box (인챈트 스크롤 아카이브)"
+      title="Enchant Archive Box (인챈트 스크롤 아카이브)"
       subtitle="수집된 접두/접미 인챈트 스크롤 옵션, 랭크 및 실거래 시세 데이터베이스"
       icon={Sparkles}
       badge="Enchant DB"

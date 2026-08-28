@@ -26,7 +26,7 @@ export default function AccountEditBox({ onAddCredential, loading = false }) {
   return (
     <BoxGuard minRole="admin" boxTitle="자격증명 등록 (Account Edit)">
       <Box
-        title="8-2. Account Edit Box (신규 키 등록)"
+        title="Account Edit Box (신규 키 등록)"
         subtitle="새로운 외부 API Key / 자격증명 등록 및 암호화 저장"
         icon={Plus}
         badge="Register"

@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Settings, Shield, Sliders, Save, CheckCircle2, AlertCircle, ToggleLeft, ToggleRight, DollarSign, Target, Key, Plus, RefreshCw, X, Sparkles, Activity, TrendingUp, Clock, BarChart2 } from 'lucide-react';
 import { Box, SubBoxCard } from '../common/Box';
 import { getApiBase } from '../../config';
@@ -164,7 +164,7 @@ export default function TradingSettingBox({ onSaveSettings }) {
 
   return (
     <Box
-      title="3. Trading Setting Box (자동 거래 지침 & 퀀트 제어)"
+      title="Trading Setting Box (자동 거래 지침 & 퀀트 제어)"
       subtitle="손익절 가드레일, 고점 반락/장기 횡보 수익 보존 규칙 및 1시간 주기 종목 자동 발굴"
       icon={Settings}
       badge={dryRun ? '모의투자 모드 (Dry-run)' : '실전 거래 모드 (Live)'}

@@ -5,7 +5,7 @@ import { Box, SubBoxCard } from '../../common/Box';
 export default function AdminRoleControlBox() {
   return (
     <Box
-      title="2. RBAC Role & Security Policy Box"
+      title="RBAC Role & Security Policy Box"
       subtitle="역할 기반 접근 제어(Role-Based Access Control) 및 보안 정책 감사"
       icon={ShieldCheck}
       badge="RBAC Matrix"

@@ -1,12 +1,12 @@
-﻿import React from 'react';
+import React from 'react';
 import { Database, Search, Layers, Sparkles, Cpu, Clock, RefreshCw } from 'lucide-react';
 
 export default function MabiTabBox({ activeTab, onTabChange }) {
   const tabs = [
-    { id: 'search', label: '1. Open API Search Box', icon: Search, badge: 'Nexon API' },
-    { id: 'items', label: '2. Item Archive Box', icon: Layers, badge: 'Database' },
-    { id: 'enchants', label: '3. Enchant Archive Box', icon: Sparkles, badge: 'Scrolls' },
-    { id: 'batch', label: '4. Batch Collector Box', icon: Cpu, badge: 'Admin Only' }
+    { id: 'search', label: 'Open API Search Box', icon: Search, badge: 'Nexon API' },
+    { id: 'items', label: 'Item Archive Box', icon: Layers, badge: 'Database' },
+    { id: 'enchants', label: 'Enchant Archive Box', icon: Sparkles, badge: 'Scrolls' },
+    { id: 'batch', label: 'Batch Collector Box', icon: Cpu, badge: 'Admin Only' }
   ];
 
   return (

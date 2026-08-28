@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Terminal, RefreshCw, Search, CheckCircle2, Clock, Filter, Eye, ChevronLeft, ChevronRight, X, TrendingUp, TrendingDown, Activity, BarChart2 } from 'lucide-react';
 import { Box } from '../../common/Box';
 import { getApiBase } from '../../../config';
@@ -48,7 +48,7 @@ export default function TradingLogBox() {
 
   return (
     <Box
-      title="4. Trading Log Box (자동매매 & 시장 분석 실시간 감사 로그)"
+      title="Trading Log Box (자동매매 & 시장 분석 실시간 감사 로그)"
       subtitle="실시간 8차원 벡터 총합(v_net), 매도 시 실현 거래 차익(손익 KRW) 및 주문 집행 감사 이력"
       icon={Terminal}
       badge="Audit Trail"

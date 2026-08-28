@@ -139,7 +139,7 @@ export default function MabiBatchControlBox() {
   return (
     <BoxGuard minRole="admin" boxTitle="스마트 자동 수집 배치 제어">
       <Box
-        title="4. Smart Batch Collector Box (아카이브 수집 제어)"
+        title="Smart Batch Collector Box (아카이브 수집 제어)"
         subtitle="넥슨 경매장 & 아이템 빅데이터 자동 스크랩 배치 주기, 시간 및 세부 옵션 제어 콘솔"
         icon={Cpu}
         badge="Admin Batch"

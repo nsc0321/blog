@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { Info, CheckCircle, XCircle, ShieldCheck, Layers, Clock } from 'lucide-react';
 import { Box } from '../../common/Box';
 
@@ -6,7 +6,7 @@ export default function SkillInfoBox({ selectedSkill }) {
   if (!selectedSkill) {
     return (
       <Box
-        title="7-2. Skill Info Box"
+        title="Skill Info Box"
         subtitle="스킬 메타데이터 & I/O 스키마 정의"
         icon={Info}
       >
@@ -19,7 +19,7 @@ export default function SkillInfoBox({ selectedSkill }) {
 
   return (
     <Box
-      title={`7-2. Skill Info: ${selectedSkill.name}`}
+      title={`Skill Info: ${selectedSkill.name}`}
       subtitle="스키마, 승인 여부, 검증 상태 및 매개변수 정보"
       icon={Info}
       badge={selectedSkill.is_verified ? '검증 완료' : '미검증'}

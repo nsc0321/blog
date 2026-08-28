@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Terminal, Search, Trash2, RefreshCw, Filter, ArrowDown } from 'lucide-react';
 import { Box } from '../../common/Box';
 import { getApiBase } from '../../../config';
@@ -44,7 +44,7 @@ export default function LogBox() {
 
   return (
     <Box
-      title="6-2. Log Box (실시간 텔레메트리 로그)"
+      title="Log Box (실시간 텔레메트리 로그)"
       subtitle="백엔드 및 Agent 엔진의 실시간 스트리밍 로그 뷰어"
       icon={Terminal}
       badge="Live Stream"

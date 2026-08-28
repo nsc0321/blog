@@ -83,7 +83,7 @@ export default function MabiItemArchiveBox() {
 
   return (
     <Box
-      title="2. Item Archive Box (아이템 아카이브 빅데이터)"
+      title="Item Archive Box (아이템 아카이브 빅데이터)"
       subtitle="73개 공식 카테고리별 장비, 옵션 범위 및 거래 가격 아카이브"
       icon={Layers}
       badge="Archive DB"

@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { PieChart, Wallet, DollarSign, RefreshCw, ArrowUpRight, ShieldCheck, AlertCircle, TrendingUp, TrendingDown, Coins, CheckCircle2, Target } from 'lucide-react';
 import { Box, SubBoxCard } from '../../common/Box';
 import { getApiBase } from '../../../config';
@@ -110,7 +110,7 @@ export default function TradingPositionBox({
 
   return (
     <Box
-      title="3. Positions & Assets Box (보유 자산 & 포지션 잔고)"
+      title="Positions & Assets Box (보유 자산 & 포지션 잔고)"
       subtitle="원화(KRW) 주문 가능 잔고, 보유 코인 수량 및 실시간 평가금액 (클릭 시 주문 대상 변경)"
       icon={PieChart}
       badge={isDryRun ? '🛡️ 모의투자 자산 (Paper)' : '⚡ 빗썸 실전 자산 (Live)'}

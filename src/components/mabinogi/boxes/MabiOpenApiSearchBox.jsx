@@ -63,7 +63,7 @@ export default function MabiOpenApiSearchBox() {
 
   return (
     <Box
-      title="1. Nexon Open API Search Box (경매장 실시간 시세 조회)"
+      title="Nexon Open API Search Box (경매장 실시간 시세 조회)"
       subtitle="넥슨 공식 API 실시간 경매장 최근 체결 시세 및 거래 동향 차트"
       icon={Search}
       badge="Nexon Official"

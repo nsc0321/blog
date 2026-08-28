@@ -33,7 +33,7 @@ export default function SkillEditBox({
   if (!selectedSkill) {
     return (
       <Box
-        title="7-1. Skill Edit Box"
+        title="Skill Edit Box"
         subtitle="스킬 파이썬 코드 작성 및 실시간 편집기"
         icon={Code}
       >
@@ -45,9 +45,9 @@ export default function SkillEditBox({
   }
 
   return (
-    <BoxGuard minRole="admin" boxTitle={`스킬 코드 수정 (${selectedSkill.name})`}>
+    <BoxGuard minRole="admin" boxTitle={`스킬 코드 편집 (${selectedSkill.name})`}>
       <Box
-        title={`7-1. Skill Edit Box: ${selectedSkill.name}`}
+        title={`Skill Edit Box: ${selectedSkill.name}`}
         subtitle="파이썬(Python 3.11) 스킬 비즈니스 로직 구현 및 수정"
         icon={Code}
         badge="Python Editor"

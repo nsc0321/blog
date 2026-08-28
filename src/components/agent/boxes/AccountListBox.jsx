@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { Key, Eye, EyeOff, Trash2, ShieldCheck, RefreshCw } from 'lucide-react';
 import { Box } from '../../common/Box';
 
@@ -16,7 +16,7 @@ export default function AccountListBox({
 
   return (
     <Box
-      title="8-1. Account List Box (자격증명 목록)"
+      title="Account List Box (자격증명 목록)"
       subtitle="안전하게 암호화 보관된 외부 서비스 API Key 및 토큰 목록"
       icon={Key}
       badge="Encrypted"

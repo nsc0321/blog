@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { Play, Terminal, CheckCircle2, AlertTriangle, RefreshCw } from 'lucide-react';
 import { Box } from '../../common/Box';
 import { getApiBase } from '../../../config';
@@ -51,7 +51,7 @@ export default function SkillTestBox({ selectedSkill }) {
   if (!selectedSkill) {
     return (
       <Box
-        title="7-3. Skill Test Box"
+        title="Skill Test Box"
         subtitle="스킬 단위 실행 및 실시간 출력 검증"
         icon={Play}
       >
@@ -64,7 +64,7 @@ export default function SkillTestBox({ selectedSkill }) {
 
   return (
     <Box
-      title={`7-3. Skill Test Box: ${selectedSkill.name}`}
+      title={`Skill Test Box: ${selectedSkill.name}`}
       subtitle="테스트 인자 주입 및 실행 결과 샌드박스"
       icon={Play}
       badge="Sandbox"

@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { Wrench, Plus, Search, Layers, RefreshCw } from 'lucide-react';
 import { Box, SubBoxCard } from '../../common/Box';
 import SkillEditBox from './SkillEditBox';
@@ -25,7 +25,7 @@ export default function SkillWorkshopBox({
         
         {/* Left Column: Skill List Sub-Box */}
         <Box
-          title="7. Skill Catalog"
+          title="Skill Catalog Box"
           subtitle={`${skills.length}개 자동화 스킬 로드됨`}
           icon={Wrench}
           badge="Library"

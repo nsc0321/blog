@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { Users, Key, Trash2, RefreshCw, Search, CheckCircle2, AlertTriangle, X } from 'lucide-react';
 import { Box } from '../../common/Box';
 import { getApiBase } from '../../../config';
@@ -38,7 +38,7 @@ export default function AdminUserListBox({
 
   return (
     <Box
-      title="1. User Directory Box (전체 회원 목록 & 계정 관리)"
+      title="User Directory Box (전체 회원 목록 & 계정 관리)"
       subtitle="등록된 사용자 계정 조회, 활성화/비활성화 및 비밀번호 초기화"
       icon={Users}
       badge="Directory"
