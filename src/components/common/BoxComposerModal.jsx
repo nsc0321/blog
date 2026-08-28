@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Plus, Layers, CheckCircle2, Shield, Sparkles, LayoutGrid, RefreshCw } from 'lucide-react';
 import { BOX_REGISTRY, getBoxMetadata } from './BoxRegistry';
 import { getApiBase } from '../../config';
@@ -196,7 +196,7 @@ export default function BoxComposerModal({
                   </div>
                   <div>
                     <div style={{ fontSize: '13px', fontWeight: 700, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span>{box.name}</span>
+                      <span>{(box.name || '').replace(/^[0-9]+[.\-]\s*/, '')}</span>
                       {isLocked && <span style={{ fontSize: '10px', color: '#f87171' }}>🔒</span>}
                     </div>
                     <div style={{ fontSize: '11px', color: '#94a3b8' }}>

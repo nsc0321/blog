@@ -191,14 +191,17 @@ export default function AdminBoxControlBox() {
             </tr>
           </thead>
           <tbody>
-            {boxes.map((b) => (
+            {boxes.map((b) => {
+              const cleanName = (b.name || '').replace(/^[0-9]+[.\-]\s*/, '');
+              const cleanBoxId = (b.box_id || '').replace(/^[0-9]+[.\-]\s*/, '');
+              return (
               <tr key={b.box_id} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.04)' }}>
                 <td style={{ padding: '10px 12px', color: '#64748b', fontFamily: 'monospace' }}>
-                  #{b.order_index}
+                  {b.order_index}
                 </td>
                 <td style={{ padding: '10px 12px' }}>
-                  <div style={{ fontWeight: 700, color: '#f8fafc' }}>{b.name}</div>
-                  <div style={{ fontSize: '11px', color: '#94a3b8', fontFamily: 'monospace' }}>{b.box_id}</div>
+                  <div style={{ fontWeight: 700, color: '#f8fafc' }}>{cleanName}</div>
+                  <div style={{ fontSize: '11px', color: '#94a3b8', fontFamily: 'monospace' }}>{cleanBoxId}</div>
                 </td>
                 <td style={{ padding: '10px 12px' }}>
                   <span style={{
@@ -253,7 +256,7 @@ export default function AdminBoxControlBox() {
                   </button>
                 </td>
               </tr>
-            ))}
+            ); })}
           </tbody>
         </table>
       </div>
