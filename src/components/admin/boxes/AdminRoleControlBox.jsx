@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { ShieldCheck, Lock, CheckCircle2, AlertTriangle, Key } from 'lucide-react';
 import { Box, SubBoxCard } from '../../common/Box';
 
@@ -38,7 +38,7 @@ export default function AdminRoleControlBox() {
             <li>실시간 AI 음성/텍스트 대화 (Chat Box)</li>
             <li>스킬 실행 및 샌드박스 테스트 (Call API Box)</li>
             <li>빗썸 실시간 시세 조회 및 모의 주문 집행</li>
-            <li>넥슨 캐릭터 및 경매장 데이터 검색</li>
+            <li>넥슨 경매장 실시간 시세 및 아카이브 데이터 검색</li>
           </ul>
         </SubBoxCard>
       </div>

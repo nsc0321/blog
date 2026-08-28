@@ -1,9 +1,9 @@
-﻿import React from 'react';
+import React from 'react';
 import { Database, Search, Layers, Sparkles, CheckCircle2, ShieldCheck } from 'lucide-react';
 
 export default function MabiStatusBox({
-  itemsCount = 3840,
-  enchantsCount = 1250,
+  itemsCount = 0,
+  enchantsCount = 0,
   apiHealth = 'ONLINE',
   lastSync = '방금 전'
 }) {

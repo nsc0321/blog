@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Layers, Search, RefreshCw, Filter, Sparkles, ChevronLeft, ChevronRight, Coins } from 'lucide-react';
 import { Box } from '../../common/Box';
 import { getApiBase } from '../../../config';
@@ -38,12 +38,15 @@ export default function MabiItemArchiveBox() {
     return `${num.toLocaleString()} Gold`;
   };
 
+  const [totalCount, setTotalCount] = useState(0);
+
   const fetchItems = async () => {
     setLoading(true);
     try {
       const catParam = selectedCategory !== '전체' ? `&category=${encodeURIComponent(selectedCategory)}` : '';
-      const searchParam = search.trim() ? `&search=${encodeURIComponent(search.trim())}` : '';
-      const resp = await fetch(`${API_BASE}/api/mabinogi/archives/items?page=${page}&limit=20${catParam}${searchParam}`, {
+      const cleanSearch = search.trim();
+      const searchParam = cleanSearch ? `&query=${encodeURIComponent(cleanSearch)}&search=${encodeURIComponent(cleanSearch)}` : '';
+      const resp = await fetch(`${API_BASE}/api/mabinogi/archives/items?page=${page}&limit=100${catParam}${searchParam}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'ngrok-skip-browser-warning': 'true'
@@ -52,10 +55,17 @@ export default function MabiItemArchiveBox() {
       const data = await resp.json();
       if (data.items && Array.isArray(data.items)) {
         setItems(data.items);
-        setTotalPages(data.total_pages || Math.ceil((data.total_count || data.items.length) / 20) || 1);
+        const count = data.total_count || data.total || data.items.length;
+        setTotalCount(count);
+        setTotalPages(data.total_pages || Math.ceil(count / 100) || 1);
+      } else {
+        setItems([]);
+        setTotalCount(0);
+        setTotalPages(1);
       }
     } catch (err) {
-      console.log('Fetch items note:', err);
+      console.log('Fetch items error:', err);
+      setItems([]);
     } finally {
       setLoading(false);
     }
@@ -189,6 +199,30 @@ export default function MabiItemArchiveBox() {
         </button>
       </form>
 
+      {/* Loading state */}
+      {loading && items.length === 0 && (
+        <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8', fontSize: '13px' }}>
+          <RefreshCw size={20} className="animate-spin" style={{ margin: '0 auto 8px auto', display: 'block', color: '#8b5cf6' }} />
+          아이템 아카이브를 불러오는 중입니다...
+        </div>
+      )}
+
+      {/* Empty State */}
+      {!loading && items.length === 0 && (
+        <div style={{
+          textAlign: 'center',
+          padding: '36px',
+          background: 'rgba(255, 255, 255, 0.02)',
+          borderRadius: '10px',
+          border: '1px dashed rgba(255, 255, 255, 0.08)',
+          color: '#94a3b8',
+          fontSize: '13px',
+          marginBottom: '16px'
+        }}>
+          조건에 일치하는 아이템 데이터가 없습니다.
+        </div>
+      )}
+
       {/* Item Cards Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '10px', marginBottom: '16px' }}>
         {items.map(item => (
@@ -227,39 +261,41 @@ export default function MabiItemArchiveBox() {
       </div>
 
       {/* Pagination */}
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '12px' }}>
-        <button
-          onClick={() => setPage(p => Math.max(1, p - 1))}
-          disabled={page <= 1}
-          style={{
-            padding: '6px 12px',
-            borderRadius: '6px',
-            background: 'rgba(255, 255, 255, 0.06)',
-            border: 'none',
-            color: '#cbd5e1',
-            cursor: page <= 1 ? 'not-allowed' : 'pointer'
-          }}
-        >
-          <ChevronLeft size={14} />
-        </button>
-        <span style={{ fontSize: '12px', color: '#cbd5e1' }}>
-          페이지 <strong>{page}</strong> / {totalPages}
-        </span>
-        <button
-          onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-          disabled={page >= totalPages}
-          style={{
-            padding: '6px 12px',
-            borderRadius: '6px',
-            background: 'rgba(255, 255, 255, 0.06)',
-            border: 'none',
-            color: '#cbd5e1',
-            cursor: page >= totalPages ? 'not-allowed' : 'pointer'
-          }}
-        >
-          <ChevronRight size={14} />
-        </button>
-      </div>
+      {totalPages > 1 && (
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '12px' }}>
+          <button
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+            disabled={page <= 1}
+            style={{
+              padding: '6px 12px',
+              borderRadius: '6px',
+              background: 'rgba(255, 255, 255, 0.06)',
+              border: 'none',
+              color: '#cbd5e1',
+              cursor: page <= 1 ? 'not-allowed' : 'pointer'
+            }}
+          >
+            <ChevronLeft size={14} />
+          </button>
+          <span style={{ fontSize: '12px', color: '#cbd5e1' }}>
+            페이지 <strong>{page}</strong> / {totalPages} (100건씩 보기)
+          </span>
+          <button
+            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+            disabled={page >= totalPages}
+            style={{
+              padding: '6px 12px',
+              borderRadius: '6px',
+              background: 'rgba(255, 255, 255, 0.06)',
+              border: 'none',
+              color: '#cbd5e1',
+              cursor: page >= totalPages ? 'not-allowed' : 'pointer'
+            }}
+          >
+            <ChevronRight size={14} />
+          </button>
+        </div>
+      )}
     </Box>
   );
 }

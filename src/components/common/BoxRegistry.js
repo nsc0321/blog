@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { MessageSquare, Cpu, Terminal, Zap, Wrench, Info, Play, Key, Plus, History, Settings, DollarSign, TrendingUp, Search, Layers, Users, ShieldCheck, Sparkles, PieChart } from 'lucide-react';
 
 export const BOX_CATEGORIES = {
@@ -129,10 +129,10 @@ export const BOX_REGISTRY = [
   // 3. Mabinogi Group
   {
     id: 'mabi_search',
-    name: '1. Mabi Open API Search (캐릭터/경매장)',
+    name: '1. Mabi Open API Search (경매장 시세)',
     category: BOX_CATEGORIES.MABINOGI,
     icon: Search,
-    description: '넥슨 공식 Open API 실시간 캐릭터 및 경매장 시세 검색',
+    description: '넥슨 공식 Open API 실시간 경매장 시세 및 거래 내역 차트 검색',
     minRole: 'user'
   },
   {

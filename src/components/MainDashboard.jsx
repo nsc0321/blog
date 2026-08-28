@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { Bot, TrendingUp, Database, ShieldCheck, Sparkles, ArrowRight, MessageSquare, Cpu, DollarSign, Settings, Search, Layers, Users, Zap, Terminal, Activity, Key, History, LayoutGrid, Plus } from 'lucide-react';
 import { Box, SubBoxCard } from './common/Box';
 import CompositeBox from './common/CompositeBox';
@@ -254,7 +254,7 @@ export default function MainDashboard({ onNavigate }) {
         >
           <Box
             title="Mabinogi Link Box"
-            subtitle="넥슨 공식 Open API 캐릭터/경매장 실시간 조회 & 아이템 빅데이터"
+            subtitle="넥슨 공식 Open API 경매장 실시간 시세 조회 & 아이템/인챈트 빅데이터"
             icon={Database}
             badge="Nexon API"
             badgeType="default"
@@ -288,7 +288,7 @@ export default function MainDashboard({ onNavigate }) {
                   <Search size={14} color="#38bdf8" />
                   <span>Open API Box</span>
                 </div>
-                <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>캐릭터/경매장 실시간 검색</div>
+                <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>경매장 실시간 시세 검색</div>
               </div>
 
               <div style={{ background: 'rgba(255, 255, 255, 0.04)', padding: '10px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.06)' }}>

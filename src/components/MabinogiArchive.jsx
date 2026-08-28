@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Database, Search, Layers, Sparkles, Cpu } from 'lucide-react';
 import MabiTabBox from './mabinogi/boxes/MabiTabBox';
 import MabiStatusBox from './mabinogi/boxes/MabiStatusBox';
@@ -10,7 +10,7 @@ import { getApiBase } from '../config';
 
 export default function MabinogiArchive() {
   const [activeTab, setActiveTab] = useState('search'); // 'search' | 'items' | 'enchants' | 'batch'
-  const [stats, setStats] = useState({ items: 3840, enchants: 1250, health: 'ONLINE' });
+  const [stats, setStats] = useState({ items: 0, enchants: 0, health: 'ONLINE' });
 
   const API_BASE = getApiBase();
   const token = typeof window !== 'undefined' ? localStorage.getItem('agent_auth_token') || '' : '';
@@ -26,9 +26,9 @@ export default function MabinogiArchive() {
       if (resp.ok) {
         const data = await resp.json();
         setStats({
-          items: data.total_items || 3840,
-          enchants: data.total_enchants || 1250,
-          health: 'ONLINE'
+          items: data.total_items ?? data.items_count ?? data.items ?? 0,
+          enchants: data.total_enchants ?? data.enchants_count ?? data.enchants ?? 0,
+          health: data.health || data.system_status || 'ONLINE'
         });
       }
     } catch (err) {
