@@ -49,7 +49,7 @@ export default function TradingLogBox() {
   return (
     <Box
       title="4. Trading Log Box (자동매매 & 시장 분석 실시간 감사 로그)"
-      subtitle="실시간 8차원 벡터 총합(v_net), 거래 차익(손익 KRW) 및 모의/실전 주문 집행 감사 이력"
+      subtitle="실시간 8차원 벡터 총합(v_net), 매도 시 실현 거래 차익(손익 KRW) 및 주문 집행 감사 이력"
       icon={Terminal}
       badge="Audit Trail"
       badgeType="info"
@@ -129,7 +129,7 @@ export default function TradingLogBox() {
               <th style={{ padding: '8px 10px' }}>신호</th>
               <th style={{ padding: '8px 10px' }}>체결/현재가</th>
               <th style={{ padding: '8px 10px' }}>벡터 총합 (v_net)</th>
-              <th style={{ padding: '8px 10px' }}>거래 차익 (손익 KRW / %)</th>
+              <th style={{ padding: '8px 10px' }}>매도 실현 차익 (손익 KRW / %)</th>
               <th style={{ padding: '8px 10px', textAlign: 'center' }}>상세</th>
             </tr>
           </thead>
@@ -153,7 +153,11 @@ export default function TradingLogBox() {
               const vNetNum = typeof vNet === 'number' ? vNet : parseFloat(vNet || 0);
               const isVNetPos = vNetNum >= 0;
 
-              // Calculate Trade Profit / PnL KRW (현재가/판매가 - 보유평단가) * 수량
+              // Check if actual SELL occurred (Decision == SELL or action_taken contains SELL/STOP_LOSS/TAKE_PROFIT/PROFIT_REVERSAL)
+              const actionStr = (log.action_taken || '').toUpperCase();
+              const isActualSell = isSell || actionStr.includes('SELL') || actionStr.includes('STOP_LOSS') || actionStr.includes('TAKE_PROFIT') || actionStr.includes('PROFIT_REVERSAL') || actionStr.includes('STAGNATION_EXIT');
+
+              // Calculate Trade Profit ONLY on actual Sell
               const curPrice = parseFloat(log.current_price || 0);
               const avgPrice = parseFloat(log.holding_avg_price || 0);
               const volume = parseFloat(log.holding_volume || 0);
@@ -161,14 +165,16 @@ export default function TradingLogBox() {
               let pnlKrw = log.pnl_krw;
               let pnlPct = log.pnl_pct;
 
-              if ((pnlKrw === undefined || pnlKrw === null || pnlKrw === 0) && avgPrice > 0 && curPrice > 0 && volume > 0) {
-                pnlKrw = (curPrice - avgPrice) * volume;
-              }
-              if ((pnlPct === undefined || pnlPct === null || pnlPct === 0) && avgPrice > 0 && curPrice > 0) {
-                pnlPct = ((curPrice - avgPrice) / avgPrice) * 100.0;
+              if (isActualSell) {
+                if ((pnlKrw === undefined || pnlKrw === null || pnlKrw === 0) && avgPrice > 0 && curPrice > 0) {
+                  pnlKrw = (curPrice - avgPrice) * (volume > 0 ? volume : 1.0);
+                }
+                if ((pnlPct === undefined || pnlPct === null || pnlPct === 0) && avgPrice > 0 && curPrice > 0) {
+                  pnlPct = ((curPrice - avgPrice) / avgPrice) * 100.0;
+                }
               }
 
-              const hasPnl = avgPrice > 0 && (pnlKrw !== undefined && pnlKrw !== null);
+              const hasSellPnl = isActualSell && (pnlKrw !== undefined && pnlKrw !== null);
               const isPnlPos = (pnlKrw || 0) >= 0;
 
               return (
@@ -208,20 +214,20 @@ export default function TradingLogBox() {
                     </span>
                   </td>
                   <td style={{ padding: '8px 10px' }}>
-                    {hasPnl ? (
+                    {isActualSell && hasSellPnl ? (
                       <span style={{
                         color: isPnlPos ? '#34d399' : '#f87171',
-                        fontWeight: 700,
-                        fontSize: '11px'
+                        fontWeight: 800,
+                        fontSize: '12px'
                       }}>
                         {isPnlPos ? `+₩${Math.round(pnlKrw).toLocaleString()}` : `-₩${Math.round(Math.abs(pnlKrw)).toLocaleString()}`}
-                        <span style={{ opacity: 0.8, marginLeft: '4px' }}>
+                        <span style={{ opacity: 0.85, marginLeft: '4px', fontSize: '11px' }}>
                           ({isPnlPos ? `+${(pnlPct || 0).toFixed(2)}%` : `${(pnlPct || 0).toFixed(2)}%`})
                         </span>
                       </span>
                     ) : (
                       <span style={{ color: '#64748b', fontSize: '11px' }}>
-                        {log.action_taken || '-'}
+                        -
                       </span>
                     )}
                   </td>
@@ -292,7 +298,7 @@ export default function TradingLogBox() {
         <div className="server-modal-overlay" onClick={() => setSelectedLog(null)}>
           <div className="server-modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '640px' }}>
             <div className="server-modal-header">
-              <h3>분석 판단 & 거래 차익 상세 로그 (#{selectedLog.id} - {selectedLog.market})</h3>
+              <h3>분석 판단 & 거래 상세 로그 (#{selectedLog.id} - {selectedLog.market})</h3>
               <button className="server-modal-close" onClick={() => setSelectedLog(null)}>
                 <X size={18} />
               </button>
