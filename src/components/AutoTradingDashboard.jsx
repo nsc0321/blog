@@ -2,16 +2,14 @@
 import { TrendingUp, RefreshCw, Layers } from 'lucide-react';
 import TradingTabBox from './trading/boxes/TradingTabBox';
 import TradingStatusBox from './trading/boxes/TradingStatusBox';
-import TradingLiveTickerBox from './trading/boxes/TradingLiveTickerBox';
 import TradingAiAnalysisBox from './trading/boxes/TradingAiAnalysisBox';
-import TradingOrderBox from './trading/boxes/TradingOrderBox';
 import TradingPositionBox from './trading/boxes/TradingPositionBox';
 import TradingSettingBox from './trading/TradingSettingBox';
 import TradingLogBox from './trading/boxes/TradingLogBox';
 import { getApiBase } from '../config';
 
 export default function AutoTradingDashboard() {
-  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'orders' | 'positions' | 'settings' | 'logs'
+  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'positions' | 'settings' | 'logs'
   const [market, setMarket] = useState('KRW-BTC');
   const [tradingStatus, setTradingStatus] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -79,65 +77,38 @@ export default function AutoTradingDashboard() {
       {/* Active Sub-Box View */}
       <div className="trading-active-box-view">
         
-        {/* 1. Live Ticker & AI Analysis View */}
+        {/* 1. AI Market Analysis View */}
         {activeTab === 'overview' && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '20px' }}>
-            <TradingLiveTickerBox
-              market={market}
-              onRefresh={fetchStatus}
-              loading={loading}
-            />
-            <TradingAiAnalysisBox
-              market={market}
-              onAnalysisDone={(res) => {
-                if (res.decision) setLastSignal(res.decision);
-              }}
-            />
-          </div>
+          <TradingAiAnalysisBox
+            market={market}
+            onAnalysisDone={(res) => {
+              if (res.decision) setLastSignal(res.decision);
+            }}
+          />
         )}
 
-        {/* 2. Order Execution Box View */}
-        {activeTab === 'orders' && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '20px' }}>
-            <TradingOrderBox
-              market={market}
-              isDryRun={isDryRun}
-              onMarketChange={(newM) => setMarket(newM)}
-              onModeChange={() => fetchStatus()}
-              onOrderComplete={() => fetchStatus()}
-            />
-            <TradingPositionBox
-              isDryRun={isDryRun}
-              selectedMarket={market}
-              onSelectMarket={(newM) => setMarket(newM)}
-              onRefresh={fetchStatus}
-              loading={loading}
-            />
-          </div>
-        )}
-
-        {/* 3. Positions & Assets View */}
+        {/* 2. Positions & Assets View */}
         {activeTab === 'positions' && (
           <TradingPositionBox
             isDryRun={isDryRun}
             selectedMarket={market}
             onSelectMarket={(newM) => {
               setMarket(newM);
-              setActiveTab('orders');
+              setActiveTab('overview');
             }}
             onRefresh={fetchStatus}
             loading={loading}
           />
         )}
 
-        {/* 4. Trading Settings View */}
+        {/* 3. Trading Settings View */}
         {activeTab === 'settings' && (
           <TradingSettingBox
             onSaveSettings={() => fetchStatus()}
           />
         )}
 
-        {/* 5. Trading Log View */}
+        {/* 4. Trading Log View */}
         {activeTab === 'logs' && (
           <TradingLogBox />
         )}

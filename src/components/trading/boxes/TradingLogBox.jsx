@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect } from 'react';
-import { Terminal, RefreshCw, Search, CheckCircle2, Clock, Filter, Eye, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { Terminal, RefreshCw, Search, CheckCircle2, Clock, Filter, Eye, ChevronLeft, ChevronRight, X, TrendingUp, TrendingDown, Activity, BarChart2 } from 'lucide-react';
 import { Box } from '../../common/Box';
 import { getApiBase } from '../../../config';
 
@@ -48,8 +48,8 @@ export default function TradingLogBox() {
 
   return (
     <Box
-      title="6. Trading Log Box (자동매매 & 시장 분석 실시간 감사 로그)"
-      subtitle="실시간 LLM 시장 분석 신호, 지표 연산 및 모의/실전 주문 집행 상세 이력"
+      title="4. Trading Log Box (자동매매 & 시장 분석 실시간 감사 로그)"
+      subtitle="실시간 8차원 벡터 총합(v_net), 거래 차익(손익 KRW) 및 모의/실전 주문 집행 감사 이력"
       icon={Terminal}
       badge="Audit Trail"
       badgeType="info"
@@ -127,9 +127,9 @@ export default function TradingLogBox() {
               <th style={{ padding: '8px 10px' }}>일시</th>
               <th style={{ padding: '8px 10px' }}>마켓</th>
               <th style={{ padding: '8px 10px' }}>신호</th>
-              <th style={{ padding: '8px 10px' }}>현재가</th>
-              <th style={{ padding: '8px 10px' }}>RSI</th>
-              <th style={{ padding: '8px 10px' }}>액션</th>
+              <th style={{ padding: '8px 10px' }}>체결/현재가</th>
+              <th style={{ padding: '8px 10px' }}>벡터 총합 (v_net)</th>
+              <th style={{ padding: '8px 10px' }}>거래 차익 (손익 KRW / %)</th>
               <th style={{ padding: '8px 10px', textAlign: 'center' }}>상세</th>
             </tr>
           </thead>
@@ -137,6 +137,40 @@ export default function TradingLogBox() {
             {logs.map((log) => {
               const isBuy = log.decision === 'BUY';
               const isSell = log.decision === 'SELL';
+
+              // Extract Directional Vector Total (v_net)
+              const rawDec = log.raw_decision || {};
+              let vNet = rawDec.net_directional_score !== undefined
+                ? rawDec.net_directional_score
+                : (rawDec.predicted_net !== undefined
+                  ? rawDec.predicted_net
+                  : (rawDec.vector?.v_net !== undefined ? rawDec.vector.v_net : null));
+              
+              if (vNet === null && log.rsi) {
+                vNet = (log.rsi - 50.0) / 50.0;
+              }
+
+              const vNetNum = typeof vNet === 'number' ? vNet : parseFloat(vNet || 0);
+              const isVNetPos = vNetNum >= 0;
+
+              // Calculate Trade Profit / PnL KRW (현재가/판매가 - 보유평단가) * 수량
+              const curPrice = parseFloat(log.current_price || 0);
+              const avgPrice = parseFloat(log.holding_avg_price || 0);
+              const volume = parseFloat(log.holding_volume || 0);
+
+              let pnlKrw = log.pnl_krw;
+              let pnlPct = log.pnl_pct;
+
+              if ((pnlKrw === undefined || pnlKrw === null || pnlKrw === 0) && avgPrice > 0 && curPrice > 0 && volume > 0) {
+                pnlKrw = (curPrice - avgPrice) * volume;
+              }
+              if ((pnlPct === undefined || pnlPct === null || pnlPct === 0) && avgPrice > 0 && curPrice > 0) {
+                pnlPct = ((curPrice - avgPrice) / avgPrice) * 100.0;
+              }
+
+              const hasPnl = avgPrice > 0 && (pnlKrw !== undefined && pnlKrw !== null);
+              const isPnlPos = (pnlKrw || 0) >= 0;
+
               return (
                 <tr key={log.id} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.04)' }}>
                   <td style={{ padding: '8px 10px', color: '#94a3b8', fontSize: '11px', whiteSpace: 'nowrap' }}>
@@ -160,11 +194,36 @@ export default function TradingLogBox() {
                   <td style={{ padding: '8px 10px', color: '#38bdf8', fontFamily: 'monospace' }}>
                     ₩{Number(log.current_price || 0).toLocaleString()}
                   </td>
-                  <td style={{ padding: '8px 10px', color: '#cbd5e1' }}>
-                    {log.rsi ? log.rsi.toFixed(1) : '-'}
+                  <td style={{ padding: '8px 10px' }}>
+                    <span style={{
+                      padding: '2px 6px',
+                      borderRadius: '4px',
+                      fontSize: '11px',
+                      fontWeight: 800,
+                      background: isVNetPos ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                      color: isVNetPos ? '#34d399' : '#f87171',
+                      fontFamily: 'monospace'
+                    }}>
+                      {isVNetPos ? `+${vNetNum.toFixed(2)}` : vNetNum.toFixed(2)}
+                    </span>
                   </td>
-                  <td style={{ padding: '8px 10px', fontSize: '11px', color: '#cbd5e1' }}>
-                    {log.action_taken}
+                  <td style={{ padding: '8px 10px' }}>
+                    {hasPnl ? (
+                      <span style={{
+                        color: isPnlPos ? '#34d399' : '#f87171',
+                        fontWeight: 700,
+                        fontSize: '11px'
+                      }}>
+                        {isPnlPos ? `+₩${Math.round(pnlKrw).toLocaleString()}` : `-₩${Math.round(Math.abs(pnlKrw)).toLocaleString()}`}
+                        <span style={{ opacity: 0.8, marginLeft: '4px' }}>
+                          ({isPnlPos ? `+${(pnlPct || 0).toFixed(2)}%` : `${(pnlPct || 0).toFixed(2)}%`})
+                        </span>
+                      </span>
+                    ) : (
+                      <span style={{ color: '#64748b', fontSize: '11px' }}>
+                        {log.action_taken || '-'}
+                      </span>
+                    )}
                   </td>
                   <td style={{ padding: '8px 10px', textAlign: 'center' }}>
                     <button
@@ -233,7 +292,7 @@ export default function TradingLogBox() {
         <div className="server-modal-overlay" onClick={() => setSelectedLog(null)}>
           <div className="server-modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '640px' }}>
             <div className="server-modal-header">
-              <h3>분석 판단 상세 로그 (#{selectedLog.id} - {selectedLog.market})</h3>
+              <h3>분석 판단 & 거래 차익 상세 로그 (#{selectedLog.id} - {selectedLog.market})</h3>
               <button className="server-modal-close" onClick={() => setSelectedLog(null)}>
                 <X size={18} />
               </button>

@@ -5,7 +5,6 @@ import { getApiBase } from '../../config';
 
 export default function TradingSettingBox({ onSaveSettings }) {
   // 1. Basic Trading Mode
-  const [targetMarket, setTargetMarket] = useState('KRW-BTC');
   const [dryRun, setDryRun] = useState(true);
   const [maxOrderAmount, setMaxOrderAmount] = useState(100000);
   const [maxPortfolioRatio, setMaxPortfolioRatio] = useState(0.3);
@@ -55,7 +54,6 @@ export default function TradingSettingBox({ onSaveSettings }) {
         const data = await resp.json();
         const cfg = data.config || {};
         if (cfg.dry_run !== undefined) setDryRun(cfg.dry_run);
-        if (cfg.target_markets && cfg.target_markets.length > 0) setTargetMarket(cfg.target_markets[0]);
         if (cfg.stop_loss_pct !== undefined) setStopLossPercent(cfg.stop_loss_pct);
         if (cfg.take_profit_pct !== undefined) setTakeProfitPercent(cfg.take_profit_pct);
         if (cfg.trailing_stop_pct !== undefined) setTrailingStopPercent(cfg.trailing_stop_pct);
@@ -92,7 +90,6 @@ export default function TradingSettingBox({ onSaveSettings }) {
 
     const payload = {
       dry_run: Boolean(dryRun),
-      target_markets: [targetMarket],
       max_order_krw_per_trade: parseFloat(maxOrderAmount),
       max_portfolio_ratio_per_coin: parseFloat(maxPortfolioRatio),
       candle_unit_minutes: parseInt(candleUnit, 10),
@@ -167,7 +164,7 @@ export default function TradingSettingBox({ onSaveSettings }) {
 
   return (
     <Box
-      title="4. Trading Setting Box (자동 거래 지침 & 퀀트 제어)"
+      title="3. Trading Setting Box (자동 거래 지침 & 퀀트 제어)"
       subtitle="손익절 가드레일, 고점 반락/장기 횡보 수익 보존 규칙 및 1시간 주기 종목 자동 발굴"
       icon={Settings}
       badge={dryRun ? '모의투자 모드 (Dry-run)' : '실전 거래 모드 (Live)'}
@@ -289,34 +286,7 @@ export default function TradingSettingBox({ onSaveSettings }) {
 
             <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '12px', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
               <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#f8fafc', marginBottom: '6px' }}>
-                기본 감시 마켓:
-              </label>
-              <select
-                value={targetMarket}
-                onChange={(e) => setTargetMarket(e.target.value)}
-                style={{
-                  width: '100%',
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  border: '1px solid rgba(255, 255, 255, 0.12)',
-                  borderRadius: '6px',
-                  padding: '8px',
-                  color: '#38bdf8',
-                  fontWeight: 700,
-                  fontSize: '12px',
-                  outline: 'none'
-                }}
-              >
-                <option value="KRW-BTC" style={{ background: '#121225' }}>비트코인 (BTC/KRW)</option>
-                <option value="KRW-ETH" style={{ background: '#121225' }}>이더리움 (ETH/KRW)</option>
-                <option value="KRW-SOL" style={{ background: '#121225' }}>솔라나 (SOL/KRW)</option>
-                <option value="KRW-XRP" style={{ background: '#121225' }}>리플 (XRP/KRW)</option>
-                <option value="KRW-DOGE" style={{ background: '#121225' }}>도지코인 (DOGE/KRW)</option>
-              </select>
-            </div>
-
-            <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '12px', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#f8fafc', marginBottom: '6px' }}>
-                1회 주문 한도 (KRW):
+                1회 최대 주문 한도 (KRW):
               </label>
               <input
                 type="number"
@@ -336,6 +306,30 @@ export default function TradingSettingBox({ onSaveSettings }) {
                 }}
               />
             </div>
+
+            <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '12px', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#f8fafc', marginBottom: '6px' }}>
+                종목당 최대 비중 (%):
+              </label>
+              <input
+                type="number"
+                step="0.05"
+                value={maxPortfolioRatio * 100}
+                onChange={(e) => setMaxPortfolioRatio(parseFloat(e.target.value) / 100)}
+                style={{
+                  width: '100%',
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: '6px',
+                  padding: '8px',
+                  color: '#c4b5fd',
+                  fontWeight: 800,
+                  fontSize: '13px',
+                  outline: 'none',
+                  boxSizing: 'border-box'
+                }}
+              />
+            </div>
           </div>
         </div>
 
@@ -343,7 +337,7 @@ export default function TradingSettingBox({ onSaveSettings }) {
         <div>
           <div style={{ fontSize: '13px', fontWeight: 800, color: '#34d399', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Shield size={15} />
-            <span>2. 손익절 & 트레일링 스탑 가드레일 (지침 기준: 손절 -3.5% / 트레일링 2.5%)</span>
+            <span>2. 손익절 & 트레일링 스탑 가드레일 (지침: 손절 -3.5% / 트레일링 2.5%)</span>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
             <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '12px', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
