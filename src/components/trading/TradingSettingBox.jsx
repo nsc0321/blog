@@ -1,18 +1,32 @@
 ﻿import React, { useState, useEffect } from 'react';
-import { Settings, Shield, Sliders, Save, CheckCircle2, AlertCircle, ToggleLeft, ToggleRight, DollarSign, Target, Key, Plus, RefreshCw, X, Sparkles, Activity } from 'lucide-react';
+import { Settings, Shield, Sliders, Save, CheckCircle2, AlertCircle, ToggleLeft, ToggleRight, DollarSign, Target, Key, Plus, RefreshCw, X, Sparkles, Activity, TrendingUp, Clock, BarChart2 } from 'lucide-react';
 import { Box, SubBoxCard } from '../common/Box';
 import { getApiBase } from '../../config';
 
 export default function TradingSettingBox({ onSaveSettings }) {
+  // 1. Basic Trading Mode
   const [targetMarket, setTargetMarket] = useState('KRW-BTC');
   const [dryRun, setDryRun] = useState(true);
+  const [maxOrderAmount, setMaxOrderAmount] = useState(100000);
+  const [maxPortfolioRatio, setMaxPortfolioRatio] = useState(0.3);
+  const [candleUnit, setCandleUnit] = useState(15);
+
+  // 2. Risk Stop-Loss & Take-Profit Guardrails
   const [stopLossPercent, setStopLossPercent] = useState(3.5);
   const [takeProfitPercent, setTakeProfitPercent] = useState(5.0);
   const [trailingStopPercent, setTrailingStopPercent] = useState(2.5);
-  const [maxOrderAmount, setMaxOrderAmount] = useState(100000);
-  const [candleUnit, setCandleUnit] = useState(15);
+
+  // 3. Profit Protection (Reversal & Stagnation)
+  const [enableProfitReversal, setEnableProfitReversal] = useState(true);
+  const [profitReversalThreshold, setProfitReversalThreshold] = useState(1.0);
+  const [profitReversalDrop, setProfitReversalDrop] = useState(0.05);
+  const [enableProfitStagnation, setEnableProfitStagnation] = useState(true);
+  const [profitStagnationMinutes, setProfitStagnationMinutes] = useState(30.0);
+
+  // 4. Auto Market Selection (1 Hour interval)
   const [enableAutoMarket, setEnableAutoMarket] = useState(true);
-  const [maxHoldingCoins, setMaxHoldingCoins] = useState(1);
+  const [autoMarketCount, setAutoMarketCount] = useState(5);
+  const [autoMarketMinVolume, setAutoMarketMinVolume] = useState(1000000000);
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -33,7 +47,6 @@ export default function TradingSettingBox({ onSaveSettings }) {
     'ngrok-skip-browser-warning': 'true'
   });
 
-  // Fetch live config from server on mount
   const fetchConfig = async () => {
     setLoading(true);
     try {
@@ -47,9 +60,20 @@ export default function TradingSettingBox({ onSaveSettings }) {
         if (cfg.take_profit_pct !== undefined) setTakeProfitPercent(cfg.take_profit_pct);
         if (cfg.trailing_stop_pct !== undefined) setTrailingStopPercent(cfg.trailing_stop_pct);
         if (cfg.max_order_krw_per_trade !== undefined) setMaxOrderAmount(cfg.max_order_krw_per_trade);
-        if (cfg.enable_auto_market_selection !== undefined) setEnableAutoMarket(cfg.enable_auto_market_selection);
+        if (cfg.max_portfolio_ratio_per_coin !== undefined) setMaxPortfolioRatio(cfg.max_portfolio_ratio_per_coin);
         if (cfg.candle_unit_minutes !== undefined) setCandleUnit(cfg.candle_unit_minutes);
-        if (cfg.max_holding_coins !== undefined) setMaxHoldingCoins(cfg.max_holding_coins);
+        
+        // Profit Protection
+        if (cfg.enable_profit_reversal_exit !== undefined) setEnableProfitReversal(cfg.enable_profit_reversal_exit);
+        if (cfg.profit_reversal_threshold_pct !== undefined) setProfitReversalThreshold(cfg.profit_reversal_threshold_pct);
+        if (cfg.profit_reversal_drop_pct !== undefined) setProfitReversalDrop(cfg.profit_reversal_drop_pct);
+        if (cfg.enable_profit_stagnation_exit !== undefined) setEnableProfitStagnation(cfg.enable_profit_stagnation_exit);
+        if (cfg.profit_stagnation_minutes !== undefined) setProfitStagnationMinutes(cfg.profit_stagnation_minutes);
+
+        // Auto Market Selection
+        if (cfg.enable_auto_market_selection !== undefined) setEnableAutoMarket(cfg.enable_auto_market_selection);
+        if (cfg.auto_market_count !== undefined) setAutoMarketCount(cfg.auto_market_count);
+        if (cfg.auto_market_min_trade_price_24h !== undefined) setAutoMarketMinVolume(cfg.auto_market_min_trade_price_24h);
       }
     } catch (err) {
       console.log('Error fetching trading config:', err);
@@ -69,13 +93,21 @@ export default function TradingSettingBox({ onSaveSettings }) {
     const payload = {
       dry_run: Boolean(dryRun),
       target_markets: [targetMarket],
+      max_order_krw_per_trade: parseFloat(maxOrderAmount),
+      max_portfolio_ratio_per_coin: parseFloat(maxPortfolioRatio),
+      candle_unit_minutes: parseInt(candleUnit, 10),
       stop_loss_pct: parseFloat(stopLossPercent),
       take_profit_pct: parseFloat(takeProfitPercent),
       trailing_stop_pct: parseFloat(trailingStopPercent),
-      max_order_krw_per_trade: parseFloat(maxOrderAmount),
-      candle_unit_minutes: parseInt(candleUnit, 10),
+      enable_profit_reversal_exit: Boolean(enableProfitReversal),
+      profit_reversal_threshold_pct: parseFloat(profitReversalThreshold),
+      profit_reversal_drop_pct: parseFloat(profitReversalDrop),
+      enable_profit_stagnation_exit: Boolean(enableProfitStagnation),
+      profit_stagnation_minutes: parseFloat(profitStagnationMinutes),
       enable_auto_market_selection: Boolean(enableAutoMarket),
-      max_holding_coins: parseInt(maxHoldingCoins, 10)
+      auto_market_mode: 'TOP_VOLUME',
+      auto_market_count: parseInt(autoMarketCount, 10),
+      auto_market_min_trade_price_24h: parseFloat(autoMarketMinVolume)
     };
 
     try {
@@ -86,7 +118,7 @@ export default function TradingSettingBox({ onSaveSettings }) {
       });
       const data = await resp.json();
       if (resp.ok) {
-        setSavedFeedback({ ok: true, message: data.message || '트레이딩 설정이 성공적으로 저장되었습니다.' });
+        setSavedFeedback({ ok: true, message: '자동 매매 지침 및 파라미터가 성공적으로 반영되었습니다.' });
         if (onSaveSettings) onSaveSettings(payload);
         setTimeout(() => setSavedFeedback(null), 3000);
       } else {
@@ -135,8 +167,8 @@ export default function TradingSettingBox({ onSaveSettings }) {
 
   return (
     <Box
-      title="5. Trading Setting Box (전략 파라미터 & 리스크 관리)"
-      subtitle="손익절 %, 1회 주문 한도, 타겟 마켓 및 빗썸 API Key 연동 설정"
+      title="4. Trading Setting Box (자동 거래 지침 & 퀀트 제어)"
+      subtitle="손익절 가드레일, 고점 반락/장기 횡보 수익 보존 규칙 및 1시간 주기 종목 자동 발굴"
       icon={Settings}
       badge={dryRun ? '모의투자 모드 (Dry-run)' : '실전 거래 모드 (Live)'}
       badgeType={dryRun ? 'warning' : 'success'}
@@ -181,7 +213,7 @@ export default function TradingSettingBox({ onSaveSettings }) {
             }}
           >
             {saving ? <RefreshCw size={13} className="animate-spin" /> : <Save size={13} />}
-            <span>{saving ? '저장 중...' : '설정 저장'}</span>
+            <span>{saving ? '저장 중...' : '지침 저장 및 적용'}</span>
           </button>
         </div>
       }
@@ -204,90 +236,118 @@ export default function TradingSettingBox({ onSaveSettings }) {
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
         
-        {/* Trading Mode Toggle */}
-        <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '14px', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
-          <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#f8fafc', marginBottom: '8px' }}>
-            매매 실행 모드:
-          </label>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button
-              type="button"
-              onClick={() => setDryRun(true)}
-              style={{
-                flex: 1,
-                padding: '10px',
-                borderRadius: '8px',
-                border: `1px solid ${dryRun ? '#fbbf24' : 'rgba(255, 255, 255, 0.08)'}`,
-                background: dryRun ? 'rgba(245, 158, 11, 0.2)' : 'rgba(255, 255, 255, 0.02)',
-                color: dryRun ? '#fbbf24' : '#94a3b8',
-                fontWeight: 800,
-                fontSize: '12px',
-                cursor: 'pointer'
-              }}
-            >
-              🛡️ 안전 모의투자 (Dry-Run)
-            </button>
-            <button
-              type="button"
-              onClick={() => setDryRun(false)}
-              style={{
-                flex: 1,
-                padding: '10px',
-                borderRadius: '8px',
-                border: `1px solid ${!dryRun ? '#10b981' : 'rgba(255, 255, 255, 0.08)'}`,
-                background: !dryRun ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.02)',
-                color: !dryRun ? '#34d399' : '#94a3b8',
-                fontWeight: 800,
-                fontSize: '12px',
-                cursor: 'pointer'
-              }}
-            >
-              ⚡ 실전 거래 (Live)
-            </button>
+        {/* Section 1: Basic Trading Execution Mode */}
+        <div>
+          <div style={{ fontSize: '13px', fontWeight: 800, color: '#38bdf8', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Activity size={15} />
+            <span>1. 기본 매매 환경 & 모의/실전 운용 모드</span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '12px' }}>
+            <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '12px', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#f8fafc', marginBottom: '6px' }}>
+                매매 실행 모드:
+              </label>
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <button
+                  type="button"
+                  onClick={() => setDryRun(true)}
+                  style={{
+                    flex: 1,
+                    padding: '8px',
+                    borderRadius: '8px',
+                    border: `1px solid ${dryRun ? '#fbbf24' : 'rgba(255, 255, 255, 0.08)'}`,
+                    background: dryRun ? 'rgba(245, 158, 11, 0.2)' : 'rgba(255, 255, 255, 0.02)',
+                    color: dryRun ? '#fbbf24' : '#94a3b8',
+                    fontWeight: 800,
+                    fontSize: '11px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  🛡️ 모의투자 (Safe)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDryRun(false)}
+                  style={{
+                    flex: 1,
+                    padding: '8px',
+                    borderRadius: '8px',
+                    border: `1px solid ${!dryRun ? '#10b981' : 'rgba(255, 255, 255, 0.08)'}`,
+                    background: !dryRun ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.02)',
+                    color: !dryRun ? '#34d399' : '#94a3b8',
+                    fontWeight: 800,
+                    fontSize: '11px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  ⚡ 실전 거래 (Live)
+                </button>
+              </div>
+            </div>
+
+            <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '12px', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#f8fafc', marginBottom: '6px' }}>
+                기본 감시 마켓:
+              </label>
+              <select
+                value={targetMarket}
+                onChange={(e) => setTargetMarket(e.target.value)}
+                style={{
+                  width: '100%',
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  borderRadius: '6px',
+                  padding: '8px',
+                  color: '#38bdf8',
+                  fontWeight: 700,
+                  fontSize: '12px',
+                  outline: 'none'
+                }}
+              >
+                <option value="KRW-BTC" style={{ background: '#121225' }}>비트코인 (BTC/KRW)</option>
+                <option value="KRW-ETH" style={{ background: '#121225' }}>이더리움 (ETH/KRW)</option>
+                <option value="KRW-SOL" style={{ background: '#121225' }}>솔라나 (SOL/KRW)</option>
+                <option value="KRW-XRP" style={{ background: '#121225' }}>리플 (XRP/KRW)</option>
+                <option value="KRW-DOGE" style={{ background: '#121225' }}>도지코인 (DOGE/KRW)</option>
+              </select>
+            </div>
+
+            <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '12px', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#f8fafc', marginBottom: '6px' }}>
+                1회 주문 한도 (KRW):
+              </label>
+              <input
+                type="number"
+                value={maxOrderAmount}
+                onChange={(e) => setMaxOrderAmount(e.target.value)}
+                style={{
+                  width: '100%',
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: '6px',
+                  padding: '8px',
+                  color: '#38bdf8',
+                  fontWeight: 800,
+                  fontSize: '13px',
+                  outline: 'none',
+                  boxSizing: 'border-box'
+                }}
+              />
+            </div>
           </div>
         </div>
 
-        {/* Target Market */}
-        <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '14px', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
-          <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#f8fafc', marginBottom: '8px' }}>
-            기본 타겟 마켓:
-          </label>
-          <select
-            value={targetMarket}
-            onChange={(e) => setTargetMarket(e.target.value)}
-            style={{
-              width: '100%',
-              background: 'rgba(255, 255, 255, 0.05)',
-              border: '1px solid rgba(255, 255, 255, 0.12)',
-              borderRadius: '8px',
-              padding: '10px 12px',
-              color: '#38bdf8',
-              fontWeight: 700,
-              fontSize: '13px',
-              outline: 'none'
-            }}
-          >
-            <option value="KRW-BTC" style={{ background: '#121225' }}>비트코인 (BTC/KRW)</option>
-            <option value="KRW-ETH" style={{ background: '#121225' }}>이더리움 (ETH/KRW)</option>
-            <option value="KRW-SOL" style={{ background: '#121225' }}>솔라나 (SOL/KRW)</option>
-            <option value="KRW-XRP" style={{ background: '#121225' }}>리플 (XRP/KRW)</option>
-            <option value="KRW-DOGE" style={{ background: '#121225' }}>도지코인 (DOGE/KRW)</option>
-            <option value="KRW-ADA" style={{ background: '#121225' }}>에이다 (ADA/KRW)</option>
-            <option value="KRW-AVAX" style={{ background: '#121225' }}>아발란체 (AVAX/KRW)</option>
-            <option value="KRW-SUI" style={{ background: '#121225' }}>수이 (SUI/KRW)</option>
-          </select>
-        </div>
-
-        {/* Dynamic Risk Stop-Loss & Take-Profit */}
-        <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '14px', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
-          <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#f8fafc', marginBottom: '8px' }}>
-            손절 & 익절 가드레일 (%):
-          </label>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-            <div>
-              <span style={{ fontSize: '11px', color: '#f87171', fontWeight: 600 }}>손절 기준 (%):</span>
+        {/* Section 2: Stop Loss, Take Profit & Trailing Stop Guardrails */}
+        <div>
+          <div style={{ fontSize: '13px', fontWeight: 800, color: '#34d399', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Shield size={15} />
+            <span>2. 손익절 & 트레일링 스탑 가드레일 (지침 기준: 손절 -3.5% / 트레일링 2.5%)</span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
+            <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '12px', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
+              <span style={{ fontSize: '11px', color: '#f87171', fontWeight: 600 }}>하드 손절선 (Stop-Loss %):</span>
               <input
                 type="number"
                 step="0.1"
@@ -300,15 +360,17 @@ export default function TradingSettingBox({ onSaveSettings }) {
                   borderRadius: '6px',
                   padding: '8px',
                   color: '#f87171',
-                  fontWeight: 700,
+                  fontWeight: 800,
                   fontSize: '13px',
+                  marginTop: '4px',
                   outline: 'none',
                   boxSizing: 'border-box'
                 }}
               />
             </div>
-            <div>
-              <span style={{ fontSize: '11px', color: '#34d399', fontWeight: 600 }}>익절 기준 (%):</span>
+
+            <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '12px', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
+              <span style={{ fontSize: '11px', color: '#34d399', fontWeight: 600 }}>목표 익절선 (Take-Profit %):</span>
               <input
                 type="number"
                 step="0.1"
@@ -321,24 +383,17 @@ export default function TradingSettingBox({ onSaveSettings }) {
                   borderRadius: '6px',
                   padding: '8px',
                   color: '#34d399',
-                  fontWeight: 700,
+                  fontWeight: 800,
                   fontSize: '13px',
+                  marginTop: '4px',
                   outline: 'none',
                   boxSizing: 'border-box'
                 }}
               />
             </div>
-          </div>
-        </div>
 
-        {/* Trailing Stop & Order Amount */}
-        <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '14px', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
-          <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#f8fafc', marginBottom: '8px' }}>
-            1회 주문 한도 & 트레일링 스탑:
-          </label>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-            <div>
-              <span style={{ fontSize: '11px', color: '#c4b5fd', fontWeight: 600 }}>트레일링 (%):</span>
+            <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '12px', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
+              <span style={{ fontSize: '11px', color: '#c4b5fd', fontWeight: 600 }}>트레일링 스탑 (Trailing %):</span>
               <input
                 type="number"
                 step="0.1"
@@ -351,32 +406,101 @@ export default function TradingSettingBox({ onSaveSettings }) {
                   borderRadius: '6px',
                   padding: '8px',
                   color: '#c4b5fd',
-                  fontWeight: 700,
+                  fontWeight: 800,
                   fontSize: '13px',
+                  marginTop: '4px',
                   outline: 'none',
                   boxSizing: 'border-box'
                 }}
               />
             </div>
-            <div>
-              <span style={{ fontSize: '11px', color: '#38bdf8', fontWeight: 600 }}>주문 한도 (KRW):</span>
+          </div>
+        </div>
+
+        {/* Section 3: Profit Protection (Reversal & Stagnation) */}
+        <div>
+          <div style={{ fontSize: '13px', fontWeight: 800, color: '#fbbf24', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <TrendingUp size={15} />
+            <span>3. 고점 반락 & 장기 횡보 수익 보존 규칙 (Profit Protection)</span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '12px' }}>
+            <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '12px', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: '#f8fafc' }}>고점 반락 익절 (Profit Reversal):</span>
+                <input
+                  type="checkbox"
+                  checked={enableProfitReversal}
+                  onChange={(e) => setEnableProfitReversal(e.target.checked)}
+                  style={{ accentColor: '#fbbf24', cursor: 'pointer' }}
+                />
+              </div>
+              <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '6px' }}>
+                순수익 +{profitReversalThreshold}% 도달 후 고점 대비 {profitReversalDrop}%p 되밀림 시 즉시 청산
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={profitReversalThreshold}
+                  onChange={(e) => setProfitReversalThreshold(e.target.value)}
+                  placeholder="기준 수익률 %"
+                  style={{ width: '100%', background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '6px', padding: '6px', color: '#fbbf24', fontSize: '11px', boxSizing: 'border-box' }}
+                />
+                <input
+                  type="number"
+                  step="0.01"
+                  value={profitReversalDrop}
+                  onChange={(e) => setProfitReversalDrop(e.target.value)}
+                  placeholder="되밀림 낙폭 %p"
+                  style={{ width: '100%', background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '6px', padding: '6px', color: '#fbbf24', fontSize: '11px', boxSizing: 'border-box' }}
+                />
+              </div>
+            </div>
+
+            <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '12px', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: '#f8fafc' }}>이익 횡보 정체 탈출 (Stagnation Exit):</span>
+                <input
+                  type="checkbox"
+                  checked={enableProfitStagnation}
+                  onChange={(e) => setEnableProfitStagnation(e.target.checked)}
+                  style={{ accentColor: '#fbbf24', cursor: 'pointer' }}
+                />
+              </div>
+              <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '6px' }}>
+                +0.3% 이상 수익 상태에서 {profitStagnationMinutes}분 이상 고점 갱신 정체 시 자금 회수
+              </div>
               <input
                 type="number"
-                value={maxOrderAmount}
-                onChange={(e) => setMaxOrderAmount(e.target.value)}
-                style={{
-                  width: '100%',
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  borderRadius: '6px',
-                  padding: '8px',
-                  color: '#38bdf8',
-                  fontWeight: 700,
-                  fontSize: '13px',
-                  outline: 'none',
-                  boxSizing: 'border-box'
-                }}
+                value={profitStagnationMinutes}
+                onChange={(e) => setProfitStagnationMinutes(e.target.value)}
+                placeholder="정체 시간(분)"
+                style={{ width: '100%', background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '6px', padding: '6px', color: '#fbbf24', fontSize: '11px', boxSizing: 'border-box' }}
               />
+            </div>
+          </div>
+        </div>
+
+        {/* Section 4: Auto Market Selection (1 Hour interval) */}
+        <div>
+          <div style={{ fontSize: '13px', fontWeight: 800, color: '#c4b5fd', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Clock size={15} />
+            <span>4. 1시간 주기 거래대금 상위 종목 자동 발굴 (Auto Market Selection)</span>
+          </div>
+          <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '12px', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+              <span style={{ fontSize: '12px', fontWeight: 700, color: '#f8fafc' }}>
+                빗썸 거래대금 상위 {autoMarketCount}개 종목 자동 교체 발굴 (1시간 주기):
+              </span>
+              <input
+                type="checkbox"
+                checked={enableAutoMarket}
+                onChange={(e) => setEnableAutoMarket(e.target.checked)}
+                style={{ accentColor: '#c4b5fd', cursor: 'pointer' }}
+              />
+            </div>
+            <div style={{ fontSize: '11px', color: '#94a3b8' }}>
+              빗썸 전체 마켓 중 24시간 거래대금 10억 이상 상위 {autoMarketCount}개 코인을 1시간마다 분석 대상으로 자동 선정합니다.
             </div>
           </div>
         </div>
