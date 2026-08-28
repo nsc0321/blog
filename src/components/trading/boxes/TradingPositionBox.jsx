@@ -1,7 +1,25 @@
 ﻿import React, { useState, useEffect } from 'react';
-import { PieChart, Wallet, DollarSign, RefreshCw, ArrowUpRight, ShieldCheck, AlertCircle, TrendingUp, TrendingDown, Coins } from 'lucide-react';
+import { PieChart, Wallet, DollarSign, RefreshCw, ArrowUpRight, ShieldCheck, AlertCircle, TrendingUp, TrendingDown, Coins, CheckCircle2 } from 'lucide-react';
 import { Box, SubBoxCard } from '../../common/Box';
 import { getApiBase } from '../../../config';
+
+const COIN_NAME_MAP = {
+  'BTC': '비트코인',
+  'ETH': '이더리움',
+  'SOL': '솔라나',
+  'USDT': '테더',
+  'XRP': '리플',
+  'DOGE': '도지코인',
+  'ADA': '에이다',
+  'AVAX': '아발란체',
+  'DOT': '폴카닷',
+  'LINK': '체인링크',
+  'SUI': '수이',
+  'APT': '앱토스',
+  'SHIB': '시바이누',
+  'PEPE': '페페',
+  'NEAR': '니어프로토콜'
+};
 
 export default function TradingPositionBox({ isDryRun: parentDryRun }) {
   const [account, setAccount] = useState({
@@ -32,13 +50,37 @@ export default function TradingPositionBox({ isDryRun: parentDryRun }) {
       });
       if (resp.ok) {
         const data = await resp.json();
+        
+        // Extract held items from positions or holdings
+        let rawPositions = data.positions && data.positions.length > 0 ? data.positions : [];
+        if (rawPositions.length === 0 && data.holdings) {
+          rawPositions = data.holdings.filter(h => h.is_held && (h.volume > 0 || h.eval_krw > 0));
+        }
+
+        const formattedPositions = rawPositions.map(pos => {
+          const sym = (pos.symbol || pos.market?.replace('KRW-', '') || '').toUpperCase();
+          const kName = COIN_NAME_MAP[sym] || pos.korean_name || sym;
+          return {
+            ...pos,
+            symbol: sym,
+            korean_name: kName,
+            volume: typeof pos.volume === 'number' ? pos.volume : parseFloat(pos.volume || 0),
+            avg_price: typeof pos.avg_price === 'number' ? pos.avg_price : parseFloat(pos.avg_price || 0),
+            current_price: typeof pos.current_price === 'number' ? pos.current_price : parseFloat(pos.current_price || 0),
+            eval_krw: typeof pos.eval_krw === 'number' ? pos.eval_krw : parseFloat(pos.eval_krw || 0),
+            pnl_krw: typeof pos.pnl_krw === 'number' ? pos.pnl_krw : parseFloat(pos.pnl_krw || 0),
+            pnl_pct: typeof pos.pnl_pct === 'number' ? pos.pnl_pct : parseFloat(pos.pnl_pct || 0),
+            weight_pct: typeof pos.weight_pct === 'number' ? pos.weight_pct : parseFloat(pos.weight_pct || 0)
+          };
+        });
+
         setAccount({
           krw_balance: data.krw_balance || 0,
           total_eval: data.total_eval || 0,
           crypto_eval_total: data.crypto_eval_total || 0,
           total_pnl_krw: data.total_pnl_krw || 0,
           total_pnl_pct: data.total_pnl_pct || 0,
-          positions: data.positions || [],
+          positions: formattedPositions,
           holdings: data.holdings || [],
           dry_run: data.dry_run === true,
           mode: data.mode || (data.dry_run ? 'DRY_RUN' : 'LIVE'),
@@ -64,7 +106,7 @@ export default function TradingPositionBox({ isDryRun: parentDryRun }) {
   return (
     <Box
       title="3. Positions & Assets Box (보유 자산 & 포지션 잔고)"
-      subtitle="원화(KRW) 주문 가능 잔고, 보유 코인 수량 및 총 평가금액"
+      subtitle="원화(KRW) 주문 가능 잔고, 보유 코인 수량 및 실시간 평가금액"
       icon={PieChart}
       badge={isDryRun ? '🛡️ 모의투자 자산 (Paper)' : '⚡ 빗썸 실전 자산 (Live)'}
       badgeType={isDryRun ? 'warning' : 'success'}
