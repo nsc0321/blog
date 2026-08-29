@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Bot, TrendingUp, Database, ShieldCheck, Sparkles, ArrowRight, MessageSquare, Cpu, DollarSign, Settings, Search, Layers, Users, Zap, Terminal, Activity, Key, History, LayoutGrid, Plus } from 'lucide-react';
+import { Bot, TrendingUp, Database, ShieldCheck, Sparkles, ArrowRight, MessageSquare, Cpu, DollarSign, Settings, Search, Layers, Users, Zap, Terminal, Activity, Key, History, LayoutGrid, Plus, Wrench } from 'lucide-react';
 import { Box, SubBoxCard } from './common/Box';
 import CompositeBox from './common/CompositeBox';
 import BoxComposerModal from './common/BoxComposerModal';
