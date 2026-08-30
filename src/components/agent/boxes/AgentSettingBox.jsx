@@ -11,11 +11,19 @@ export default function AgentSettingBox({
 }) {
   const [model, setModel] = useState(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('agent_llm_model') || 'openai/gpt-oss-120b';
+      return localStorage.getItem('agent_llm_model') || 'Qwen/Qwen3.8-Flash-Next';
     }
-    return 'openai/gpt-oss-120b';
+    return 'Qwen/Qwen3.8-Flash-Next';
   });
-  const [availableModels, setAvailableModels] = useState(['openai/gpt-oss-120b']);
+  const [availableModels, setAvailableModels] = useState([
+    'Qwen/Qwen3.8-Flash-Next',
+    'Qwen/Qwen3-Coder-Next-FP8',
+    'openai/gpt-oss-120b',
+    'Qwen/Qwen2.5-Coder-7B-Instruct',
+    'custom'
+  ]);
+  const [isCustomModel, setIsCustomModel] = useState(false);
+  const [customModelName, setCustomModelName] = useState('');
   const [temperature, setTemperature] = useState(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('agent_temperature');
@@ -43,7 +51,9 @@ export default function AgentSettingBox({
         if (resp.ok) {
           const data = await resp.json();
           if (data.llm_model) {
-            setAvailableModels([data.llm_model]);
+            if (!availableModels.includes(data.llm_model)) {
+              setAvailableModels(prev => [data.llm_model, ...prev.filter(m => m !== data.llm_model)]);
+            }
             setModel(data.llm_model);
             localStorage.setItem('agent_llm_model', data.llm_model);
           }
@@ -55,12 +65,24 @@ export default function AgentSettingBox({
     fetchStatusModel();
   }, [API_BASE]);
 
+  const handleModelSelectChange = (val) => {
+    if (val === 'custom') {
+      setIsCustomModel(true);
+    } else {
+      setIsCustomModel(false);
+      setModel(val);
+    }
+  };
+
   const handleSave = () => {
+    const finalModel = isCustomModel && customModelName.trim() ? customModelName.trim() : model;
     if (typeof window !== 'undefined') {
-      localStorage.setItem('agent_llm_model', model);
+      localStorage.setItem('agent_llm_model', finalModel);
       localStorage.setItem('agent_temperature', String(temperature));
       localStorage.setItem('agent_voice_rate', String(voiceRate));
     }
+    setModel(finalModel);
+    setIsCustomModel(false);
     setSaveAlert(true);
     setTimeout(() => setSaveAlert(false), 2000);
   };
@@ -163,8 +185,8 @@ export default function AgentSettingBox({
             기본 AI 모델 (LLM Model):
           </label>
           <select
-            value={model}
-            onChange={(e) => setModel(e.target.value)}
+            value={isCustomModel ? 'custom' : model}
+            onChange={(e) => handleModelSelectChange(e.target.value)}
             style={{
               width: '100%',
               background: 'rgba(255, 255, 255, 0.05)',
@@ -179,12 +201,34 @@ export default function AgentSettingBox({
           >
             {availableModels.map((m) => (
               <option key={m} value={m} style={{ background: '#121225', color: '#f8fafc' }}>
-                {m} (기존 LLM 모델)
+                {m === 'custom' ? '✏️ 모델명 직접 입력 (Custom Model)' : `${m} ${m === 'Qwen/Qwen3.8-Flash-Next' ? '(추천 1M MoE)' : ''}`}
               </option>
             ))}
           </select>
+
+          {isCustomModel && (
+            <div style={{ marginTop: '8px' }}>
+              <input
+                type="text"
+                value={customModelName}
+                onChange={(e) => setCustomModelName(e.target.value)}
+                placeholder="예: Qwen/Qwen3.8-Flash-Next 또는 your-custom-model"
+                style={{
+                  width: '100%',
+                  background: 'rgba(0, 0, 0, 0.3)',
+                  border: '1px solid #8b5cf6',
+                  borderRadius: '8px',
+                  padding: '8px 12px',
+                  color: '#fff',
+                  fontSize: '12px',
+                  outline: 'none'
+                }}
+              />
+            </div>
+          )}
+
           <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>
-            서버 백엔드에 직접 연결된 기본 고성능 추론 LLM 모델입니다.
+            서버 백엔드에 직접 연결된 추론 LLM 모델입니다. 프리셋을 선택하거나 원하는 모델을 직접 지정할 수 있습니다.
           </div>
         </div>
 

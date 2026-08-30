@@ -7,7 +7,7 @@ export default function AgentStatusBox({
   skillsCount = 40,
   activeTasksCount = 0,
   latency = '24ms',
-  currentModel = 'openai/gpt-oss-120b'
+  currentModel = 'Qwen/Qwen3.8-Flash-Next'
 }) {
   return (
     <div style={{

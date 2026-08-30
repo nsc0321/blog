@@ -45,9 +45,9 @@ export default function VoiceAssistant() {
   const [credentialsLoading, setCredentialsLoading] = useState(false);
   const [currentModel, setCurrentModel] = useState(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('agent_llm_model') || 'openai/gpt-oss-120b';
+      return localStorage.getItem('agent_llm_model') || 'Qwen/Qwen3.8-Flash-Next';
     }
-    return 'openai/gpt-oss-120b';
+    return 'Qwen/Qwen3.8-Flash-Next';
   });
 
   const API_BASE = getApiBase();
@@ -176,17 +176,18 @@ export default function VoiceAssistant() {
 
     try {
       // 1. Send to /api/chat with streaming or /api/agent/prompt fallback
+      const activeModel = typeof window !== 'undefined' ? localStorage.getItem('agent_llm_model') || currentModel : currentModel;
       const resp = await fetch(`${API_BASE}/api/chat`, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify({ message: userText })
+        body: JSON.stringify({ message: userText, model: activeModel })
       });
 
       if (!resp.ok) {
         const fallbackResp = await fetch(`${API_BASE}/api/agent/prompt`, {
           method: 'POST',
           headers: getHeaders(),
-          body: JSON.stringify({ prompt: userText })
+          body: JSON.stringify({ prompt: userText, model: activeModel })
         });
         const fallbackData = await fallbackResp.json();
         const reply = fallbackData.reply || fallbackData.response || '응답을 생성하지 못했습니다.';
