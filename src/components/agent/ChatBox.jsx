@@ -3,6 +3,12 @@ import { MessageSquare, Mic, MicOff, Send, Volume2, VolumeX, Bot, User, Sparkles
 import { Box } from '../common/Box';
 
 export default function ChatBox({
+  title = 'Chat Box',
+  subtitle = '실시간 음성/텍스트/이미지 대화 및 AI 어시스턴트',
+  badge = 'Live Chat',
+  badgeType = 'purple',
+  icon: CustomIcon = MessageSquare,
+  placeholder = '',
   messages = [],
   inputPrompt = '',
   setInputPrompt,
@@ -115,11 +121,11 @@ export default function ChatBox({
 
   return (
     <Box
-      title="Chat Box"
-      subtitle="실시간 음성/텍스트/이미지 대화 및 AI 어시스턴트"
-      icon={MessageSquare}
-      badge="Live Chat"
-      badgeType="purple"
+      title={title}
+      subtitle={subtitle}
+      icon={CustomIcon}
+      badge={badge}
+      badgeType={badgeType}
       className="chat-box-card"
       actions={
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

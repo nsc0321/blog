@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Bot, Sparkles, MessageSquare, Cpu, LayoutDashboard, Wrench, Key, History, Settings } from 'lucide-react';
+import { Bot, Sparkles, MessageSquare, MessageCircle, Cpu, LayoutDashboard, Wrench, Key, History, Settings } from 'lucide-react';
 import AgentTabBox from './agent/boxes/AgentTabBox';
 import AgentStatusBox from './agent/boxes/AgentStatusBox';
 import AgentSettingBox from './agent/boxes/AgentSettingBox';
@@ -11,9 +11,9 @@ import AvatarCanvas from './AvatarCanvas';
 import { getApiBase } from '../config';
 
 export default function VoiceAssistant() {
-  const [activeTab, setActiveTab] = useState('chat'); // 'chat' | 'skills' | 'accounts' | 'history' | 'settings'
+  const [activeTab, setActiveTab] = useState('chat'); // 'chat' | 'general_chat' | 'skills' | 'accounts' | 'history' | 'settings'
   
-  // Chat State
+  // Agent Chat State
   const [messages, setMessages] = useState(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -25,7 +25,23 @@ export default function VoiceAssistant() {
       } catch (e) {}
     }
     return [
-      { sender: 'assistant', text: '안녕하세요! OctoHub Agent AI입니다. 대화형 AI 어시스턴트 및 커스텀 스킬 엔진을 사용하실 수 있습니다.' }
+      { sender: 'assistant', text: '안녕하세요! 자율 에이전트 모드입니다. 필요한 작업이나 도구 실행, 코딩, 조회를 요청해주세요.' }
+    ];
+  });
+
+  // General Chat State
+  const [generalMessages, setGeneralMessages] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = sessionStorage.getItem('general_chat_messages');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch (e) {}
+    }
+    return [
+      { sender: 'assistant', text: '안녕하세요! 일반 대화 모드입니다. 순수 LLM 지식 기반으로 빠르게 답변해 드립니다.' }
     ];
   });
 
@@ -38,7 +54,16 @@ export default function VoiceAssistant() {
     }
   }, [messages]);
 
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.setItem('general_chat_messages', JSON.stringify(generalMessages));
+      } catch (e) {}
+    }
+  }, [generalMessages]);
+
   const [inputPrompt, setInputPrompt] = useState('');
+  const [generalInputPrompt, setGeneralInputPrompt] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
   const [chatStatusText, setChatStatusText] = useState('');
   const [isListening, setIsListening] = useState(false);
@@ -186,13 +211,19 @@ export default function VoiceAssistant() {
   };
 
   // Send message
-  const handleSendMessage = async (imageAttachment = null) => {
-    if ((!inputPrompt.trim() && !imageAttachment) || chatLoading) return;
-    const userText = inputPrompt.trim();
-    setInputPrompt('');
+  const handleSendMessage = async (imageAttachment = null, targetMode = 'agent') => {
+    const isGeneral = targetMode === 'general';
+    const currentInput = isGeneral ? generalInputPrompt : inputPrompt;
+    if ((!currentInput.trim() && !imageAttachment) || chatLoading) return;
+    const userText = currentInput.trim();
+    if (isGeneral) setGeneralInputPrompt('');
+    else setInputPrompt('');
     
+    const currentList = isGeneral ? generalMessages : messages;
+    const setList = isGeneral ? setGeneralMessages : setMessages;
+
     // Extract conversational history payload from previous turns
-    const historyPayload = messages
+    const historyPayload = currentList
       .filter(m => m.text && m.text.trim())
       .slice(-15) // Keep last 15 turns for optimal context memory
       .map(m => ({
@@ -201,7 +232,7 @@ export default function VoiceAssistant() {
       }));
 
     // Add user message and empty placeholder for streaming assistant message
-    setMessages(prev => [
+    setList(prev => [
       ...prev, 
       { 
         sender: 'user', 
@@ -217,7 +248,7 @@ export default function VoiceAssistant() {
     ]);
     
     setChatLoading(true);
-    setChatStatusText(imageAttachment ? '이미지 분석 및 응답 생성 중...' : '응답 확인 중...');
+    setChatStatusText(imageAttachment ? '이미지 분석 및 응답 생성 중...' : (isGeneral ? '직접 응답 생성 중...' : '응답 확인 중...'));
 
     try {
       // 1. Send to /api/chat with streaming or /api/agent/prompt fallback
@@ -227,6 +258,7 @@ export default function VoiceAssistant() {
         headers: getHeaders(),
         body: JSON.stringify({ 
           message: userText, 
+          mode: targetMode,
           model: activeModel,
           image: imageAttachment?.dataUrl || null,
           chat_history: historyPayload
@@ -239,6 +271,7 @@ export default function VoiceAssistant() {
           headers: getHeaders(),
           body: JSON.stringify({ 
             prompt: userText, 
+            mode: targetMode,
             model: activeModel,
             image: imageAttachment?.dataUrl || null,
             chat_history: historyPayload
@@ -246,7 +279,7 @@ export default function VoiceAssistant() {
         });
         const fallbackData = await fallbackResp.json();
         const reply = fallbackData.reply || fallbackData.response || '응답을 생성하지 못했습니다.';
-        setMessages(prev => {
+        setList(prev => {
           const updated = [...prev];
           const last = updated[updated.length - 1];
           if (last && last.sender === 'assistant') {
@@ -282,7 +315,7 @@ export default function VoiceAssistant() {
               if (parsed.type === 'chunk') {
                 accumulatedAnswer += parsed.content;
                 const currentChunkText = accumulatedAnswer;
-                setMessages(prev => {
+                setList(prev => {
                   const updated = [...prev];
                   const last = updated[updated.length - 1];
                   if (last && last.sender === 'assistant') {
@@ -306,7 +339,7 @@ export default function VoiceAssistant() {
         }
 
         const reply = accumulatedAnswer || '응답이 완료되었습니다.';
-        setMessages(prev => {
+        setList(prev => {
           const updated = [...prev];
           const last = updated[updated.length - 1];
           if (last && last.sender === 'assistant') {
@@ -319,7 +352,7 @@ export default function VoiceAssistant() {
       } else {
         const data = await resp.json();
         const reply = data.reply || data.response || (typeof data === 'string' ? data : JSON.stringify(data));
-        setMessages(prev => {
+        setList(prev => {
           const updated = [...prev];
           const last = updated[updated.length - 1];
           if (last && last.sender === 'assistant') {
@@ -331,7 +364,7 @@ export default function VoiceAssistant() {
         speakText(reply);
       }
     } catch (err) {
-      setMessages(prev => {
+      setList(prev => {
         const updated = [...prev];
         const last = updated[updated.length - 1];
         if (last && last.sender === 'assistant') {
@@ -395,15 +428,26 @@ export default function VoiceAssistant() {
   };
 
   // Clear chat / Start fresh session
-  const handleClearChat = () => {
+  const handleClearChat = (targetMode = 'agent') => {
+    const isGeneral = targetMode === 'general';
     const initial = [
-      { sender: 'assistant', text: '안녕하세요! 새로운 대화 세션이 시작되었습니다. 무엇이든 물어보세요.' }
+      { 
+        sender: 'assistant', 
+        text: isGeneral 
+          ? '안녕하세요! 일반 대화 모드입니다. 순수 LLM 지식 기반으로 빠르게 답변해 드립니다.' 
+          : '안녕하세요! 자율 에이전트 모드입니다. 필요한 작업이나 도구 실행, 코딩, 조회를 요청해주세요.' 
+      }
     ];
-    setMessages(initial);
-    if (typeof window !== 'undefined') {
-      try {
-        sessionStorage.setItem('agent_chat_messages', JSON.stringify(initial));
-      } catch (e) {}
+    if (isGeneral) {
+      setGeneralMessages(initial);
+      if (typeof window !== 'undefined') {
+        try { sessionStorage.setItem('general_chat_messages', JSON.stringify(initial)); } catch (e) {}
+      }
+    } else {
+      setMessages(initial);
+      if (typeof window !== 'undefined') {
+        try { sessionStorage.setItem('agent_chat_messages', JSON.stringify(initial)); } catch (e) {}
+      }
     }
   };
 
@@ -431,15 +475,58 @@ export default function VoiceAssistant() {
       {/* Dynamic Sub-Box Rendering according to Tab Box */}
       <div className="agent-active-box-view">
         
-        {/* 1. Chat Box View */}
+        {/* 1. Agent Chat Box View */}
         {activeTab === 'chat' && (
           <div className="agent-chat-view-container" style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%', height: '100%', flex: 1 }}>
             <ChatBox
+              title="Agent Chat Box"
+              subtitle="자율 에이전트 추론 및 도구(Skill) 실행 모드"
+              icon={Bot}
+              badge="Agent & Skills"
+              badgeType="purple"
               messages={messages}
               inputPrompt={inputPrompt}
               setInputPrompt={setInputPrompt}
-              onSendMessage={handleSendMessage}
-              onClearChat={handleClearChat}
+              onSendMessage={(img) => handleSendMessage(img, 'agent')}
+              onClearChat={() => handleClearChat('agent')}
+              isListening={isListening}
+              toggleListening={toggleListening}
+              ttsEnabled={ttsEnabled}
+              setTtsEnabled={(val) => {
+                setTtsEnabled(val);
+                localStorage.setItem('agent_tts_enabled', String(val));
+              }}
+              loading={chatLoading}
+              statusText={chatStatusText}
+            />
+
+            {showAvatar && (
+              <div className="avatar-canvas-wrapper mobile-hidden" style={{
+                background: 'rgba(0, 0, 0, 0.4)',
+                borderRadius: '16px',
+                padding: '16px',
+                border: '1px solid rgba(255, 255, 255, 0.08)'
+              }}>
+                <AvatarCanvas />
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 1-2. General Chat Box View */}
+        {activeTab === 'general_chat' && (
+          <div className="agent-chat-view-container" style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%', height: '100%', flex: 1 }}>
+            <ChatBox
+              title="General Chat Box"
+              subtitle="순수 LLM 직접 대화 및 초고속 질의응답 (도구 미사용)"
+              icon={MessageCircle}
+              badge="Fast Chat"
+              badgeType="green"
+              messages={generalMessages}
+              inputPrompt={generalInputPrompt}
+              setInputPrompt={setGeneralInputPrompt}
+              onSendMessage={(img) => handleSendMessage(img, 'general')}
+              onClearChat={() => handleClearChat('general')}
               isListening={isListening}
               toggleListening={toggleListening}
               ttsEnabled={ttsEnabled}
