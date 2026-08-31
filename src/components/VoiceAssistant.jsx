@@ -169,14 +169,25 @@ export default function VoiceAssistant() {
     if ((!inputPrompt.trim() && !imageAttachment) || chatLoading) return;
     const userText = inputPrompt.trim();
     setInputPrompt('');
-    setMessages(prev => [...prev, { 
-      sender: 'user', 
-      text: userText, 
-      image: imageAttachment?.dataUrl || null,
-      imageName: imageAttachment?.name || ''
-    }]);
+    
+    // Add user message and empty placeholder for streaming assistant message
+    setMessages(prev => [
+      ...prev, 
+      { 
+        sender: 'user', 
+        text: userText, 
+        image: imageAttachment?.dataUrl || null,
+        imageName: imageAttachment?.name || ''
+      },
+      {
+        sender: 'assistant',
+        text: '',
+        isStreaming: true
+      }
+    ]);
+    
     setChatLoading(true);
-    setChatStatusText(imageAttachment ? '이미지 분석 및 Agent 응답을 생성하고 있습니다...' : 'Agent AI가 응답을 생성하고 있습니다...');
+    setChatStatusText(imageAttachment ? '이미지 분석 및 응답 생성 중...' : '응답 확인 중...');
 
     try {
       // 1. Send to /api/chat with streaming or /api/agent/prompt fallback
@@ -203,7 +214,17 @@ export default function VoiceAssistant() {
         });
         const fallbackData = await fallbackResp.json();
         const reply = fallbackData.reply || fallbackData.response || '응답을 생성하지 못했습니다.';
-        setMessages(prev => [...prev, { sender: 'assistant', text: reply }]);
+        setMessages(prev => {
+          const updated = [...prev];
+          const last = updated[updated.length - 1];
+          if (last && last.sender === 'assistant') {
+            last.text = reply;
+            last.isStreaming = false;
+          } else {
+            updated.push({ sender: 'assistant', text: reply });
+          }
+          return updated;
+        });
         speakText(reply);
         return;
       }
@@ -212,7 +233,7 @@ export default function VoiceAssistant() {
       if (contentType.includes('application/x-ndjson') && resp.body) {
         const reader = resp.body.getReader();
         const decoder = new TextDecoder();
-        let finalAnswer = '';
+        let accumulatedAnswer = '';
         let buffer = '';
 
         while (true) {
@@ -226,30 +247,67 @@ export default function VoiceAssistant() {
             if (!line.trim()) continue;
             try {
               const parsed = JSON.parse(line);
-              if (parsed.type === 'log') {
+              if (parsed.type === 'chunk') {
+                accumulatedAnswer += parsed.content;
+                const currentChunkText = accumulatedAnswer;
+                setMessages(prev => {
+                  const updated = [...prev];
+                  const last = updated[updated.length - 1];
+                  if (last && last.sender === 'assistant') {
+                    last.text = currentChunkText;
+                  }
+                  return updated;
+                });
+              } else if (parsed.type === 'log') {
                 setChatStatusText(parsed.content);
               } else if (parsed.type === 'answer') {
-                finalAnswer = parsed.content;
+                if (parsed.content) {
+                  accumulatedAnswer = parsed.content;
+                }
               } else if (parsed.type === 'error') {
-                finalAnswer = `⚠️ ${parsed.content}`;
+                accumulatedAnswer = `⚠️ ${parsed.content}`;
               }
             } catch (e) {
-              if (line.trim()) finalAnswer = line.trim();
+              if (line.trim()) accumulatedAnswer = line.trim();
             }
           }
         }
 
-        const reply = finalAnswer || '응답이 완료되었습니다.';
-        setMessages(prev => [...prev, { sender: 'assistant', text: reply }]);
+        const reply = accumulatedAnswer || '응답이 완료되었습니다.';
+        setMessages(prev => {
+          const updated = [...prev];
+          const last = updated[updated.length - 1];
+          if (last && last.sender === 'assistant') {
+            last.text = reply;
+            last.isStreaming = false;
+          }
+          return updated;
+        });
         speakText(reply);
       } else {
         const data = await resp.json();
         const reply = data.reply || data.response || (typeof data === 'string' ? data : JSON.stringify(data));
-        setMessages(prev => [...prev, { sender: 'assistant', text: reply }]);
+        setMessages(prev => {
+          const updated = [...prev];
+          const last = updated[updated.length - 1];
+          if (last && last.sender === 'assistant') {
+            last.text = reply;
+            last.isStreaming = false;
+          }
+          return updated;
+        });
         speakText(reply);
       }
     } catch (err) {
-      setMessages(prev => [...prev, { sender: 'assistant', text: `⚠️ 응답 실패: ${err.message || '서버 통신 오류'}` }]);
+      setMessages(prev => {
+        const updated = [...prev];
+        const last = updated[updated.length - 1];
+        if (last && last.sender === 'assistant') {
+          last.text = `⚠️ 응답 실패: ${err.message || '서버 통신 오류'}`;
+          last.isStreaming = false;
+        }
+        return updated;
+      });
     } finally {
       setChatLoading(false);
       setChatStatusText('');
