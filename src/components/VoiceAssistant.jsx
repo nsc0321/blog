@@ -165,13 +165,18 @@ export default function VoiceAssistant() {
   };
 
   // Send message
-  const handleSendMessage = async () => {
-    if (!inputPrompt.trim() || chatLoading) return;
+  const handleSendMessage = async (imageAttachment = null) => {
+    if ((!inputPrompt.trim() && !imageAttachment) || chatLoading) return;
     const userText = inputPrompt.trim();
     setInputPrompt('');
-    setMessages(prev => [...prev, { sender: 'user', text: userText }]);
+    setMessages(prev => [...prev, { 
+      sender: 'user', 
+      text: userText, 
+      image: imageAttachment?.dataUrl || null,
+      imageName: imageAttachment?.name || ''
+    }]);
     setChatLoading(true);
-    setChatStatusText('Agent AI가 응답을 생성하고 있습니다...');
+    setChatStatusText(imageAttachment ? '이미지 분석 및 Agent 응답을 생성하고 있습니다...' : 'Agent AI가 응답을 생성하고 있습니다...');
 
     try {
       // 1. Send to /api/chat with streaming or /api/agent/prompt fallback
@@ -179,14 +184,22 @@ export default function VoiceAssistant() {
       const resp = await fetch(`${API_BASE}/api/chat`, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify({ message: userText, model: activeModel })
+        body: JSON.stringify({ 
+          message: userText, 
+          model: activeModel,
+          image: imageAttachment?.dataUrl || null
+        })
       });
 
       if (!resp.ok) {
         const fallbackResp = await fetch(`${API_BASE}/api/agent/prompt`, {
           method: 'POST',
           headers: getHeaders(),
-          body: JSON.stringify({ prompt: userText, model: activeModel })
+          body: JSON.stringify({ 
+            prompt: userText, 
+            model: activeModel,
+            image: imageAttachment?.dataUrl || null
+          })
         });
         const fallbackData = await fallbackResp.json();
         const reply = fallbackData.reply || fallbackData.response || '응답을 생성하지 못했습니다.';
