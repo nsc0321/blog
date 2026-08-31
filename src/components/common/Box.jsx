@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { ChevronDown, ChevronUp, Layers, CheckCircle2, AlertCircle, RefreshCw, ExternalLink } from 'lucide-react';
 
 export function Box({
@@ -50,6 +50,7 @@ export function Box({
     >
       {/* Box Header */}
       <div
+        className="custom-box-header"
         style={{
           padding: '16px 20px',
           borderBottom: collapsed ? 'none' : '1px solid rgba(255, 255, 255, 0.06)',
@@ -126,14 +127,14 @@ export function Box({
 
       {/* Box Body */}
       {!collapsed && (
-        <div style={{ padding: '20px', flex: '1' }}>
+        <div className="custom-box-body" style={{ padding: '20px', flex: '1' }}>
           {children}
         </div>
       )}
 
       {/* Box Footer */}
       {!collapsed && footer && (
-        <div style={{
+        <div className="custom-box-footer" style={{
           padding: '12px 20px',
           borderTop: '1px solid rgba(255, 255, 255, 0.05)',
           background: 'rgba(0, 0, 0, 0.15)',

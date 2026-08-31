@@ -4,7 +4,6 @@ import AgentTabBox from './agent/boxes/AgentTabBox';
 import AgentStatusBox from './agent/boxes/AgentStatusBox';
 import AgentSettingBox from './agent/boxes/AgentSettingBox';
 import ChatBox from './agent/ChatBox';
-import CallAgentApiBox from './agent/CallAgentApiBox';
 import SkillWorkshopBox from './agent/boxes/SkillWorkshopBox';
 import AccountManageBox from './agent/boxes/AccountManageBox';
 import HistoryBox from './agent/boxes/HistoryBox';
@@ -293,28 +292,32 @@ export default function VoiceAssistant() {
   };
 
   return (
-    <div className="agent-container-box" style={{ padding: '24px 20px', maxWidth: '1200px', margin: '0 auto' }}>
+    <div className="agent-container-box">
       
-      {/* Status Box */}
-      <AgentStatusBox
-        status="ONLINE"
-        skillsCount={skills.length}
-        activeTasksCount={0}
-        currentModel={currentModel}
-      />
+      {/* Status Box (Hidden on Mobile) */}
+      <div className="agent-status-section mobile-hidden">
+        <AgentStatusBox
+          status="ONLINE"
+          skillsCount={skills.length}
+          activeTasksCount={0}
+          currentModel={currentModel}
+        />
+      </div>
 
-      {/* 5. Tab Box: Dynamic Box Group Switcher */}
-      <AgentTabBox
-        activeTab={activeTab}
-        onTabChange={(tabId) => setActiveTab(tabId)}
-      />
+      {/* 5. Tab Box: Dynamic Box Group Switcher (Hidden on Mobile) */}
+      <div className="agent-tab-section mobile-hidden">
+        <AgentTabBox
+          activeTab={activeTab}
+          onTabChange={(tabId) => setActiveTab(tabId)}
+        />
+      </div>
 
       {/* Dynamic Sub-Box Rendering according to Tab Box */}
       <div className="agent-active-box-view">
         
-        {/* 1 & 2. Chat Box + Call Agent API Box View */}
+        {/* 1. Chat Box View */}
         {activeTab === 'chat' && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '20px' }}>
+          <div className="agent-chat-view-container" style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%', height: '100%', flex: 1 }}>
             <ChatBox
               messages={messages}
               inputPrompt={inputPrompt}
@@ -331,14 +334,8 @@ export default function VoiceAssistant() {
               statusText={chatStatusText}
             />
 
-            <CallAgentApiBox
-              skills={skills}
-              loading={skillsLoading}
-            />
-
             {showAvatar && (
-              <div style={{
-                gridColumn: '1 / -1',
+              <div className="avatar-canvas-wrapper mobile-hidden" style={{
                 background: 'rgba(0, 0, 0, 0.4)',
                 borderRadius: '16px',
                 padding: '16px',

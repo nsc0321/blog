@@ -1,4 +1,4 @@
-﻿import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { MessageSquare, Mic, MicOff, Send, Volume2, VolumeX, Bot, User, Sparkles, RefreshCw } from 'lucide-react';
 import { Box } from '../common/Box';
 
@@ -30,10 +30,11 @@ export default function ChatBox({
   return (
     <Box
       title="Chat Box"
-      subtitle="실시간 음성/텍스트 대화 및 AI 어시스턴트 인터랙션"
+      subtitle="실시간 음성/텍스트 대화 및 AI 어시스턴트"
       icon={MessageSquare}
       badge="Live Chat"
       badgeType="purple"
+      className="chat-box-card"
       actions={
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <button
@@ -58,22 +59,14 @@ export default function ChatBox({
         </div>
       }
       footer={
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="chat-box-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span>💡 팁: 음성 마이크 버튼을 누르거나 텍스트를 입력하여 질문하세요.</span>
           <span>{messages.length}개 메시지</span>
         </div>
       }
     >
       {/* Message History Container */}
-      <div style={{
-        height: '380px',
-        overflowY: 'auto',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '12px',
-        paddingRight: '6px',
-        marginBottom: '16px'
-      }}>
+      <div className="chat-messages-container">
         {messages.length === 0 ? (
           <div style={{
             height: '100%',
@@ -82,7 +75,8 @@ export default function ChatBox({
             alignItems: 'center',
             justifyContent: 'center',
             color: '#64748b',
-            gap: '10px'
+            gap: '10px',
+            padding: '40px 0'
           }}>
             <Bot size={40} style={{ color: '#8b5cf6', opacity: 0.6 }} />
             <p style={{ margin: 0, fontSize: '14px' }}>무엇이든 물어보세요! Agent AI가 지원합니다.</p>
@@ -93,6 +87,7 @@ export default function ChatBox({
             return (
               <div
                 key={index}
+                className={`chat-msg-row ${isUser ? 'user' : 'assistant'}`}
                 style={{
                   display: 'flex',
                   justifyContent: isUser ? 'flex-end' : 'flex-start',
@@ -101,7 +96,7 @@ export default function ChatBox({
                 }}
               >
                 {!isUser && (
-                  <div style={{
+                  <div className="msg-avatar-icon" style={{
                     width: '30px',
                     height: '30px',
                     borderRadius: '50%',
@@ -117,10 +112,11 @@ export default function ChatBox({
                 )}
 
                 <div
+                  className={`chat-msg-bubble ${isUser ? 'user' : 'assistant'}`}
                   style={{
-                    maxWidth: '80%',
+                    maxWidth: '85%',
                     padding: '10px 14px',
-                    borderRadius: '12px',
+                    borderRadius: isUser ? '14px 14px 2px 14px' : '14px 14px 14px 2px',
                     fontSize: '13px',
                     lineHeight: 1.6,
                     background: isUser ? 'linear-gradient(135deg, #8b5cf6, #6366f1)' : 'rgba(255, 255, 255, 0.05)',
@@ -134,7 +130,7 @@ export default function ChatBox({
                 </div>
 
                 {isUser && (
-                  <div style={{
+                  <div className="msg-avatar-icon" style={{
                     width: '30px',
                     height: '30px',
                     borderRadius: '50%',
@@ -160,7 +156,8 @@ export default function ChatBox({
             fontStyle: 'italic',
             display: 'flex',
             alignItems: 'center',
-            gap: '6px'
+            gap: '6px',
+            padding: '4px 8px'
           }}>
             <Sparkles size={14} className="animate-spin" />
             <span>{statusText}</span>
@@ -170,21 +167,25 @@ export default function ChatBox({
       </div>
 
       {/* Input Form Box */}
-      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+      <div className="chat-input-bar-container" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
         <button
           type="button"
           onClick={toggleListening}
+          className="chat-mic-btn"
           style={{
             background: isListening ? 'rgba(239, 68, 68, 0.25)' : 'rgba(255, 255, 255, 0.06)',
             border: `1px solid ${isListening ? 'rgba(239, 68, 68, 0.5)' : 'rgba(255, 255, 255, 0.12)'}`,
             color: isListening ? '#f87171' : '#94a3b8',
             borderRadius: '10px',
             padding: '10px',
+            minWidth: '40px',
+            minHeight: '40px',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            transition: 'all 0.2s'
+            transition: 'all 0.2s',
+            flexShrink: 0
           }}
           title={isListening ? '음성 인식 중지' : '음성 인식 시작'}
         >
@@ -198,6 +199,7 @@ export default function ChatBox({
           onKeyDown={handleKeyDown}
           placeholder="메시지를 입력하거나 마이크 버튼을 눌러 말씀하세요..."
           disabled={loading}
+          className="chat-text-input"
           style={{
             flex: '1',
             background: 'rgba(255, 255, 255, 0.05)',
@@ -205,7 +207,7 @@ export default function ChatBox({
             borderRadius: '10px',
             padding: '10px 14px',
             color: '#fff',
-            fontSize: '13px',
+            fontSize: '14px',
             outline: 'none'
           }}
         />
@@ -214,19 +216,22 @@ export default function ChatBox({
           type="button"
           onClick={onSendMessage}
           disabled={loading || !inputPrompt.trim()}
+          className="chat-send-btn"
           style={{
             background: 'linear-gradient(135deg, #8b5cf6, #6366f1)',
             border: 'none',
             color: '#fff',
             borderRadius: '10px',
             padding: '10px 16px',
+            minHeight: '40px',
             cursor: (loading || !inputPrompt.trim()) ? 'not-allowed' : 'pointer',
             opacity: (loading || !inputPrompt.trim()) ? 0.6 : 1,
             display: 'flex',
             alignItems: 'center',
             gap: '6px',
             fontWeight: 700,
-            fontSize: '13px'
+            fontSize: '13px',
+            flexShrink: 0
           }}
         >
           {loading ? <RefreshCw size={16} className="animate-spin" /> : <Send size={16} />}

@@ -4721,6 +4721,150 @@ h1, h2, h3, h4, h5, h6 {
   opacity: 0.9;
 }
 
+/* ==========================================================================
+   Agent AI & Mobile Responsive Chat Styles
+   ========================================================================== */
+.agent-container-box {
+  padding: 24px 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.chat-messages-container {
+  min-height: 420px;
+  max-height: 560px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-right: 6px;
+  margin-bottom: 16px;
+}
+
+/* Mobile Specific Optimizations for Agent Chat */
+@media (max-width: 768px) {
+  .mobile-hidden {
+    display: none !important;
+  }
+
+  .app-container {
+    padding: 0 !important;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .app-top-header {
+    height: 52px;
+    padding: 0 12px;
+    flex-shrink: 0;
+  }
+
+  .main-content-view {
+    padding: 4px 6px !important;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    height: calc(100dvh - 52px);
+    overflow: hidden;
+  }
+
+  .agent-container-box {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+    height: 100% !important;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .agent-active-box-view {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    height: 100%;
+  }
+
+  .agent-chat-view-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    height: 100%;
+  }
+
+  .chat-box-card {
+    height: 100% !important;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0 !important;
+    border-radius: 12px !important;
+    margin: 0 !important;
+  }
+
+  .chat-box-card .custom-box-header {
+    padding: 8px 12px !important;
+    flex-shrink: 0;
+  }
+
+  .chat-box-card .custom-box-body {
+    padding: 8px 10px !important;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .chat-box-card .chat-messages-container {
+    flex: 1 !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    margin-bottom: 8px !important;
+    overflow-y: auto !important;
+    padding-right: 2px !important;
+    gap: 10px !important;
+  }
+
+  .chat-box-card .chat-box-footer {
+    display: none !important;
+  }
+
+  .chat-box-card .chat-msg-bubble {
+    max-width: 90% !important;
+    font-size: 13.5px !important;
+    padding: 8px 12px !important;
+  }
+
+  .chat-input-bar-container {
+    padding-top: 4px;
+    flex-shrink: 0;
+  }
+
+  .chat-text-input {
+    font-size: 15px !important;
+    padding: 9px 12px !important;
+  }
+
+  .chat-mic-btn {
+    min-width: 38px !important;
+    min-height: 38px !important;
+    padding: 8px !important;
+  }
+
+  .chat-send-btn {
+    min-height: 38px !important;
+    padding: 8px 14px !important;
+  }
+}
+
+
 
 
 

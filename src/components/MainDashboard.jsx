@@ -165,10 +165,10 @@ export default function MainDashboard({ onNavigate }) {
 
               <div style={{ background: 'rgba(255, 255, 255, 0.04)', padding: '10px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, color: '#38bdf8' }}>
-                  <Cpu size={14} color="#38bdf8" />
-                  <span>Call API Box</span>
+                  <Settings size={14} color="#38bdf8" />
+                  <span>Setting Box</span>
                 </div>
-                <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>스킬/프롬프트 직접 호출</div>
+                <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>TTS 음성 & LLM 설정</div>
               </div>
 
               <div style={{ background: 'rgba(255, 255, 255, 0.04)', padding: '10px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.06)' }}>

@@ -36,7 +36,7 @@ export default function AdminRoleControlBox() {
         >
           <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '11px', color: '#cbd5e1', lineHeight: 1.6 }}>
             <li>실시간 AI 음성/텍스트 대화 (Chat Box)</li>
-            <li>스킬 실행 및 샌드박스 테스트 (Call API Box)</li>
+            <li>스킬 샌드박스 테스트 및 실행 (Skill Workshop Box)</li>
             <li>빗썸 실시간 시세 조회 및 모의 주문 집행</li>
             <li>넥슨 경매장 실시간 시세 및 아카이브 데이터 검색</li>
           </ul>

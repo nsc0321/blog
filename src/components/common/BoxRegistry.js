@@ -20,14 +20,6 @@ export const BOX_REGISTRY = [
     minRole: 'user'
   },
   {
-    id: 'agent_call_api',
-    name: 'Call Agent API Box (스킬 실행)',
-    category: BOX_CATEGORIES.AGENT,
-    icon: Cpu,
-    description: '등록된 커스텀 스킬 및 시스템 백엔드 API 직접 호출 & 디버깅 콘솔',
-    minRole: 'user'
-  },
-  {
     id: 'agent_task',
     name: 'Task Box (태스크 모니터)',
     category: BOX_CATEGORIES.SYSTEM,

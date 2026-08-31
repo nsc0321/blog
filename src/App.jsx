@@ -40,6 +40,11 @@ const getPageFromPath = () => {
     return 'mabinogi';
   }
 
+  // 모바일 접속 시 기본으로 채팅(Agent AI) 화면이 나오도록 설정
+  if (typeof window !== 'undefined' && window.innerWidth <= 768) {
+    return 'agent';
+  }
+
   // 기본 접속 -> 메인 대시보드
   return 'dashboard';
 };

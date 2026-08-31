@@ -1,8 +1,7 @@
-﻿import React from 'react';
+import React from 'react';
 import { BOX_REGISTRY, getBoxMetadata } from './BoxRegistry';
 import BoxGuard from './BoxGuard';
 import ChatBox from '../agent/ChatBox';
-import CallAgentApiBox from '../agent/CallAgentApiBox';
 import TaskBox from '../agent/boxes/TaskBox';
 import LogBox from '../agent/boxes/LogBox';
 import SkillEditBox from '../agent/boxes/SkillEditBox';
@@ -25,7 +24,6 @@ import MabiBatchControlBox from '../mabinogi/boxes/MabiBatchControlBox';
 const COMPONENT_MAP = {
   // Agent
   agent_chat: ChatBox,
-  agent_call_api: CallAgentApiBox,
   agent_task: TaskBox,
   agent_log: LogBox,
   agent_skill_edit: SkillEditBox,
