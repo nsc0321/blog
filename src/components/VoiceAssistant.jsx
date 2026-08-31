@@ -14,9 +14,30 @@ export default function VoiceAssistant() {
   const [activeTab, setActiveTab] = useState('chat'); // 'chat' | 'skills' | 'accounts' | 'history' | 'settings'
   
   // Chat State
-  const [messages, setMessages] = useState([
-    { sender: 'assistant', text: '안녕하세요! OctoHub Agent AI입니다. 대화형 AI 어시스턴트 및 커스텀 스킬 엔진을 사용하실 수 있습니다.' }
-  ]);
+  const [messages, setMessages] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = sessionStorage.getItem('agent_chat_messages');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch (e) {}
+    }
+    return [
+      { sender: 'assistant', text: '안녕하세요! OctoHub Agent AI입니다. 대화형 AI 어시스턴트 및 커스텀 스킬 엔진을 사용하실 수 있습니다.' }
+    ];
+  });
+
+  // Save session messages to sessionStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.setItem('agent_chat_messages', JSON.stringify(messages));
+      } catch (e) {}
+    }
+  }, [messages]);
+
   const [inputPrompt, setInputPrompt] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
   const [chatStatusText, setChatStatusText] = useState('');
@@ -170,6 +191,15 @@ export default function VoiceAssistant() {
     const userText = inputPrompt.trim();
     setInputPrompt('');
     
+    // Extract conversational history payload from previous turns
+    const historyPayload = messages
+      .filter(m => m.text && m.text.trim())
+      .slice(-15) // Keep last 15 turns for optimal context memory
+      .map(m => ({
+        role: m.sender === 'user' ? 'user' : 'assistant',
+        content: m.text
+      }));
+
     // Add user message and empty placeholder for streaming assistant message
     setMessages(prev => [
       ...prev, 
@@ -198,7 +228,8 @@ export default function VoiceAssistant() {
         body: JSON.stringify({ 
           message: userText, 
           model: activeModel,
-          image: imageAttachment?.dataUrl || null
+          image: imageAttachment?.dataUrl || null,
+          chat_history: historyPayload
         })
       });
 
@@ -209,7 +240,8 @@ export default function VoiceAssistant() {
           body: JSON.stringify({ 
             prompt: userText, 
             model: activeModel,
-            image: imageAttachment?.dataUrl || null
+            image: imageAttachment?.dataUrl || null,
+            chat_history: historyPayload
           })
         });
         const fallbackData = await fallbackResp.json();
@@ -362,6 +394,19 @@ export default function VoiceAssistant() {
     }
   };
 
+  // Clear chat / Start fresh session
+  const handleClearChat = () => {
+    const initial = [
+      { sender: 'assistant', text: '안녕하세요! 새로운 대화 세션이 시작되었습니다. 무엇이든 물어보세요.' }
+    ];
+    setMessages(initial);
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.setItem('agent_chat_messages', JSON.stringify(initial));
+      } catch (e) {}
+    }
+  };
+
   return (
     <div className="agent-container-box">
       
@@ -394,6 +439,7 @@ export default function VoiceAssistant() {
               inputPrompt={inputPrompt}
               setInputPrompt={setInputPrompt}
               onSendMessage={handleSendMessage}
+              onClearChat={handleClearChat}
               isListening={isListening}
               toggleListening={toggleListening}
               ttsEnabled={ttsEnabled}

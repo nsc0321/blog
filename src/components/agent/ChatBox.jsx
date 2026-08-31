@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { MessageSquare, Mic, MicOff, Send, Volume2, VolumeX, Bot, User, Sparkles, RefreshCw, Image as ImageIcon, X, Paperclip, ZoomIn, Download } from 'lucide-react';
+import { MessageSquare, Mic, MicOff, Send, Volume2, VolumeX, Bot, User, Sparkles, RefreshCw, Image as ImageIcon, X, Paperclip, ZoomIn, Download, RotateCcw } from 'lucide-react';
 import { Box } from '../common/Box';
 
 export default function ChatBox({
@@ -7,6 +7,7 @@ export default function ChatBox({
   inputPrompt = '',
   setInputPrompt,
   onSendMessage,
+  onClearChat,
   isListening = false,
   toggleListening,
   ttsEnabled = false,
@@ -122,6 +123,27 @@ export default function ChatBox({
       className="chat-box-card"
       actions={
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {onClearChat && (
+            <button
+              onClick={onClearChat}
+              style={{
+                background: 'rgba(255, 255, 255, 0.05)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                color: '#94a3b8',
+                padding: '6px 10px',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                fontSize: '12px'
+              }}
+              title="대화 초기화 (새 세션 시작)"
+            >
+              <RotateCcw size={14} />
+              <span>새 대화</span>
+            </button>
+          )}
           <button
             onClick={() => setTtsEnabled(!ttsEnabled)}
             style={{
