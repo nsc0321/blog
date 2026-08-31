@@ -84,7 +84,7 @@ export default function VoiceAssistant() {
       const resp = await fetch(`${API_BASE}/api/skills`, { headers: getHeaders() });
       if (resp.ok) {
         const data = await resp.json();
-        setSkills(data.skills || []);
+        setSkills(Array.isArray(data) ? data : (data.skills || []));
       }
     } catch (err) {
       console.log('Fetch skills note:', err);
@@ -100,7 +100,7 @@ export default function VoiceAssistant() {
       const resp = await fetch(`${API_BASE}/api/credentials`, { headers: getHeaders() });
       if (resp.ok) {
         const data = await resp.json();
-        setCredentials(data.credentials || []);
+        setCredentials(Array.isArray(data) ? data : (data.credentials || []));
       }
     } catch (err) {
       console.log('Fetch credentials note:', err);

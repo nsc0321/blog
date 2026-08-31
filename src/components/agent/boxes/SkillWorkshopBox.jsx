@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Wrench, Plus, Search, Layers, RefreshCw } from 'lucide-react';
 import { Box, SubBoxCard } from '../../common/Box';
 import SkillEditBox from './SkillEditBox';
@@ -14,8 +14,18 @@ export default function SkillWorkshopBox({
   const [selectedSkill, setSelectedSkill] = useState(skills[0] || null);
   const [search, setSearch] = useState('');
 
+  useEffect(() => {
+    if (!selectedSkill && skills.length > 0) {
+      setSelectedSkill(skills[0]);
+    } else if (selectedSkill && skills.length > 0) {
+      // Keep selectedSkill synced with updated skill data
+      const updated = skills.find(s => (s.id && s.id === selectedSkill.id) || s.name === selectedSkill.name);
+      if (updated) setSelectedSkill(updated);
+    }
+  }, [skills]);
+
   const filteredSkills = skills.filter(s =>
-    s.name.toLowerCase().includes(search.toLowerCase()) ||
+    (s.name && s.name.toLowerCase().includes(search.toLowerCase())) ||
     (s.description && s.description.toLowerCase().includes(search.toLowerCase()))
   );
 
@@ -79,10 +89,10 @@ export default function SkillWorkshopBox({
             gap: '8px'
           }}>
             {filteredSkills.map(s => {
-              const isSelected = selectedSkill?.id === s.id;
+              const isSelected = selectedSkill && ((selectedSkill.id && selectedSkill.id === s.id) || selectedSkill.name === s.name);
               return (
                 <div
-                  key={s.id}
+                  key={s.id || s.name}
                   onClick={() => setSelectedSkill(s)}
                   style={{
                     padding: '10px 12px',

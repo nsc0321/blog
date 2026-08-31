@@ -68,10 +68,15 @@ export default function AccountListBox({
               >
                 <div>
                   <div style={{ fontSize: '13px', fontWeight: 700, color: '#f8fafc' }}>
-                    {c.service_name}
+                    {c.site_name || c.service_name || '이름 없음'}
                   </div>
                   <div style={{ fontSize: '11px', color: '#94a3b8', fontFamily: 'monospace', marginTop: '2px' }}>
-                    {isVisible ? c.api_key : `${c.api_key.substring(0, 4)}••••••••••••${c.api_key.substring(c.api_key.length - 4)}`}
+                    {(() => {
+                      const val = String(c.secret_key || c.api_key || '');
+                      if (!val) return '(비밀키 없음)';
+                      if (isVisible) return val;
+                      return val.length > 8 ? `${val.substring(0, 4)}••••••••••••${val.substring(val.length - 4)}` : '••••••••';
+                    })()}
                   </div>
                 </div>
 
