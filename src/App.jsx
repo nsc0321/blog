@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, Bot, Database, TrendingUp, Sparkles, Menu, X, Server, Wifi, WifiOff, Settings, CheckCircle2, AlertCircle, RefreshCw, Globe, ExternalLink, Users, LogOut, User, ShieldCheck } from 'lucide-react';
+import { LayoutDashboard, Bot, Database, TrendingUp, Sparkles, Menu, X, Server, Wifi, WifiOff, Settings, CheckCircle2, AlertCircle, RefreshCw, Globe, ExternalLink, Users, LogOut, User, ShieldCheck, Code } from 'lucide-react';
 import MainDashboard from './components/MainDashboard';
 import VoiceAssistant from './components/VoiceAssistant';
 import MabinogiArchive from './components/MabinogiArchive';
 import AutoTradingDashboard from './components/AutoTradingDashboard';
 import AdminManagement from './components/AdminManagement';
 import AuthScreen from './components/AuthScreen';
+import CodeServer from './components/CodeServer';
 import { getApiBase, setCustomApiBase, getCustomApiBase, testApiConnection, DEFAULT_FALLBACK_API } from './config';
 
 const getPageFromPath = () => {
@@ -19,6 +20,7 @@ const getPageFromPath = () => {
     const pParam = searchParams.get('page') || searchParams.get('tab');
     if (pParam) {
       const lowerP = pParam.toLowerCase();
+      if (lowerP.includes('code') || lowerP.includes('studio') || lowerP.includes('builder')) return 'codeserver';
       if (lowerP.includes('admin') || lowerP.includes('user')) return 'admin';
       if (lowerP.includes('trading')) return 'trading';
       if (lowerP.includes('agent') || lowerP.includes('agnet')) return 'agent';
@@ -27,6 +29,9 @@ const getPageFromPath = () => {
   } catch (e) {}
 
   // 2. Paths
+  if (path.includes('code') || hash.includes('code')) {
+    return 'codeserver';
+  }
   if (path.includes('admin') || hash.includes('admin')) {
     return 'admin';
   }
@@ -236,6 +241,8 @@ export default function App() {
       targetPath = `${basePrefix}/trading`;
     } else if (page === 'agent') {
       targetPath = `${basePrefix}/agent`;
+    } else if (page === 'codeserver') {
+      targetPath = `${basePrefix}/codeserver`;
     } else if (page === 'mabinogi') {
       targetPath = `${basePrefix}/mabinogi`;
     } else if (page === 'admin') {
@@ -307,6 +314,13 @@ export default function App() {
             >
               <Bot size={18} />
               <span>Agent AI</span>
+            </button>
+            <button
+              className={`nav-link ${activePage === 'codeserver' ? 'active' : ''}`}
+              onClick={() => handleNavigate('codeserver')}
+            >
+              <Code size={18} />
+              <span>Code Server</span>
             </button>
             <button
               className={`nav-link ${activePage === 'mabinogi' ? 'active' : ''}`}
@@ -398,6 +412,7 @@ export default function App() {
               {activePage === 'dashboard' && <MainDashboard onNavigate={(page) => handleNavigate(page)} />}
               {activePage === 'trading' && <AutoTradingDashboard />}
               {activePage === 'agent' && <VoiceAssistant />}
+              {activePage === 'codeserver' && <CodeServer />}
               {activePage === 'mabinogi' && <MabinogiArchive />}
               {activePage === 'admin' && <AdminManagement onNavigate={(page) => handleNavigate(page)} />}
             </>
