@@ -246,63 +246,7 @@ export default function MainDashboard({ onNavigate }) {
           </Box>
         </div>
 
-        {/* 3. Code Server Link Box */}
-        <div
-          onClick={() => onNavigate('codeserver')}
-          style={{ cursor: 'pointer', transition: 'transform 0.2s' }}
-          className="link-box-wrapper"
-        >
-          <Box
-            title="Code Server Link Box"
-            subtitle="LLM 연동 AI 코드 생성/수정, 실시간 프리뷰, 원클릭 빌드 & 번들 ZIP 다운로드"
-            icon={Code}
-            badge="AI Studio"
-            badgeType="purple"
-            actions={
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                color: '#38bdf8',
-                fontWeight: 700,
-                fontSize: '13px',
-                background: 'rgba(56, 189, 248, 0.15)',
-                padding: '6px 12px',
-                borderRadius: '8px',
-                border: '1px solid rgba(56, 189, 248, 0.3)'
-              }}>
-                <span>Code Server로 이동</span>
-                <ArrowRight size={14} />
-              </div>
-            }
-            footer={
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
-                <span style={{ color: '#94a3b8' }}>포함된 하위 기능: AI Copilot + Code Editor + Live Preview + Build & ZIP Download</span>
-                <span style={{ color: '#38bdf8', fontWeight: 700 }}>클릭하여 열기 &rarr;</span>
-              </div>
-            }
-          >
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-              <div style={{ background: 'rgba(255, 255, 255, 0.04)', padding: '10px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, color: '#f8fafc' }}>
-                  <Sparkles size={14} color="#fbbf24" />
-                  <span>AI Copilot & Generator</span>
-                </div>
-                <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>프롬프트 기반 다중 파일 생성</div>
-              </div>
-
-              <div style={{ background: 'rgba(255, 255, 255, 0.04)', padding: '10px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, color: '#38bdf8' }}>
-                  <Layers size={14} color="#38bdf8" />
-                  <span>Build & ZIP Packager</span>
-                </div>
-                <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>원클릭 빌드 및 배포 ZIP 다운로드</div>
-              </div>
-            </div>
-          </Box>
-        </div>
-
-        {/* 4. Mabinogi Link Box */}
+        {/* 3. Mabinogi Link Box */}
         <div
           onClick={() => onNavigate('mabinogi')}
           style={{ cursor: 'pointer', transition: 'transform 0.2s' }}
