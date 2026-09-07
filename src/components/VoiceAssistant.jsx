@@ -100,7 +100,8 @@ export default function VoiceAssistant() {
       const resp = await fetch(`${API_BASE}/api/credentials`, { headers: getHeaders() });
       if (resp.ok) {
         const data = await resp.json();
-        setCredentials(data.credentials || []);
+        const list = Array.isArray(data) ? data : (data.credentials || []);
+        setCredentials(list);
       }
     } catch (err) {
       console.log('Fetch credentials note:', err);
@@ -114,6 +115,14 @@ export default function VoiceAssistant() {
     fetchCredentials();
     fetchStatus();
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'accounts') {
+      fetchCredentials();
+    } else if (activeTab === 'skills') {
+      fetchSkills();
+    }
+  }, [activeTab]);
 
   // Web Speech STT setup
   useEffect(() => {
@@ -246,16 +255,29 @@ export default function VoiceAssistant() {
   // Add credential
   const handleAddCredential = async (credData) => {
     try {
+      const payload = {
+        site_name: credData.site_name || credData.service_name || '',
+        secret_key: credData.secret_key || credData.api_key || '',
+        domain: credData.domain || '',
+        username: credData.username || '',
+        description: credData.description || ''
+      };
       const resp = await fetch(`${API_BASE}/api/credentials`, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify(credData)
+        body: JSON.stringify(payload)
       });
+      const data = await resp.json().catch(() => ({}));
       if (resp.ok) {
-        fetchCredentials();
+        await fetchCredentials();
+        return { ok: true, data };
+      } else {
+        const errorMsg = data.detail || data.message || '자격증명 등록에 실패했습니다.';
+        return { ok: false, error: errorMsg };
       }
     } catch (err) {
       console.error(err);
+      return { ok: false, error: err.message || '서버 통신 실패' };
     }
   };
 

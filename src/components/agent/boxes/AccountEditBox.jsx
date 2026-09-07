@@ -8,19 +8,44 @@ export default function AccountEditBox({ onAddCredential, loading = false }) {
   const [apiKey, setApiKey] = useState('');
   const [feedback, setFeedback] = useState(null);
 
-  const handleSubmit = (e) => {
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!serviceName || !apiKey) {
+    const trimmedName = serviceName.trim();
+    const trimmedKey = apiKey.trim();
+    if (!trimmedName || !trimmedKey) {
       setFeedback({ ok: false, message: '서비스명과 API Key를 모두 입력해 주세요.' });
       return;
     }
-    if (onAddCredential) {
-      onAddCredential({ service_name: serviceName, api_key: apiKey });
+
+    setSubmitting(true);
+    setFeedback(null);
+
+    try {
+      if (onAddCredential) {
+        const res = await onAddCredential({
+          site_name: trimmedName,
+          service_name: trimmedName,
+          secret_key: trimmedKey,
+          api_key: trimmedKey
+        });
+
+        if (res && res.ok === false) {
+          setFeedback({ ok: false, message: res.error || '자격증명 등록에 실패했습니다.' });
+          setSubmitting(false);
+          return;
+        }
+      }
+      setServiceName('');
+      setApiKey('');
+      setFeedback({ ok: true, message: '새 자격증명이 안전하게 저장되었습니다.' });
+      setTimeout(() => setFeedback(null), 3000);
+    } catch (err) {
+      setFeedback({ ok: false, message: err.message || '등록 중 오류가 발생했습니다.' });
+    } finally {
+      setSubmitting(false);
     }
-    setServiceName('');
-    setApiKey('');
-    setFeedback({ ok: true, message: '새 자격증명이 안전하게 저장되었습니다.' });
-    setTimeout(() => setFeedback(null), 3000);
   };
 
   return (
@@ -81,7 +106,7 @@ export default function AccountEditBox({ onAddCredential, loading = false }) {
 
         <button
           type="submit"
-          disabled={loading || !serviceName || !apiKey}
+          disabled={loading || submitting || !serviceName.trim() || !apiKey.trim()}
           style={{
             background: 'linear-gradient(135deg, #8b5cf6, #3b82f6)',
             border: 'none',
@@ -90,16 +115,17 @@ export default function AccountEditBox({ onAddCredential, loading = false }) {
             borderRadius: '8px',
             fontSize: '12px',
             fontWeight: 700,
-            cursor: (loading || !serviceName || !apiKey) ? 'not-allowed' : 'pointer',
+            cursor: (loading || submitting || !serviceName.trim() || !apiKey.trim()) ? 'not-allowed' : 'pointer',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             gap: '6px',
-            marginTop: '4px'
+            marginTop: '4px',
+            opacity: (loading || submitting) ? 0.7 : 1
           }}
         >
           <Save size={13} />
-          <span>자격증명 등록</span>
+          <span>{submitting ? '등록 중...' : '자격증명 등록'}</span>
         </button>
       </form>
 
